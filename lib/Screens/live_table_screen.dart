@@ -136,6 +136,7 @@ class _LiveTableScreenState extends State<LiveTableScreen> {
         Map<String, dynamic> standing, int place, double height) {
       String name;
       String points;
+      String wins;
       Color color = Colors.black;
 
       if (isDriverStandings) {
@@ -144,6 +145,7 @@ class _LiveTableScreenState extends State<LiveTableScreen> {
         final teamId = constructor['constructorId'];
         name = '${driver['givenName']} ${driver['familyName']}';
         points = standing['points'];
+        wins = standing['wins'] ?? 'N/A';
         color = _teamColors[teamId] ?? Colors.black;
       } else {
         name = standing['name'];
@@ -181,6 +183,10 @@ class _LiveTableScreenState extends State<LiveTableScreen> {
                 ),
                 Text(
                   'Points: $points',
+                  textAlign: TextAlign.center,
+                ),
+                Text(
+                  'Wins: ${standing['wins'] ?? 'N/A'}',
                   textAlign: TextAlign.center,
                 ),
               ],
