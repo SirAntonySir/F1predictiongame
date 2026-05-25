@@ -42,35 +42,8 @@ int _scoreOrdered(List<String> picks, List<SessionResult> result, int topN) {
 int scoreQualifying(List<String> picks, List<SessionResult> result) =>
     _scoreOrdered(picks, result, 2);
 
-int scoreRace(List<String> picks, List<SessionResult> result) {
-  var exactCount = 0;
-  var inTopNCount = 0;
-
-  for (var i = 0; i < picks.length; i++) {
-    final slot = i + 1;
-    switch (outcomeFor(picks[i], slot, result, 5)) {
-      case PickOutcome.exact:
-        exactCount++;
-      case PickOutcome.inTopN:
-        inTopNCount++;
-      case PickOutcome.miss:
-        // no-op
-    }
-  }
-
-  // If all 5 are exact
-  if (exactCount == 5) {
-    return 40;
-  }
-
-  // If some are exact (but not all)
-  if (exactCount > 0) {
-    return 20;
-  }
-
-  // If no exact, use normal scoring
-  return inTopNCount * 4;
-}
+int scoreRace(List<String> picks, List<SessionResult> result) =>
+    _scoreOrdered(picks, result, 5);
 
 int scoreSprintQualifying(List<String> picks, List<SessionResult> result) =>
     _scoreOrdered(picks, result, 1);

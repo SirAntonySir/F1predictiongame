@@ -26,11 +26,12 @@ void main() {
     });
 
     test('right drivers wrong slots = 5 × NEAR = 20', () {
-      expect(scoreRace(['RUS', 'TSU', 'LEC', 'PIA', 'NOR'], result), 20);
+      // Rotate by 1: every pick is in top-5 but at the wrong slot
+      expect(scoreRace(['RUS', 'NOR', 'PIA', 'LEC', 'TSU'], result), 20);
     });
 
     test('mixed: 2 exact + 1 near + 2 miss = 8+8+4+0+0 = 20', () {
-      expect(scoreRace(['NOR', 'LEC', 'PIA', 'XXX', 'YYY'], result), 20);
+      expect(scoreRace(['NOR', 'PIA', 'RUS', 'XXX', 'YYY'], result), 20);
     });
 
     test('all miss = 0', () {
