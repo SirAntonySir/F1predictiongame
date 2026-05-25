@@ -102,11 +102,22 @@ Authenticated endpoints require `Authorization: Bearer <token>` where `<token>` 
 | GET  | `/api/leagues/:id/leaderboard` | League leaderboard, sums of `score.points_total` (bearer + member) |
 | GET  | `/api/leagues/:id/leaderboard/sessions` | Per-session per-member breakdown (bearer + member) |
 | GET  | `/api/users/me/scores` | Caller's score history (bearer) |
+| GET  | `/api/preseason/my` | Caller's full questionnaire state (bearer) |
+| PUT  | `/api/preseason/:category` | Submit/replace single-pick category (bearer; 409 after lock) |
+| DELETE | `/api/preseason/:category` | Remove caller's pick (bearer; 409 after lock) |
+| PUT  | `/api/preseason/standings/drivers` | Full driver ordering (bearer; 409 after lock) |
+| PUT  | `/api/preseason/standings/constructors` | Full constructor ordering (bearer; 409 after lock) |
+| DELETE | `/api/preseason/standings/drivers` | Clear driver ordering (bearer; 409 after lock) |
+| DELETE | `/api/preseason/standings/constructors` | Clear constructor ordering (bearer; 409 after lock) |
+| GET  | `/api/seasons/:year/preseason-truth` | Observed + subjective truth + everyone's picks (bearer; only after lock) |
+| GET  | `/api/users/me/preseason-scores` | Caller's preseason scores for current season (bearer) |
 | POST | `/admin/bootstrap` | Re-fetch schedule + populate season (token-gated, idempotent) |
 | POST | `/admin/crawl` | Force an immediate tick (token-gated) |
 | POST | `/admin/refresh-images` | Re-attempt Wikipedia fetch for null image URLs (token-gated) |
 | POST | `/admin/rescore-session/:id` | Force rescore of one session (token-gated) |
 | POST | `/admin/rescore-season/:year` | Rescore every finished session in a season (token-gated) |
+| POST | `/admin/seasons/:year/subjective-truth` | Set 4 subjective picks; triggers rescore (token-gated) |
+| POST | `/admin/preseason-rescore/:year` | Force preseason rescore (token-gated) |
 
 Admin endpoints require `X-Admin-Token: <ADMIN_TOKEN>` header.
 
@@ -127,6 +138,28 @@ Per race weekend, four scorable session kinds:
 Picks lock at the session's scheduled start. The crawler auto-rescores after writing
 results, so FIA penalty updates flow through to scores automatically. Manual rescore
 is available via the `/admin/rescore-*` endpoints.
+
+## Pre-season scoring
+
+Each user submits a pre-season questionnaire that locks at the first session of round 1.
+Categories and points:
+
+| Category | Picks | Points | Max |
+|---|---|---|---|
+| Biggest surprise | 1 driver + 1 team | 4 each match | 8 |
+| Biggest disappointment | 1 driver + 1 team | 4 each match | 8 |
+| Most DNFs | 1 driver + 1 team | 4 each match | 8 |
+| Most poles | 1 driver + 1 team | 4 each match | 8 |
+| Most fastest laps | 1 driver + 1 team | 4 each match | 8 |
+| WDC + WCC | 1 driver + 1 team | 4 each match | 8 |
+| Complete championship | ~20 drivers + ~10 teams ordered | 3 per correct driver + 4 per correct team | 100 |
+
+Surprise + disappointment are subjective — admin sets them at season end via
+`POST /admin/seasons/:year/subjective-truth`. All other categories derive from
+the crawled F1 data (DNFs from `status`, poles from qualifying, FLs from
+`fastest_lap`, WDC/WCC + full standings from the standings tables).
+
+The crawler auto-rescores preseason after every standings refresh.
 
 ## Deploy
 
@@ -152,5 +185,4 @@ is available via the `/admin/rescore-*` endpoints.
 
 ## What's NOT in this sub-project
 
-Pre-season questionnaire, Flutter UI changes. Each gets its own sub-project in
-subsequent rebuild cycles.
+Flutter UI changes — handled in a parallel sub-project.
