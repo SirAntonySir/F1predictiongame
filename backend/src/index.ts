@@ -5,6 +5,7 @@ import { pingDb, _resetPoolForTests } from './db/client.js'
 import { sendError, ApiError } from './api/errors.js'
 import { registerPublicRoutes } from './api/routes/public.js'
 import { registerAdminRoutes } from './api/routes/admin.js'
+import { registerAuthRoutes } from './api/routes/auth.js'
 import { Scheduler } from './crawler/scheduler.js'
 
 export type BuildAppOpts = { scheduler: Scheduler | null }
@@ -16,21 +17,22 @@ export async function buildApp(opts: BuildAppOpts): Promise<FastifyInstance> {
 
   await app.register(cors, { origin: true })
 
-  await registerPublicRoutes(app)
-  await registerAdminRoutes(app, { scheduler: opts.scheduler })
-
-  app.get('/api/health', async (_req, reply) => {
-    const db = (await pingDb()) ? 'up' : 'down'
-    const sched = opts.scheduler?.status() ?? { lastTickAt: null, lastTickStatus: null }
-    reply.send({ ok: true, db, ...sched })
-  })
-
   app.setErrorHandler((err, _req, reply) => {
     sendError(reply, err)
   })
 
   app.setNotFoundHandler((_req, reply) => {
     sendError(reply, new ApiError('NOT_FOUND', 'Not found'))
+  })
+
+  await registerPublicRoutes(app)
+  await registerAdminRoutes(app, { scheduler: opts.scheduler })
+  await app.register(registerAuthRoutes)
+
+  app.get('/api/health', async (_req, reply) => {
+    const db = (await pingDb()) ? 'up' : 'down'
+    const sched = opts.scheduler?.status() ?? { lastTickAt: null, lastTickStatus: null }
+    reply.send({ ok: true, db, ...sched })
   })
 
   return app
