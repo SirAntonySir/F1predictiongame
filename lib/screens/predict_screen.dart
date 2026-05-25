@@ -63,9 +63,17 @@ class _PredictScreenState extends State<PredictScreen> {
   Future<void> _lock() async {
     final scope = AppState.of(context);
     final session = (await _data!).session;
-    await scope.predictions.save(userId: scope.auth.currentUserId!, sessionId: session.id, picks: _picks);
-    await scope.predictions.lock(userId: scope.auth.currentUserId!, sessionId: session.id);
+    final userId = scope.auth.currentUserId!;
+    if (scope.predictions.isLocked(userId: userId, sessionId: session.id)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Pick already locked')));
+      }
+      return;
+    }
+    await scope.predictions.save(userId: userId, sessionId: session.id, picks: _picks);
+    await scope.predictions.lock(userId: userId, sessionId: session.id);
     if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Pick locked')));
+    setState(() {});
   }
 
   @override
@@ -85,6 +93,10 @@ class _PredictScreenState extends State<PredictScreen> {
             final d = snap.data!;
             _currentType = d.session.type;
             final req = requiredPicks(d.session.type);
+            final scope = AppState.of(context);
+            final locked = scope.auth.currentUserId != null &&
+                scope.predictions.isLocked(
+                    userId: scope.auth.currentUserId!, sessionId: d.session.id);
             return ListView(
               padding: const EdgeInsets.only(bottom: Spacing.xxl + Spacing.xxl),
               children: [
@@ -118,7 +130,9 @@ class _PredictScreenState extends State<PredictScreen> {
                           driverName: r?.driverName,
                           number: null,
                           constructorId: r?.constructorId,
-                          onClear: filled ? () => setState(() => _picks.removeAt(i)) : null,
+                          onClear: filled && !locked
+                              ? () => setState(() => _picks.removeAt(i))
+                              : null,
                         ),
                       );
                     }),
@@ -143,7 +157,7 @@ class _PredictScreenState extends State<PredictScreen> {
                         code: r.driverCode,
                         constructorId: r.constructorId,
                         pickedSlot: slot == -1 ? null : slot + 1,
-                        onTap: () => _toggleDriver(r.driverCode),
+                        onTap: locked ? null : () => _toggleDriver(r.driverCode),
                       );
                     }).toList(),
                   ),
@@ -154,14 +168,17 @@ class _PredictScreenState extends State<PredictScreen> {
                   child: SizedBox(
                     width: double.infinity,
                     child: FilledButton(
-                      onPressed: _picks.length == req ? _lock : null,
+                      onPressed: locked ? null : (_picks.length == req ? _lock : null),
                       style: FilledButton.styleFrom(
-                        backgroundColor: BrandColors.accent,
+                        backgroundColor: locked ? Colors.black : BrandColors.accent,
+                        disabledBackgroundColor: locked ? Colors.black : null,
+                        disabledForegroundColor: locked ? Colors.white : null,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: Spacing.md),
                         shape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
                       ),
-                      child: Text('LOCK PICK', style: AppText.label(13, color: Colors.white)),
+                      child: Text(locked ? 'LOCKED' : 'LOCK PICK',
+                          style: AppText.label(13, color: Colors.white)),
                     ),
                   ),
                 ),
