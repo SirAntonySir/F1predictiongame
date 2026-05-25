@@ -65,6 +65,8 @@ Boundary rules:
 
 ## API
 
+Authenticated endpoints require `Authorization: Bearer <token>` where `<token>` comes from `/api/auth/signup` or `/api/auth/login`. Sessions slide a 90-day expiry on every request.
+
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/api/health` | DB up/down + last tick info |
@@ -78,6 +80,20 @@ Boundary rules:
 | GET | `/api/standings/constructors` | Current constructor standings, with constructor image |
 | GET | `/api/drivers/:code` | Driver lookup (image included) |
 | GET | `/api/constructors/:id` | Constructor lookup (image included) |
+| POST | `/api/auth/signup` | Create account, returns `{ user, token }` |
+| POST | `/api/auth/login` | Login, returns `{ user, token }` |
+| POST | `/api/auth/logout` | Revoke caller's session (bearer) |
+| GET  | `/api/auth/me` | Current user + caller's leagues (bearer) |
+| PATCH | `/api/auth/me` | Update display name (bearer) |
+| POST | `/api/leagues` | Create caller's league (bearer, 1-per-user) |
+| GET  | `/api/leagues/mine` | List leagues caller belongs to (bearer) |
+| GET  | `/api/leagues/:id` | League + members; `joinCode` visible to owner only (bearer + member) |
+| PATCH | `/api/leagues/:id` | Rename (bearer + owner) |
+| POST | `/api/leagues/:id/regenerate-code` | New join code (bearer + owner) |
+| DELETE | `/api/leagues/:id` | Delete league (bearer + owner) |
+| POST | `/api/leagues/join` | Join via `{ joinCode }` (bearer) |
+| DELETE | `/api/leagues/:id/members/me` | Leave league (bearer + member, not owner) |
+| DELETE | `/api/leagues/:id/members/:userId` | Kick member (bearer + owner) |
 | POST | `/admin/bootstrap` | Re-fetch schedule + populate season (token-gated, idempotent) |
 | POST | `/admin/crawl` | Force an immediate tick (token-gated) |
 | POST | `/admin/refresh-images` | Re-attempt Wikipedia fetch for null image URLs (token-gated) |
@@ -111,5 +127,5 @@ Both backing fields can be null — clients must degrade gracefully.
 
 ## What's NOT in this sub-project
 
-User accounts, auth, predictions, scoring engine, the pre-season questionnaire,
-Flutter UI changes. Each gets its own sub-project in subsequent rebuild cycles.
+Predictions, scoring engine, the pre-season questionnaire, Flutter UI changes.
+Each gets its own sub-project in subsequent rebuild cycles.
