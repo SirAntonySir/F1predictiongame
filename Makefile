@@ -16,7 +16,8 @@ SHELL := /bin/zsh
 
 # ---- config ----------------------------------------------------------------
 
-DEVICE      ?= 76ADD67A-99F4-4B62-A103-D4B51A0F0C82   # iPhone 17 Pro simulator
+# iPhone 17 Pro simulator (override with: make app DEVICE=chrome)
+DEVICE      ?= 76ADD67A-99F4-4B62-A103-D4B51A0F0C82
 API_URL     ?= http://localhost:3000
 ADMIN_TOKEN ?= local-dev-token
 BACKEND     := backend
