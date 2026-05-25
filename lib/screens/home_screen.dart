@@ -70,7 +70,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 _section('Your pick', onTap: () => context.go('/predict')),
                 _pickCard(d, scope, t),
                 _section('Last race · ${d.lastEvent.name}', onTap: () =>
-                    context.go('/race/${d.lastEvent.round}/${d.lastEvent.sessions.firstWhere((s) => s.type == SessionType.race).id}')),
+                    context.push('/race/${d.lastEvent.round}/${d.lastEvent.sessions.firstWhere((s) => s.type == SessionType.race).id}')),
                 _lastCard(d, t),
                 _section('${scope.league.league.name} · Standings', onTap: () => context.go('/standings/league')),
                 _leagueCard(scope.league.league.players.map((p) => p.displayName).toList(), scope.auth.currentUserId, t),

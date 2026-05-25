@@ -87,7 +87,9 @@ class _SessionResultsScreenState extends State<SessionResultsScreen> {
                     child: Row(
                       children: [
                         IconButton(
-                          onPressed: () => context.pop(),
+                          onPressed: () => context.canPop()
+                              ? context.pop()
+                              : context.go('/calendar'),
                           icon: const Icon(Icons.arrow_back_ios_new, size: 16),
                         ),
                         Expanded(
