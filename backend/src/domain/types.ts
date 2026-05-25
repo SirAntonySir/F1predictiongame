@@ -75,3 +75,37 @@ export type ConstructorStanding = {
   points: number
   wins: number
 }
+
+export type User = {
+  id: string
+  email: string
+  displayName: string
+  createdAt: Date
+  updatedAt: Date
+}
+
+export type UserWithSecret = User & { passwordHash: string }
+
+export type AppSession = {
+  id: string
+  userId: string
+  tokenHash: Buffer
+  createdAt: Date
+  lastUsedAt: Date
+  expiresAt: Date
+  userAgent: string | null
+}
+
+export type League = {
+  id: string
+  ownerUserId: string
+  name: string
+  joinCode: string
+  createdAt: Date
+}
+
+export type LeagueMember = {
+  leagueId: string
+  userId: string
+  joinedAt: Date
+}
