@@ -53,3 +53,8 @@ export async function updateDisplayName(id: string, displayName: string): Promis
   if (!row) throw new Error('user not found: ' + id)
   return toUser(row)
 }
+
+export async function deleteById(id: string): Promise<void> {
+  const db = getDb()
+  await db.delete(user).where(eq(user.id, id))
+}
