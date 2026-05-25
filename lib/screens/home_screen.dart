@@ -11,6 +11,7 @@ import '../components/countdown.dart';
 import '../components/error_view.dart';
 import '../components/pod_tile.dart';
 import '../components/session_chip.dart';
+import '../domain/scoring.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
 import '../theme/colors.dart';
@@ -63,15 +64,16 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
     Event? lastEvent;
+    Session? lastRaceSession;
     List<SessionResult> lastResult = const [];
     if (finishedRace.sessions.isNotEmpty) {
       lastEvent = finishedRace;
-      final lastRace = finishedRace.sessions.firstWhere(
+      lastRaceSession = finishedRace.sessions.firstWhere(
         (s) => s.type == SessionType.race,
         orElse: () => finishedRace.sessions.first,
       );
       try {
-        lastResult = await api.sessionResults(lastRace.id);
+        lastResult = await api.sessionResults(lastRaceSession.id);
       } on NotFoundException {
         lastResult = const [];
       }
@@ -81,6 +83,7 @@ class _HomeScreenState extends State<HomeScreen> {
       next: next,
       nextEvent: nextEvent,
       lastEvent: lastEvent,
+      lastRaceSession: lastRaceSession,
       lastResult: lastResult,
     );
   }
@@ -150,16 +153,19 @@ class _HomeScreenState extends State<HomeScreen> {
                     );
                     context.push('/race/${d.lastEvent!.round}/${race.id}');
                   }),
-                  _lastCard(d, t),
+                  _lastCard(d, scope, t),
                 ],
                 _section('${scope.league.league.name} · Standings',
                     onTap: () => context.go('/standings/league')),
-                _leagueCard(
-                    scope.league.league.players
-                        .map((p) => p.displayName)
-                        .toList(),
-                    scope.auth.currentUserId,
-                    t),
+                InkWell(
+                  onTap: () => context.go('/standings/league'),
+                  child: _leagueCard(
+                      scope.league.league.players
+                          .map((p) => p.displayName)
+                          .toList(),
+                      scope.auth.currentUserId,
+                      t),
+                ),
                 const SizedBox(height: Spacing.xxl),
               ],
             );
@@ -360,7 +366,10 @@ class _HomeScreenState extends State<HomeScreen> {
     final empty = picks.isEmpty;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
-      child: AppCard(
+      child: InkWell(
+        onTap: () => context.go('/predict'),
+        borderRadius: const BorderRadius.all(Radius.circular(14)),
+        child: AppCard(
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           crossAxisAlignment: CrossAxisAlignment.center,
@@ -412,11 +421,36 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
       ),
+      ),
     );
   }
 
-  Widget _lastCard(_HomeData d, ThemeData t) => Padding(
-        padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
+  Widget _lastCard(_HomeData d, scope, ThemeData t) {
+    final lastSession = d.lastRaceSession;
+    final userId = scope.auth.currentUserId ?? '';
+    final picks = lastSession == null
+        ? const <String>[]
+        : scope.predictions.picksFor(userId: userId, sessionId: lastSession.id)
+            as List<String>;
+    int score = 0;
+    int exactHits = 0;
+    if (picks.isNotEmpty && d.lastResult.isNotEmpty) {
+      score = scoreRace(picks, d.lastResult);
+      for (var i = 0; i < picks.length; i++) {
+        if (outcomeFor(picks[i], i + 1, d.lastResult, 5) ==
+            PickOutcome.exact) {
+          exactHits++;
+        }
+      }
+    }
+    final route = lastSession == null || d.lastEvent == null
+        ? null
+        : '/race/${d.lastEvent!.round}/${lastSession.id}';
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
+      child: InkWell(
+        onTap: route == null ? null : () => context.push(route),
+        borderRadius: const BorderRadius.all(Radius.circular(14)),
         child: AppCard(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -424,7 +458,20 @@ class _HomeScreenState extends State<HomeScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('Top 3', style: AppText.label(11, color: t.colorScheme.onSurface.withOpacity(0.6))),
+                  Text('Top 3',
+                      style: AppText.label(11,
+                          color: t.colorScheme.onSurface.withOpacity(0.6))),
+                  if (picks.isNotEmpty)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 7, vertical: 3),
+                      decoration: const BoxDecoration(
+                        color: BrandColors.ok,
+                        borderRadius: BorderRadius.all(Radius.circular(6)),
+                      ),
+                      child: Text('+$score pts · $exactHits exact',
+                          style: AppText.label(9, color: Colors.black)),
+                    ),
                 ],
               ),
               const SizedBox(height: Spacing.sm),
@@ -433,14 +480,28 @@ class _HomeScreenState extends State<HomeScreen> {
                   Expanded(
                     child: Padding(
                       padding: const EdgeInsets.only(right: 6),
-                      child: PodTile(position: r.position, driverCode: r.driverCode, constructorId: r.constructorId),
+                      child: PodTile(
+                        position: r.position,
+                        driverCode: r.driverCode,
+                        constructorId: r.constructorId,
+                        mark: _markFor(picks, r),
+                      ),
                     ),
                   ),
               ]),
             ],
           ),
         ),
-      );
+      ),
+    );
+  }
+
+  PodMark _markFor(List<String> picks, SessionResult r) {
+    if (picks.isEmpty) return PodMark.none;
+    final slotIndex = r.position - 1;
+    if (slotIndex >= picks.length) return PodMark.none;
+    return picks[slotIndex] == r.driverCode ? PodMark.exact : PodMark.miss;
+  }
 
   Widget _leagueCard(List<String> names, String? meId, ThemeData t) => Padding(
         padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
@@ -473,12 +534,14 @@ class _HomeData {
   final Session? next;
   final Event? nextEvent;
   final Event? lastEvent;
+  final Session? lastRaceSession;
   final List<SessionResult> lastResult;
   _HomeData({
     required this.events,
     required this.next,
     required this.nextEvent,
     required this.lastEvent,
+    required this.lastRaceSession,
     required this.lastResult,
   });
 }

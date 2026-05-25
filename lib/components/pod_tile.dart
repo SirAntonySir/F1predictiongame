@@ -20,10 +20,12 @@ class PodTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final bg = teamColor(constructorId);
+    final fg = _readableOn(bg);
     return Container(
       padding: const EdgeInsets.fromLTRB(6, 10, 6, 8),
       decoration: BoxDecoration(
-        color: teamColor(constructorId),
+        color: bg,
         borderRadius: const BorderRadius.all(Radius.circular(10)),
       ),
       child: Stack(
@@ -32,9 +34,9 @@ class PodTile extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text('P$position', style: AppText.label(9, color: Colors.white)),
+                Text('P$position', style: AppText.label(9, color: fg)),
                 const SizedBox(height: 2),
-                Text(driverCode, style: AppText.display(13, color: Colors.white)),
+                Text(driverCode, style: AppText.display(13, color: fg)),
               ],
             ),
           ),
@@ -65,4 +67,7 @@ class PodTile extends StatelessWidget {
       ),
     );
   }
+
+  static Color _readableOn(Color bg) =>
+      bg.computeLuminance() > 0.55 ? Colors.black : Colors.white;
 }
