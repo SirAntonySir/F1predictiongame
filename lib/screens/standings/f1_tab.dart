@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import '../../api/models/standing.dart';
 import '../../components/app_card.dart';
+import '../../components/error_view.dart';
 import '../../state/app_state.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/team_colors.dart';
@@ -70,7 +71,17 @@ class _F1TabState extends State<F1Tab> {
           if (snap.connectionState != ConnectionState.done) {
             return const SizedBox.shrink();
           }
-          if (snap.hasError) return Center(child: Text('${snap.error}'));
+          if (snap.hasError) {
+            return ErrorView(
+              error: snap.error!,
+              stack: snap.stackTrace,
+              where: 'Standings · F1',
+              onRetry: () => setState(() {
+                _drivers = null;
+                _constructors = null;
+              }),
+            );
+          }
           final t = Theme.of(context);
           return ListView(
             padding: const EdgeInsets.symmetric(horizontal: Spacing.lg, vertical: Spacing.md),
@@ -126,7 +137,17 @@ class _F1TabState extends State<F1Tab> {
           if (snap.connectionState != ConnectionState.done) {
             return const SizedBox.shrink();
           }
-          if (snap.hasError) return Center(child: Text('${snap.error}'));
+          if (snap.hasError) {
+            return ErrorView(
+              error: snap.error!,
+              stack: snap.stackTrace,
+              where: 'Standings · F1',
+              onRetry: () => setState(() {
+                _drivers = null;
+                _constructors = null;
+              }),
+            );
+          }
           return ListView(
             padding: const EdgeInsets.symmetric(horizontal: Spacing.lg, vertical: Spacing.md),
             children: [

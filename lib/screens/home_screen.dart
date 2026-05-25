@@ -8,6 +8,7 @@ import '../api/models/session.dart';
 import '../api/models/session_result.dart';
 import '../components/app_card.dart';
 import '../components/countdown.dart';
+import '../components/error_view.dart';
 import '../components/pod_tile.dart';
 import '../components/session_chip.dart';
 import '../state/app_state.dart';
@@ -101,7 +102,15 @@ class _HomeScreenState extends State<HomeScreen> {
             if (snap.connectionState != ConnectionState.done) {
               return const Center(child: CircularProgressIndicator());
             }
-            if (snap.hasError) return Center(child: Text('${snap.error}'));
+            if (snap.hasError) {
+              return ErrorView(
+                error: snap.error!,
+                stack: snap.stackTrace,
+                where: 'Home',
+                onRetry: () =>
+                    setState(() => _data = _load(AppState.of(context).api)),
+              );
+            }
             final d = snap.data!;
             return ListView(
               padding: const EdgeInsets.fromLTRB(0, Spacing.lg, 0, Spacing.xxl),

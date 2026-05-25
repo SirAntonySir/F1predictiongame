@@ -6,6 +6,7 @@ import '../api/api_client.dart';
 import '../api/models/event.dart';
 import '../api/models/session.dart';
 import '../api/models/session_result.dart';
+import '../components/error_view.dart';
 import '../components/race_tile.dart';
 import '../domain/scoring.dart';
 import '../state/app_state.dart';
@@ -84,7 +85,14 @@ class _CalendarScreenState extends State<CalendarScreen> {
             if (snap.connectionState != ConnectionState.done) {
               return const SizedBox.shrink();
             }
-            if (snap.hasError) return Center(child: Text('${snap.error}'));
+            if (snap.hasError) {
+              return ErrorView(
+                error: snap.error!,
+                stack: snap.stackTrace,
+                where: 'Calendar',
+                onRetry: () => setState(() => _data = _load()),
+              );
+            }
             final data = snap.data!;
             final events = data.events;
             final children = <Widget>[

@@ -6,6 +6,7 @@ import '../api/models/event.dart';
 import '../api/models/session.dart';
 import '../api/models/session_result.dart';
 import '../components/app_card.dart';
+import '../components/error_view.dart';
 import '../components/score_banner.dart';
 import '../domain/prediction.dart';
 import '../domain/scoring.dart';
@@ -84,7 +85,17 @@ class _SessionResultsScreenState extends State<SessionResultsScreen> {
             if (snap.connectionState != ConnectionState.done) {
               return const SizedBox.shrink();
             }
-            if (snap.hasError) return Center(child: Text('${snap.error}'));
+            if (snap.hasError) {
+              return ErrorView(
+                error: snap.error!,
+                stack: snap.stackTrace,
+                where: 'Race ${widget.round}',
+                onRetry: () => setState(() {
+                  _eventFuture = AppState.of(context).api.event(widget.round);
+                  _payloads.clear();
+                }),
+              );
+            }
             final event = snap.data!;
             final sessions = event.sessions
                 .where((s) => _pickableTypes.contains(s.type))

@@ -4,6 +4,7 @@ import '../api/models/event.dart';
 import '../api/models/session.dart';
 import '../api/models/session_result.dart';
 import '../components/driver_tile.dart';
+import '../components/error_view.dart';
 import '../components/slot.dart';
 import '../domain/prediction.dart';
 import '../state/app_state.dart';
@@ -92,7 +93,14 @@ class _PredictScreenState extends State<PredictScreen> {
             if (snap.connectionState != ConnectionState.done) {
               return const Center(child: CircularProgressIndicator());
             }
-            if (snap.hasError) return Center(child: Text('${snap.error}'));
+            if (snap.hasError) {
+              return ErrorView(
+                error: snap.error!,
+                stack: snap.stackTrace,
+                where: 'Predict',
+                onRetry: () => setState(() => _data = _load()),
+              );
+            }
             final d = snap.data!;
             _currentType = d.session.type;
             final req = requiredPicks(d.session.type);
