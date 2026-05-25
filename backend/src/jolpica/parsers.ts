@@ -185,3 +185,49 @@ export function extractConstructorsFromResults(raw: unknown): ConstructorLookup[
   }
   return [...seen.values()]
 }
+
+export function extractDriversFromStandings(raw: unknown): DriverLookup[] {
+  const data = raw as { MRData: { StandingsTable: { StandingsLists: any[] } } }
+  const list = data.MRData.StandingsTable.StandingsLists[0]
+  if (!list) return []
+  const seen = new Map<string, DriverLookup>()
+  for (const s of list.DriverStandings ?? []) {
+    const code = deriveCode(s.Driver)
+    if (seen.has(code)) continue
+    seen.set(code, {
+      code,
+      givenName: s.Driver.givenName,
+      familyName: s.Driver.familyName,
+      nationality: s.Driver.nationality ?? null,
+      permanentNumber: s.Driver.permanentNumber ? Number(s.Driver.permanentNumber) : null,
+      wikipediaUrl: s.Driver.url ?? null
+    })
+  }
+  return [...seen.values()]
+}
+
+export function extractConstructorsFromStandings(raw: unknown): ConstructorLookup[] {
+  const data = raw as { MRData: { StandingsTable: { StandingsLists: any[] } } }
+  const list = data.MRData.StandingsTable.StandingsLists[0]
+  if (!list) return []
+  const seen = new Map<string, ConstructorLookup>()
+  // Driver standings include each driver's Constructors[]; constructor standings have a single Constructor.
+  const buckets: any[] = []
+  for (const s of list.DriverStandings ?? []) {
+    for (const c of s.Constructors ?? []) buckets.push(c)
+  }
+  for (const s of list.ConstructorStandings ?? []) {
+    if (s.Constructor) buckets.push(s.Constructor)
+  }
+  for (const c of buckets) {
+    const id = c.constructorId
+    if (seen.has(id)) continue
+    seen.set(id, {
+      id,
+      name: c.name,
+      nationality: c.nationality ?? null,
+      wikipediaUrl: c.url ?? null
+    })
+  }
+  return [...seen.values()]
+}
