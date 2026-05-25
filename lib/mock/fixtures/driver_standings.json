@@ -1,7 +1,0 @@
-[
-  { "position": 1, "driverCode": "NOR", "driverName": "Lando Norris", "constructorId": "mclaren", "points": 165, "wins": 4, "image": null },
-  { "position": 2, "driverCode": "PIA", "driverName": "Oscar Piastri", "constructorId": "mclaren", "points": 142, "wins": 2, "image": null },
-  { "position": 3, "driverCode": "VER", "driverName": "Max Verstappen", "constructorId": "red_bull", "points": 120, "wins": 1, "image": null },
-  { "position": 4, "driverCode": "LEC", "driverName": "Charles Leclerc", "constructorId": "ferrari", "points": 110, "wins": 0, "image": null },
-  { "position": 5, "driverCode": "RUS", "driverName": "George Russell", "constructorId": "mercedes", "points": 88, "wins": 0, "image": null }
-]

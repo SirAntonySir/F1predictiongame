@@ -92,14 +92,8 @@ analyze:        ## flutter analyze
 	flutter analyze
 
 .PHONY: app
-app:            ## run the flutter app against the LOCAL BACKEND
-	flutter run -d "$(DEVICE)" \
-	  --dart-define=USE_MOCK=false \
-	  --dart-define=API_URL=$(API_URL)
-
-.PHONY: app-mock
-app-mock:       ## run the flutter app against bundled mock fixtures
-	flutter run -d "$(DEVICE)" --dart-define=USE_MOCK=true
+app:            ## run the flutter app against the backend at $(API_URL)
+	flutter run -d "$(DEVICE)" --dart-define=API_URL=$(API_URL)
 
 # ---- combined --------------------------------------------------------------
 
