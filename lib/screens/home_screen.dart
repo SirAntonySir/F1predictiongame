@@ -107,8 +107,11 @@ class _HomeScreenState extends State<HomeScreen> {
                 error: snap.error!,
                 stack: snap.stackTrace,
                 where: 'Home',
-                onRetry: () =>
-                    setState(() => _data = _load(AppState.of(context).api)),
+                onRetry: () {
+                  setState(() {
+                    _data = _load(AppState.of(context).api);
+                  });
+                },
               );
             }
             final d = snap.data!;

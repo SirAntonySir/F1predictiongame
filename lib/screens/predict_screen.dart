@@ -98,7 +98,11 @@ class _PredictScreenState extends State<PredictScreen> {
                 error: snap.error!,
                 stack: snap.stackTrace,
                 where: 'Predict',
-                onRetry: () => setState(() => _data = _load()),
+                onRetry: () {
+                  setState(() {
+                    _data = _load();
+                  });
+                },
               );
             }
             final d = snap.data!;

@@ -90,7 +90,11 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 error: snap.error!,
                 stack: snap.stackTrace,
                 where: 'Calendar',
-                onRetry: () => setState(() => _data = _load()),
+                onRetry: () {
+                  setState(() {
+                    _data = _load();
+                  });
+                },
               );
             }
             final data = snap.data!;
