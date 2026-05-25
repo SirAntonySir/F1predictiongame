@@ -1,6 +1,7 @@
 // ignore_for_file: deprecated_member_use
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import '../api/api_client.dart';
 import '../api/models/event.dart';
 import '../api/models/session.dart';
@@ -11,6 +12,7 @@ import '../components/pod_tile.dart';
 import '../components/session_chip.dart';
 import '../state/app_state.dart';
 import '../theme/colors.dart';
+import '../theme/country_flags.dart';
 import '../theme/tokens.dart';
 import '../theme/typography.dart';
 
@@ -111,30 +113,102 @@ class _HomeScreenState extends State<HomeScreen> {
       );
 
   Widget _hero(_HomeData d, ThemeData t) {
+    final flag = flagFor(d.nextEvent.country);
+    final lines = _splitRaceName(d.nextEvent.name);
+    final dateLabel = DateFormat('EEE d MMM').format(d.next.scheduledStart);
+    final timeLabel = DateFormat('HH:mm').format(d.next.scheduledStart);
+    final typeLabel = _sessionTypeLabel(d.next.type);
     return Padding(
       padding: const EdgeInsets.fromLTRB(Spacing.lg, Spacing.xs, Spacing.lg, 0),
       child: AppCard(
         background: BrandColors.accent,
-        padding: const EdgeInsets.fromLTRB(Spacing.xl, Spacing.xl, Spacing.xl, Spacing.xl),
-        child: DefaultTextStyle.merge(
-          style: const TextStyle(color: Colors.white),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text('${d.nextEvent.country.toUpperCase()} · ROUND ${d.nextEvent.round}',
-                  style: AppText.label(10, color: Colors.white.withOpacity(0.85))),
-              const SizedBox(height: Spacing.xs),
-              Text(d.nextEvent.name.toUpperCase(), style: AppText.display(28, color: Colors.white)),
-              const SizedBox(height: Spacing.xs),
-              Countdown(target: d.next.scheduledStart, size: 30),
-              const SizedBox(height: Spacing.md),
-              Row(children: _chips(d).map((c) => Padding(padding: const EdgeInsets.only(right: 6), child: c)).toList()),
-            ],
-          ),
+        padding: EdgeInsets.zero,
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: IgnorePointer(
+                child: CustomPaint(painter: _StripesPainter()),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                  Spacing.xl, Spacing.xl, Spacing.xl, Spacing.xl),
+              child: DefaultTextStyle.merge(
+                style: const TextStyle(color: Colors.white),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            '${flag != null ? '$flag  ' : ''}${d.nextEvent.country.toUpperCase()} · ROUND ${d.nextEvent.round}',
+                            style: AppText.label(10,
+                                color: Colors.white.withOpacity(0.85)),
+                          ),
+                        ),
+                        const SizedBox(width: Spacing.sm),
+                        Text(typeLabel,
+                            style: AppText.label(10,
+                                color: Colors.white.withOpacity(0.85))),
+                      ],
+                    ),
+                    const SizedBox(height: Spacing.sm),
+                    for (final line in lines)
+                      Text(line.toUpperCase(),
+                          style: AppText.display(30, color: Colors.white)),
+                    const SizedBox(height: Spacing.xs),
+                    Text(
+                      '$dateLabel · $timeLabel · ${d.nextEvent.circuitName}',
+                      style: AppText.body(11,
+                          color: Colors.white.withOpacity(0.9)),
+                    ),
+                    const SizedBox(height: Spacing.md),
+                    Countdown(target: d.next.scheduledStart, size: 30),
+                    const SizedBox(height: Spacing.md),
+                    Row(
+                      children: _chips(d)
+                          .map((c) => Padding(
+                              padding: const EdgeInsets.only(right: 6),
+                              child: c))
+                          .toList(),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
+  }
+
+  List<String> _splitRaceName(String name) {
+    const tail = ' Grand Prix';
+    if (name.endsWith(tail)) {
+      return [name.substring(0, name.length - tail.length), 'Grand Prix'];
+    }
+    return [name];
+  }
+
+  String _sessionTypeLabel(SessionType type) {
+    switch (type) {
+      case SessionType.race:
+        return 'RACE';
+      case SessionType.qualifying:
+        return 'QUALI';
+      case SessionType.sprint_quali:
+        return 'SPRINT QUALI';
+      case SessionType.sprint:
+        return 'SPRINT';
+      case SessionType.fp1:
+      case SessionType.fp2:
+      case SessionType.fp3:
+        return type.name.toUpperCase();
+    }
   }
 
   List<Widget> _chips(_HomeData d) {
@@ -293,4 +367,27 @@ class _HomeData {
   final List<SessionResult> lastResult;
   _HomeData({required this.events, required this.next, required this.nextEvent,
     required this.lastEvent, required this.lastResult});
+}
+
+class _StripesPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..color = Colors.white.withOpacity(0.13);
+    const stripe = 6.0;
+    const gap = 10.0;
+    const step = stripe + gap;
+    final diagonal = size.width + size.height;
+    for (var d = -size.height; d < diagonal; d += step) {
+      final path = Path()
+        ..moveTo(d, 0)
+        ..lineTo(d + stripe, 0)
+        ..lineTo(d + stripe + size.height, size.height)
+        ..lineTo(d + size.height, size.height)
+        ..close();
+      canvas.drawPath(path, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_StripesPainter old) => false;
 }
