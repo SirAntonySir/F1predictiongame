@@ -3,6 +3,9 @@ import { getDb } from '../../src/db/client.js'
 
 // IMPORTANT: keep this list in sync with src/db/schema.ts as tables are added.
 const TABLES = [
+  'score',
+  'prediction_pick',
+  'prediction',
   'league_member',
   'app_session',
   'league',

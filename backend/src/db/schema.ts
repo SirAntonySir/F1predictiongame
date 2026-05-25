@@ -1,5 +1,5 @@
 import {
-  pgTable, integer, text, boolean, timestamp, pgEnum, primaryKey, uniqueIndex, index, uuid, customType
+  pgTable, integer, text, boolean, timestamp, pgEnum, primaryKey, uniqueIndex, index, uuid, customType, jsonb
 } from 'drizzle-orm/pg-core'
 
 const bytea = customType<{ data: Buffer; driverData: Buffer }>({
@@ -148,4 +148,36 @@ export const leagueMember = pgTable('league_member', {
 }, (t) => ({
   pk: primaryKey({ columns: [t.leagueId, t.userId] }),
   userIdx: index('league_member_user_idx').on(t.userId)
+}))
+
+export const prediction = pgTable('prediction', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  sessionId: integer('session_id').notNull().references(() => session.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
+}, (t) => ({
+  userSessionUq: uniqueIndex('prediction_user_session_uq').on(t.userId, t.sessionId),
+  sessionIdx: index('prediction_session_idx').on(t.sessionId)
+}))
+
+export const predictionPick = pgTable('prediction_pick', {
+  predictionId: uuid('prediction_id').notNull().references(() => prediction.id, { onDelete: 'cascade' }),
+  position: integer('position').notNull(),
+  driverCode: text('driver_code').notNull().references(() => driver.code)
+}, (t) => ({
+  pk: primaryKey({ columns: [t.predictionId, t.position] }),
+  driverIdx: index('prediction_pick_driver_idx').on(t.driverCode)
+}))
+
+export const score = pgTable('score', {
+  userId: uuid('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  sessionId: integer('session_id').notNull().references(() => session.id, { onDelete: 'cascade' }),
+  pointsTotal: integer('points_total').notNull(),
+  breakdown: jsonb('breakdown').notNull(),
+  computedAt: timestamp('computed_at', { withTimezone: true }).notNull().defaultNow()
+}, (t) => ({
+  pk: primaryKey({ columns: [t.userId, t.sessionId] }),
+  sessionIdx: index('score_session_idx').on(t.sessionId),
+  userIdx: index('score_user_idx').on(t.userId)
 }))

@@ -109,3 +109,38 @@ export type LeagueMember = {
   userId: string
   joinedAt: Date
 }
+
+export type Prediction = {
+  id: string
+  userId: string
+  sessionId: number
+  createdAt: Date
+  updatedAt: Date
+}
+
+export type PredictionPick = {
+  predictionId: string
+  position: number
+  driverCode: string
+}
+
+export type ScoreBreakdownPerPosition = {
+  position: number
+  exact: boolean
+  wrongPos: boolean
+  points: number
+}
+
+export type ScoreBreakdown = {
+  perPosition: ScoreBreakdownPerPosition[]
+  teamBonus: { applied: boolean; points: number }
+  rule: string
+}
+
+export type Score = {
+  userId: string
+  sessionId: number
+  pointsTotal: number
+  breakdown: ScoreBreakdown
+  computedAt: Date
+}
