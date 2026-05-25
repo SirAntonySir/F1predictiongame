@@ -99,7 +99,7 @@ class RaceTile extends StatelessWidget {
               ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(0, Spacing.md, Spacing.lg, Spacing.md),
-                child: _rightSide(t),
+                child: Align(alignment: Alignment.center, child: _rightSide(t)),
               ),
             ],
           ),
@@ -118,6 +118,7 @@ class RaceTile extends StatelessWidget {
     }
     if (pointsScored != null) {
       return Column(
+        mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           Text('+$pointsScored', style: AppText.display(18)),
