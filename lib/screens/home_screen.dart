@@ -67,6 +67,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 _topbar(scope.league.league.name, scope.league.league.players.length),
                 const SizedBox(height: Spacing.xs),
                 _hero(d, t),
+                _section('Your pick', onTap: () => context.go('/predict')),
+                _pickCard(d, scope, t),
                 _section('Last race · ${d.lastEvent.name}', onTap: () =>
                     context.go('/race/${d.lastEvent.round}/${d.lastEvent.sessions.firstWhere((s) => s.type == SessionType.race).id}')),
                 _lastCard(d, t),
@@ -165,6 +167,70 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
       );
+
+  Widget _pickCard(_HomeData d, scope, ThemeData t) {
+    final userId = scope.auth.currentUserId ?? '';
+    final picks =
+        scope.predictions.picksFor(userId: userId, sessionId: d.next.id) as List<String>;
+    final locked =
+        scope.predictions.isLocked(userId: userId, sessionId: d.next.id) as bool;
+    final empty = picks.isEmpty;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
+      child: AppCard(
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    empty
+                        ? 'Make your pick · ${d.next.type.name.toUpperCase()}'
+                        : '${d.next.type.name.toUpperCase()} · ${locked ? 'locked' : 'draft'}',
+                    style: AppText.label(11, color: t.colorScheme.onSurface.withOpacity(0.6)),
+                  ),
+                  const SizedBox(height: 6),
+                  if (empty)
+                    Text('No picks yet', style: AppText.body(13, color: t.colorScheme.onSurface.withOpacity(0.5)))
+                  else
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      children: [
+                        for (final code in picks)
+                          Text(code, style: AppText.body(13, weight: FontWeight.w800)),
+                      ],
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(width: Spacing.sm),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+              decoration: BoxDecoration(
+                color: empty
+                    ? BrandColors.accent
+                    : (locked ? Colors.black : Colors.transparent),
+                border: Border.all(color: Colors.black, width: 1.5),
+                borderRadius: const BorderRadius.all(Radius.circular(6)),
+              ),
+              child: Text(
+                empty ? 'PICK' : (locked ? 'LOCKED' : 'EDIT'),
+                style: AppText.label(
+                  10,
+                  color: empty || locked ? Colors.white : Colors.black,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   Widget _lastCard(_HomeData d, ThemeData t) => Padding(
         padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
