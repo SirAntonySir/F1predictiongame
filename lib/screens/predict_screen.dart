@@ -1,13 +1,16 @@
 // ignore_for_file: deprecated_member_use
 import 'package:flutter/material.dart';
+import '../api/api_client.dart';
 import '../api/models/event.dart';
 import '../api/models/session.dart';
 import '../api/models/session_result.dart';
+import '../components/app_card.dart';
 import '../components/driver_tile.dart';
 import '../components/error_view.dart';
 import '../components/slot.dart';
 import '../domain/prediction.dart';
 import '../state/app_state.dart';
+import '../theme/app_theme.dart';
 import '../theme/colors.dart';
 import '../theme/tokens.dart';
 import '../theme/typography.dart';
@@ -25,24 +28,43 @@ class _PredictScreenState extends State<PredictScreen> {
   Future<_PredictData> _load() async {
     final scope = AppState.of(context);
     final events = await scope.api.events();
-    final upcoming = events.firstWhere(
-      (e) => e.sessions.any((s) => s.status == SessionStatus.scheduled),
-      orElse: () => events.last,
-    );
-    final session = upcoming.sessions.firstWhere(
-      (s) => s.status == SessionStatus.scheduled,
-      orElse: () => upcoming.sessions.last,
-    );
-    final existing = scope.predictions.picksFor(userId: scope.auth.currentUserId!, sessionId: session.id);
+    if (events.isEmpty) {
+      return _PredictData(event: null, session: null, drivers: const []);
+    }
+    Event? upcoming;
+    Session? session;
+    for (final e in events) {
+      for (final s in e.sessions) {
+        if (s.status == SessionStatus.scheduled &&
+            (session == null ||
+                s.scheduledStart.isBefore(session.scheduledStart))) {
+          upcoming = e;
+          session = s;
+        }
+      }
+    }
+    if (upcoming == null || session == null) {
+      return _PredictData(event: null, session: null, drivers: const []);
+    }
+    final existing = scope.predictions
+        .picksFor(userId: scope.auth.currentUserId ?? '', sessionId: session.id);
     _picks = List<String>.from(existing);
-    // Drivers from most recent finished session as a proxy lineup
-    final finished = events.expand((e) => e.sessions).where((s) => s.status == SessionStatus.finished).toList();
-    finished.sort((a, b) => b.scheduledStart.compareTo(a.scheduledStart));
-    final lineup = finished.isEmpty
-        ? <SessionResult>[]
-        : await scope.api.sessionResults(finished.first.id);
-    lineup.sort((a, b) => a.position.compareTo(b.position));
-    return _PredictData(event: upcoming, session: session, drivers: lineup);
+    final finished = events
+        .expand((e) => e.sessions)
+        .where((s) => s.status == SessionStatus.finished)
+        .toList()
+      ..sort((a, b) => b.scheduledStart.compareTo(a.scheduledStart));
+    List<SessionResult> lineup = const [];
+    if (finished.isNotEmpty) {
+      try {
+        lineup = await scope.api.sessionResults(finished.first.id);
+      } on NotFoundException {
+        lineup = const [];
+      }
+    }
+    final sorted = [...lineup]
+      ..sort((a, b) => a.position.compareTo(b.position));
+    return _PredictData(event: upcoming, session: session, drivers: sorted);
   }
 
   @override
@@ -67,6 +89,7 @@ class _PredictScreenState extends State<PredictScreen> {
   Future<void> _lock() async {
     final scope = AppState.of(context);
     final session = (await _data!).session;
+    if (session == null) return;
     final userId = scope.auth.currentUserId!;
     if (scope.predictions.isLocked(userId: userId, sessionId: session.id)) {
       if (mounted) {
@@ -106,29 +129,57 @@ class _PredictScreenState extends State<PredictScreen> {
               );
             }
             final d = snap.data!;
-            _currentType = d.session.type;
-            final req = requiredPicks(d.session.type);
+            if (d.event == null || d.session == null) {
+              return Padding(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: Spacing.lg, vertical: Spacing.xxl),
+                child: AppCard(
+                  background: t.mutedSurface,
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: Spacing.lg, vertical: Spacing.xxl),
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text('NO UPCOMING SESSION',
+                            style: AppText.label(11)),
+                        const SizedBox(height: Spacing.sm),
+                        Text(
+                          "Nothing to predict right now.",
+                          style: AppText.body(13,
+                              color: t.colorScheme.onSurface.withOpacity(0.7)),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }
+            final Event event = d.event!;
+            final Session session = d.session!;
+            _currentType = session.type;
+            final req = requiredPicks(session.type);
             final scope = AppState.of(context);
             final locked = scope.auth.currentUserId != null &&
                 scope.predictions.isLocked(
-                    userId: scope.auth.currentUserId!, sessionId: d.session.id);
+                    userId: scope.auth.currentUserId!, sessionId: session.id);
             return ListView(
               padding: const EdgeInsets.only(bottom: Spacing.xxl + Spacing.xxl),
               children: [
                 Padding(
                   padding: const EdgeInsets.fromLTRB(Spacing.xl, Spacing.lg, Spacing.xl, Spacing.sm),
                   child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                    Text(d.event.name, style: AppText.display(22)),
+                    Text(event.name, style: AppText.display(22)),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: Spacing.md, vertical: 4),
                       decoration: BoxDecoration(border: Border.all(color: BrandColors.accent, width: 1.5), borderRadius: const BorderRadius.all(Radius.circular(999))),
-                      child: Text(_lockLabel(d.session.scheduledStart), style: AppText.label(10, color: BrandColors.accent)),
+                      child: Text(_lockLabel(session.scheduledStart), style: AppText.label(10, color: BrandColors.accent)),
                     ),
                   ]),
                 ),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(Spacing.xl, Spacing.md, Spacing.xl, Spacing.xs),
-                  child: Text('${d.session.type.name.toUpperCase()} · TOP $req', style: AppText.label(11, color: t.colorScheme.onSurface.withOpacity(0.6))),
+                  child: Text('${session.type.name.toUpperCase()} · TOP $req', style: AppText.label(11, color: t.colorScheme.onSurface.withOpacity(0.6))),
                 ),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(Spacing.lg, 6, Spacing.lg, 6),
@@ -213,8 +264,8 @@ class _PredictScreenState extends State<PredictScreen> {
 }
 
 class _PredictData {
-  final Event event;
-  final Session session;
+  final Event? event;
+  final Session? session;
   final List<SessionResult> drivers;
   _PredictData({required this.event, required this.session, required this.drivers});
 }
