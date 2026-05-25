@@ -37,7 +37,10 @@ class _PredictScreenState extends State<PredictScreen> {
     // Drivers from most recent finished session as a proxy lineup
     final finished = events.expand((e) => e.sessions).where((s) => s.status == SessionStatus.finished).toList();
     finished.sort((a, b) => b.scheduledStart.compareTo(a.scheduledStart));
-    final lineup = finished.isEmpty ? <SessionResult>[] : await scope.api.sessionResults(finished.first.id);
+    final lineup = finished.isEmpty
+        ? <SessionResult>[]
+        : await scope.api.sessionResults(finished.first.id);
+    lineup.sort((a, b) => a.position.compareTo(b.position));
     return _PredictData(event: upcoming, session: session, drivers: lineup);
   }
 
