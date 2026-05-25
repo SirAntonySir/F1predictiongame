@@ -1,0 +1,27 @@
+databases:
+  - name: f1pg-db
+    plan: free
+    postgresMajorVersion: 16
+
+services:
+  - type: web
+    name: f1pg-backend
+    runtime: node
+    plan: free
+    rootDir: backend
+    buildCommand: npm ci && npm run build && npm run db:migrate
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: f1pg-db
+          property: connectionString
+      - key: ADMIN_TOKEN
+        generateValue: true
+      - key: NODE_ENV
+        value: production
+      - key: JOLPICA_BASE
+        value: https://api.jolpi.ca/ergast
+      - key: WIKIPEDIA_BASE
+        value: https://en.wikipedia.org
