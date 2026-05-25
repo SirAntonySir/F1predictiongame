@@ -94,14 +94,39 @@ Authenticated endpoints require `Authorization: Bearer <token>` where `<token>` 
 | POST | `/api/leagues/join` | Join via `{ joinCode }` (bearer) |
 | DELETE | `/api/leagues/:id/members/me` | Leave league (bearer + member, not owner) |
 | DELETE | `/api/leagues/:id/members/:userId` | Kick member (bearer + owner) |
+| GET  | `/api/predictions/upcoming` | Caller's upcoming scorable sessions, with `myPicks` (bearer) |
+| GET  | `/api/sessions/:id/my-prediction` | Caller's prediction for a session (bearer) |
+| PUT  | `/api/sessions/:id/my-prediction` | Submit/replace caller's picks; 409 after lock (bearer) |
+| DELETE | `/api/sessions/:id/my-prediction` | Remove caller's prediction; 409 after lock (bearer) |
+| GET  | `/api/sessions/:id/predictions` | Everyone's picks; only after lock (bearer) |
+| GET  | `/api/leagues/:id/leaderboard` | League leaderboard, sums of `score.points_total` (bearer + member) |
+| GET  | `/api/leagues/:id/leaderboard/sessions` | Per-session per-member breakdown (bearer + member) |
+| GET  | `/api/users/me/scores` | Caller's score history (bearer) |
 | POST | `/admin/bootstrap` | Re-fetch schedule + populate season (token-gated, idempotent) |
 | POST | `/admin/crawl` | Force an immediate tick (token-gated) |
 | POST | `/admin/refresh-images` | Re-attempt Wikipedia fetch for null image URLs (token-gated) |
+| POST | `/admin/rescore-session/:id` | Force rescore of one session (token-gated) |
+| POST | `/admin/rescore-season/:year` | Rescore every finished session in a season (token-gated) |
 
 Admin endpoints require `X-Admin-Token: <ADMIN_TOKEN>` header.
 
 Drivers/constructors expose an `image` field equal to `imageUrlOverride ?? imageUrl`.
 Both backing fields can be null — clients must degrade gracefully.
+
+## Scoring
+
+Per race weekend, four scorable session kinds:
+
+| Kind | Picks | Per-position exact | Wrong position | Team bonus | Max |
+|---|---|---|---|---|---|
+| Qualifying | P1, P2 | 3 each | 1 each | +1 if pole pick's team matches pole | 7 |
+| Sprint Shootout | P1 | 1 | — | +1 if P1 pick's team matches | 2 |
+| Sprint Race | P1, P2, P3 | 2 each | 1 each | +1 if winning team correct | 7 |
+| Race | P1–P5 | 3 each | 1 each | +2 if winning team correct | 17 |
+
+Picks lock at the session's scheduled start. The crawler auto-rescores after writing
+results, so FIA penalty updates flow through to scores automatically. Manual rescore
+is available via the `/admin/rescore-*` endpoints.
 
 ## Deploy
 
@@ -127,5 +152,5 @@ Both backing fields can be null — clients must degrade gracefully.
 
 ## What's NOT in this sub-project
 
-Predictions, scoring engine, the pre-season questionnaire, Flutter UI changes.
-Each gets its own sub-project in subsequent rebuild cycles.
+Pre-season questionnaire, Flutter UI changes. Each gets its own sub-project in
+subsequent rebuild cycles.
