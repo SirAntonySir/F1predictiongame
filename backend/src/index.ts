@@ -3,6 +3,7 @@ import cors from '@fastify/cors'
 import { config } from './config.js'
 import { pingDb, _resetPoolForTests } from './db/client.js'
 import { sendError, ApiError } from './api/errors.js'
+import { registerPublicRoutes } from './api/routes/public.js'
 import { Scheduler } from './crawler/scheduler.js'
 
 export type BuildAppOpts = { scheduler: Scheduler | null }
@@ -13,6 +14,8 @@ export async function buildApp(opts: BuildAppOpts): Promise<FastifyInstance> {
   })
 
   await app.register(cors, { origin: true })
+
+  await registerPublicRoutes(app)
 
   app.get('/api/health', async (_req, reply) => {
     const db = (await pingDb()) ? 'up' : 'down'
