@@ -50,6 +50,27 @@ class SettingsScreen extends StatelessWidget {
               ]),
             ),
             const SizedBox(height: Spacing.xl),
+            Text('PRE-SEASON', style: AppText.label(11)),
+            const SizedBox(height: Spacing.sm),
+            InkWell(
+              onTap: () => context.push('/preseason'),
+              borderRadius: const BorderRadius.all(Radius.circular(14)),
+              child: Container(
+                padding: const EdgeInsets.all(Spacing.lg),
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.black, width: 2),
+                  borderRadius: const BorderRadius.all(Radius.circular(14)),
+                ),
+                child: Row(children: [
+                  Expanded(
+                    child: Text('Pre-season questionnaire',
+                        style: AppText.body(14, weight: FontWeight.w700)),
+                  ),
+                  const Text('›', style: TextStyle(fontSize: 20)),
+                ]),
+              ),
+            ),
+            const SizedBox(height: Spacing.xl),
             Text('LEAGUE', style: AppText.label(11)),
             const SizedBox(height: Spacing.sm),
             Container(

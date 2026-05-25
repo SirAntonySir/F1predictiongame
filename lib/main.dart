@@ -8,6 +8,7 @@ import 'app.dart';
 import 'state/auth_controller.dart';
 import 'state/league_controller.dart';
 import 'state/predictions_store.dart';
+import 'state/preseason_store.dart';
 import 'state/theme_controller.dart';
 
 const _useMock = bool.fromEnvironment('USE_MOCK', defaultValue: true);
@@ -21,11 +22,13 @@ Future<void> main() async {
   final auth = await AuthController.load();
   final theme = await ThemeController.load();
   final preds = await PredictionsStore.load();
+  final preseason = await PreseasonStore.load();
   runApp(F1PgApp(
     api: api,
     auth: auth,
     league: LeagueController(league: theBoxLeague),
     theme: theme,
     predictions: preds,
+    preseason: preseason,
   ));
 }
