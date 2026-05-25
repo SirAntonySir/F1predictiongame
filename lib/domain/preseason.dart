@@ -75,4 +75,19 @@ class PreseasonPick {
       );
 }
 
-const int preseasonMaxPoints = 148;
+/// Points awarded per exact slot in the championship-ordering category.
+const int preseasonPointsPerDriverSlot = 3;
+const int preseasonPointsPerConstructorSlot = 4;
+
+/// Total max points for a season given the actual driver + team field size.
+///
+/// 6 single-pick categories × 8 pts (max 48)
+/// + N drivers × 3 + N teams × 4 (the championship ordering)
+int preseasonMaxPoints({required int driverCount, required int constructorCount}) {
+  final singles = PreseasonCategory.values
+      .map((c) => preseasonMeta[c]!.max)
+      .fold<int>(0, (a, b) => a + b);
+  return singles +
+      driverCount * preseasonPointsPerDriverSlot +
+      constructorCount * preseasonPointsPerConstructorSlot;
+}

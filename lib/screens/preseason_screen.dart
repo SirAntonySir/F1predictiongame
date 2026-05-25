@@ -202,6 +202,10 @@ class _PreseasonScreenState extends State<PreseasonScreen> {
         orderedDrivers.isNotEmpty || orderedTeams.isNotEmpty;
     final progressTotal = PreseasonCategory.values.length + 1; // 6 + 1 ordering
     final progressDone = filled + (hasOrdering ? 1 : 0);
+    final maxPts = preseasonMaxPoints(
+      driverCount: d.drivers.length,
+      constructorCount: d.constructors.length,
+    );
     return Padding(
       padding: const EdgeInsets.symmetric(
           horizontal: Spacing.lg, vertical: Spacing.xs),
@@ -227,9 +231,9 @@ class _PreseasonScreenState extends State<PreseasonScreen> {
               crossAxisAlignment: CrossAxisAlignment.end,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text('MAX', style: AppText.label(10)),
+                Text('MAX (${d.seasonYear})', style: AppText.label(10)),
                 const SizedBox(height: 4),
-                Text('$preseasonMaxPoints pts',
+                Text('$maxPts pts',
                     style: AppText.body(13, weight: FontWeight.w700)),
               ],
             ),
@@ -508,14 +512,15 @@ class _PreseasonScreenState extends State<PreseasonScreen> {
                     child: Text('COMPLETE CHAMPIONSHIP',
                         style: AppText.display(16, color: Colors.white)),
                   ),
-                  Text('100 pts',
+                  Text(
+                      '${d.drivers.length * preseasonPointsPerDriverSlot + d.constructors.length * preseasonPointsPerConstructorSlot} pts',
                       style: AppText.label(10,
                           color: Colors.white.withOpacity(0.85))),
                 ],
               ),
               const SizedBox(height: 4),
               Text(
-                'Order all drivers and teams. 3 pts per exact driver slot, 4 pts per team slot.',
+                'Order all drivers and teams. $preseasonPointsPerDriverSlot pts per exact driver slot, $preseasonPointsPerConstructorSlot pts per team slot.',
                 style: AppText.body(11,
                     color: Colors.white.withOpacity(0.85)),
               ),
