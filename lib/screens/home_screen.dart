@@ -33,18 +33,58 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<_HomeData> _load(ApiClient api) async {
     final events = await api.events();
-    final next = await api.nextSession();
-    final last = events.lastWhere(
-      (e) => e.sessions.any((s) => s.type == SessionType.race && s.status == SessionStatus.finished),
-      orElse: () => events.first,
-    );
-    final lastRace = last.sessions.firstWhere((s) => s.type == SessionType.race);
-    final lastResult = await api.sessionResults(lastRace.id);
+    Session? next;
+    try {
+      next = await api.nextSession();
+    } on NotFoundException {
+      next = null;
+    }
+    next ??= _computeNextSession(events);
+    if (next == null) {
+      throw const NotFoundException('next-session');
+    }
+    final Session resolvedNext = next;
     final nextEvent = events.firstWhere(
-      (e) => e.sessions.any((s) => s.id == next.id),
+      (e) => e.sessions.any((s) => s.id == resolvedNext.id),
       orElse: () => events.first,
     );
-    return _HomeData(events: events, next: next, nextEvent: nextEvent, lastEvent: last, lastResult: lastResult);
+    final last = events.lastWhere(
+      (e) => e.sessions.any((s) =>
+          s.type == SessionType.race && s.status == SessionStatus.finished),
+      orElse: () => events.first,
+    );
+    final lastRace = last.sessions.firstWhere(
+      (s) => s.type == SessionType.race,
+      orElse: () => last.sessions.first,
+    );
+    List<SessionResult> lastResult;
+    try {
+      lastResult = await api.sessionResults(lastRace.id);
+    } on NotFoundException {
+      lastResult = const [];
+    }
+    return _HomeData(
+      events: events,
+      next: resolvedNext,
+      nextEvent: nextEvent,
+      lastEvent: last,
+      lastResult: lastResult,
+    );
+  }
+
+  Session? _computeNextSession(List<Event> events) {
+    final now = DateTime.now();
+    Session? best;
+    for (final e in events) {
+      for (final s in e.sessions) {
+        if (s.status != SessionStatus.scheduled) continue;
+        if (!s.scheduledStart.isAfter(now)) continue;
+        if (best == null || s.scheduledStart.isBefore(best.scheduledStart)) {
+          best = s;
+        }
+      }
+    }
+    return best;
   }
 
   @override
