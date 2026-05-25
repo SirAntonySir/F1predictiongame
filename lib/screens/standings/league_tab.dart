@@ -3,6 +3,7 @@ import '../../components/app_card.dart';
 import '../../components/league_row.dart';
 import '../../components/trend_badge.dart';
 import '../../state/app_state.dart';
+import '../../theme/app_theme.dart';
 import '../../theme/tokens.dart';
 import '../../theme/typography.dart';
 
@@ -63,8 +64,9 @@ class _Podium extends StatelessWidget {
     const heights = [54.0, 78.0, 36.0];
     final order = [rows[1], rows[0], rows[2]];
     const pos = [2, 1, 3];
+    final t = Theme.of(context);
     return AppCard(
-      background: const Color(0xFFFAFAFA),
+      background: t.mutedSurface,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: List.generate(3, (i) {
@@ -75,16 +77,15 @@ class _Podium extends StatelessWidget {
                 Text(r.player.displayName,
                     style: AppText.body(12, weight: FontWeight.w800)),
                 const SizedBox(height: 2),
-                Text('${r.points}',
-                    style: AppText.display(16,
-                        color: i == 1 ? Colors.black : Colors.black.withAlpha(180))),
+                Text('${r.points}', style: AppText.display(16)),
                 const SizedBox(height: 8),
                 Container(
                   width: double.infinity,
                   height: heights[i],
                   color: colors[i],
                   alignment: Alignment.center,
-                  child: Text('${pos[i]}', style: AppText.display(22)),
+                  child: Text('${pos[i]}',
+                      style: AppText.display(22, color: Colors.black)),
                 ),
               ],
             ),

@@ -7,6 +7,7 @@ import '../components/app_card.dart';
 import '../components/score_banner.dart';
 import '../domain/scoring.dart';
 import '../state/app_state.dart';
+import '../theme/app_theme.dart';
 import '../theme/colors.dart';
 import '../theme/team_colors.dart';
 import '../theme/tokens.dart';
@@ -206,7 +207,7 @@ class _SessionResultsScreenState extends State<SessionResultsScreen> {
                         children: d.result.map((r) {
                           final mine = d.myPicks.contains(r.driverCode);
                           return Container(
-                            color: mine ? const Color(0xFFFFF7D1) : null,
+                            color: mine ? t.rowHighlight : null,
                             padding: const EdgeInsets.symmetric(
                                 horizontal: Spacing.md, vertical: 7),
                             child: Row(

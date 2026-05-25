@@ -1,5 +1,6 @@
 // ignore_for_file: deprecated_member_use
 import 'package:flutter/material.dart';
+import '../theme/app_theme.dart';
 import '../theme/colors.dart';
 import '../theme/tokens.dart';
 import '../theme/typography.dart';
@@ -30,7 +31,7 @@ class LeagueRow extends StatelessWidget {
     final t = Theme.of(context);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: Spacing.lg, vertical: Spacing.md),
-      color: isMe ? const Color(0xFFFFF7D1) : null,
+      color: isMe ? t.rowHighlight : null,
       child: Row(
         children: [
           SizedBox(

@@ -9,6 +9,7 @@ class AppTheme {
         surfaceMuted: LightPalette.surfaceMuted,
         stroke: LightPalette.stroke,
         onSurface: LightPalette.onSurface,
+        highlight: LightPalette.highlight,
       );
 
   static ThemeData dark() => _build(
@@ -17,6 +18,7 @@ class AppTheme {
         surfaceMuted: DarkPalette.surfaceMuted,
         stroke: DarkPalette.stroke,
         onSurface: DarkPalette.onSurface,
+        highlight: DarkPalette.highlight,
       );
 
   static ThemeData _build({
@@ -25,6 +27,7 @@ class AppTheme {
     required Color surfaceMuted,
     required Color stroke,
     required Color onSurface,
+    required Color highlight,
   }) {
     final base = brightness == Brightness.light
         ? ThemeData.light(useMaterial3: true)
@@ -43,7 +46,7 @@ class AppTheme {
         fontFamily: AppText.body(14).fontFamily,
       ),
       extensions: <ThemeExtension<dynamic>>[
-        _AppSurfaces(muted: surfaceMuted, stroke: stroke),
+        _AppSurfaces(muted: surfaceMuted, stroke: stroke, highlight: highlight),
       ],
     );
   }
@@ -52,12 +55,14 @@ class AppTheme {
 class _AppSurfaces extends ThemeExtension<_AppSurfaces> {
   final Color muted;
   final Color stroke;
-  const _AppSurfaces({required this.muted, required this.stroke});
+  final Color highlight;
+  const _AppSurfaces({required this.muted, required this.stroke, required this.highlight});
 
   @override
-  _AppSurfaces copyWith({Color? muted, Color? stroke}) => _AppSurfaces(
+  _AppSurfaces copyWith({Color? muted, Color? stroke, Color? highlight}) => _AppSurfaces(
         muted: muted ?? this.muted,
         stroke: stroke ?? this.stroke,
+        highlight: highlight ?? this.highlight,
       );
 
   @override
@@ -66,6 +71,7 @@ class _AppSurfaces extends ThemeExtension<_AppSurfaces> {
     return _AppSurfaces(
       muted: Color.lerp(muted, other.muted, t)!,
       stroke: Color.lerp(stroke, other.stroke, t)!,
+      highlight: Color.lerp(highlight, other.highlight, t)!,
     );
   }
 }
@@ -73,4 +79,5 @@ class _AppSurfaces extends ThemeExtension<_AppSurfaces> {
 extension AppSurfacesX on ThemeData {
   Color get mutedSurface => extension<_AppSurfaces>()?.muted ?? LightPalette.surfaceMuted;
   Color get strokeColor => extension<_AppSurfaces>()?.stroke ?? LightPalette.stroke;
+  Color get rowHighlight => extension<_AppSurfaces>()?.highlight ?? LightPalette.highlight;
 }

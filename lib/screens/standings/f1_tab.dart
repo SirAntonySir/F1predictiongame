@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../api/models/standing.dart';
 import '../../components/app_card.dart';
 import '../../state/app_state.dart';
+import '../../theme/app_theme.dart';
 import '../../theme/team_colors.dart';
 import '../../theme/tokens.dart';
 import '../../theme/typography.dart';
@@ -42,6 +43,7 @@ class _F1TabState extends State<F1Tab> {
   }
 
   Widget _seg(String id, String label) {
+    final t = Theme.of(context);
     final on = id == _which;
     return Padding(
       padding: const EdgeInsets.only(right: 6),
@@ -50,11 +52,13 @@ class _F1TabState extends State<F1Tab> {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: Spacing.md, vertical: 6),
           decoration: BoxDecoration(
-            color: on ? Colors.black : null,
-            border: Border.all(color: Colors.black, width: 1.5),
+            color: on ? t.colorScheme.onSurface : null,
+            border: Border.all(color: t.strokeColor, width: 1.5),
             borderRadius: const BorderRadius.all(Radius.circular(8)),
           ),
-          child: Text(label, style: AppText.label(10, color: on ? Colors.white : Colors.black)),
+          child: Text(label,
+              style: AppText.label(10,
+                  color: on ? t.colorScheme.surface : t.colorScheme.onSurface)),
         ),
       ),
     );

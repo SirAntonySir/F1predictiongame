@@ -23,5 +23,5 @@ class DarkPalette {
   static const Color stroke = Color(0xFF2A2A2E);
   static const Color onSurface = Color(0xFFF2F2F2);
   static const Color onSurfaceMuted = Color(0xFF9A9A9E);
-  static const Color highlight = Color(0xFF2B2B0E);
+  static const Color highlight = Color(0xFF3D2E0B);
 }

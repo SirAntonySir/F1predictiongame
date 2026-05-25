@@ -18,8 +18,7 @@ class AppCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
-    return Container(
-      padding: padding,
+    return DecoratedBox(
       decoration: BoxDecoration(
         color: background ?? t.colorScheme.surface,
         borderRadius: Radii.rLg,
@@ -34,7 +33,10 @@ class AppCard extends StatelessWidget {
               ]
             : null,
       ),
-      child: child,
+      child: ClipRRect(
+        borderRadius: Radii.rLg,
+        child: Padding(padding: padding, child: child),
+      ),
     );
   }
 }
