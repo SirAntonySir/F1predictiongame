@@ -12,6 +12,7 @@ import '../components/error_view.dart';
 import '../components/pod_tile.dart';
 import '../components/session_chip.dart';
 import '../state/app_state.dart';
+import '../theme/app_theme.dart';
 import '../theme/colors.dart';
 import '../theme/country_flags.dart';
 import '../theme/tokens.dart';
@@ -41,34 +42,45 @@ class _HomeScreenState extends State<HomeScreen> {
       next = null;
     }
     next ??= _computeNextSession(events);
-    if (next == null) {
-      throw const NotFoundException('next-session');
+    Event? nextEvent;
+    if (next != null) {
+      final resolvedNext = next;
+      nextEvent = events.firstWhere(
+        (e) => e.sessions.any((s) => s.id == resolvedNext.id),
+        orElse: () => events.first,
+      );
     }
-    final Session resolvedNext = next;
-    final nextEvent = events.firstWhere(
-      (e) => e.sessions.any((s) => s.id == resolvedNext.id),
-      orElse: () => events.first,
-    );
-    final last = events.lastWhere(
+    final finishedRace = events.lastWhere(
       (e) => e.sessions.any((s) =>
           s.type == SessionType.race && s.status == SessionStatus.finished),
-      orElse: () => events.first,
+      orElse: () => const Event(
+        round: 0,
+        name: '',
+        country: '',
+        circuitName: '',
+        hasSprint: false,
+        sessions: [],
+      ),
     );
-    final lastRace = last.sessions.firstWhere(
-      (s) => s.type == SessionType.race,
-      orElse: () => last.sessions.first,
-    );
-    List<SessionResult> lastResult;
-    try {
-      lastResult = await api.sessionResults(lastRace.id);
-    } on NotFoundException {
-      lastResult = const [];
+    Event? lastEvent;
+    List<SessionResult> lastResult = const [];
+    if (finishedRace.sessions.isNotEmpty) {
+      lastEvent = finishedRace;
+      final lastRace = finishedRace.sessions.firstWhere(
+        (s) => s.type == SessionType.race,
+        orElse: () => finishedRace.sessions.first,
+      );
+      try {
+        lastResult = await api.sessionResults(lastRace.id);
+      } on NotFoundException {
+        lastResult = const [];
+      }
     }
     return _HomeData(
       events: events,
-      next: resolvedNext,
+      next: next,
       nextEvent: nextEvent,
-      lastEvent: last,
+      lastEvent: lastEvent,
       lastResult: lastResult,
     );
   }
@@ -118,16 +130,36 @@ class _HomeScreenState extends State<HomeScreen> {
             return ListView(
               padding: const EdgeInsets.fromLTRB(0, Spacing.lg, 0, Spacing.xxl),
               children: [
-                _topbar(scope.league.league.name, scope.league.league.players.length),
+                _topbar(scope.league.league.name,
+                    scope.league.league.players.length),
                 const SizedBox(height: Spacing.xs),
-                _hero(d, t),
-                _section('Your pick', onTap: () => context.go('/predict')),
-                _pickCard(d, scope, t),
-                _section('Last race · ${d.lastEvent.name}', onTap: () =>
-                    context.push('/race/${d.lastEvent.round}/${d.lastEvent.sessions.firstWhere((s) => s.type == SessionType.race).id}')),
-                _lastCard(d, t),
-                _section('${scope.league.league.name} · Standings', onTap: () => context.go('/standings/league')),
-                _leagueCard(scope.league.league.players.map((p) => p.displayName).toList(), scope.auth.currentUserId, t),
+                if (d.next != null && d.nextEvent != null)
+                  _hero(d.next!, d.nextEvent!, t)
+                else
+                  _noNextHero(t),
+                if (d.next != null) ...[
+                  _section('Your pick',
+                      onTap: () => context.go('/predict')),
+                  _pickCard(d, scope, t),
+                ],
+                if (d.lastEvent != null) ...[
+                  _section('Last race · ${d.lastEvent!.name}', onTap: () {
+                    final race = d.lastEvent!.sessions.firstWhere(
+                      (s) => s.type == SessionType.race,
+                      orElse: () => d.lastEvent!.sessions.first,
+                    );
+                    context.push('/race/${d.lastEvent!.round}/${race.id}');
+                  }),
+                  _lastCard(d, t),
+                ],
+                _section('${scope.league.league.name} · Standings',
+                    onTap: () => context.go('/standings/league')),
+                _leagueCard(
+                    scope.league.league.players
+                        .map((p) => p.displayName)
+                        .toList(),
+                    scope.auth.currentUserId,
+                    t),
                 const SizedBox(height: Spacing.xxl),
               ],
             );
@@ -164,12 +196,36 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       );
 
-  Widget _hero(_HomeData d, ThemeData t) {
-    final flag = flagFor(d.nextEvent.country);
-    final lines = _splitRaceName(d.nextEvent.name);
-    final dateLabel = DateFormat('EEE d MMM').format(d.next.scheduledStart);
-    final timeLabel = DateFormat('HH:mm').format(d.next.scheduledStart);
-    final typeLabel = _sessionTypeLabel(d.next.type);
+  Widget _noNextHero(ThemeData t) => Padding(
+        padding: const EdgeInsets.fromLTRB(
+            Spacing.lg, Spacing.xs, Spacing.lg, 0),
+        child: AppCard(
+          background: t.mutedSurface,
+          padding: const EdgeInsets.symmetric(
+              horizontal: Spacing.lg, vertical: Spacing.xxl),
+          child: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('NO UPCOMING SESSION', style: AppText.label(11)),
+                const SizedBox(height: Spacing.sm),
+                Text("Season's done — or the schedule hasn't been published.",
+                    textAlign: TextAlign.center,
+                    style: AppText.body(13,
+                        color:
+                            t.colorScheme.onSurface.withOpacity(0.7))),
+              ],
+            ),
+          ),
+        ),
+      );
+
+  Widget _hero(Session next, Event nextEvent, ThemeData t) {
+    final flag = flagFor(nextEvent.country);
+    final lines = _splitRaceName(nextEvent.name);
+    final dateLabel = DateFormat('EEE d MMM').format(next.scheduledStart);
+    final timeLabel = DateFormat('HH:mm').format(next.scheduledStart);
+    final typeLabel = _sessionTypeLabel(next.type);
     return Padding(
       padding: const EdgeInsets.fromLTRB(Spacing.lg, Spacing.xs, Spacing.lg, 0),
       child: AppCard(
@@ -197,7 +253,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       children: [
                         Expanded(
                           child: Text(
-                            '${flag != null ? '$flag  ' : ''}${d.nextEvent.country.toUpperCase()} · ROUND ${d.nextEvent.round}',
+                            '${flag != null ? '$flag  ' : ''}${nextEvent.country.toUpperCase()} · ROUND ${nextEvent.round}',
                             style: AppText.label(10,
                                 color: Colors.white.withOpacity(0.85)),
                           ),
@@ -214,15 +270,15 @@ class _HomeScreenState extends State<HomeScreen> {
                           style: AppText.display(30, color: Colors.white)),
                     const SizedBox(height: Spacing.xs),
                     Text(
-                      '$dateLabel · $timeLabel · ${d.nextEvent.circuitName}',
+                      '$dateLabel · $timeLabel · ${nextEvent.circuitName}',
                       style: AppText.body(11,
                           color: Colors.white.withOpacity(0.9)),
                     ),
                     const SizedBox(height: Spacing.md),
-                    Countdown(target: d.next.scheduledStart, size: 30),
+                    Countdown(target: next.scheduledStart, size: 30),
                     const SizedBox(height: Spacing.md),
                     Row(
-                      children: _chips(d)
+                      children: _chips(next, nextEvent)
                           .map((c) => Padding(
                               padding: const EdgeInsets.only(right: 6),
                               child: c))
@@ -263,7 +319,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  List<Widget> _chips(_HomeData d) {
+  List<Widget> _chips(Session next, Event nextEvent) {
     final order = [SessionType.fp1, SessionType.fp2, SessionType.fp3,
       SessionType.qualifying, SessionType.sprint_quali, SessionType.sprint, SessionType.race];
     final labels = {
@@ -273,11 +329,11 @@ class _HomeScreenState extends State<HomeScreen> {
     };
     return [
       for (final t in order)
-        if (d.nextEvent.sessions.any((s) => s.type == t))
-          SessionChip(label: labels[t]!, state: d.nextEvent.sessions
+        if (nextEvent.sessions.any((s) => s.type == t))
+          SessionChip(label: labels[t]!, state: nextEvent.sessions
               .firstWhere((s) => s.type == t).status == SessionStatus.finished
               ? ChipState.done
-              : (d.next.id == d.nextEvent.sessions.firstWhere((s) => s.type == t).id
+              : (next.id == nextEvent.sessions.firstWhere((s) => s.type == t).id
                   ? ChipState.next : ChipState.idle))
     ];
   }
@@ -296,10 +352,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _pickCard(_HomeData d, scope, ThemeData t) {
     final userId = scope.auth.currentUserId ?? '';
-    final picks =
-        scope.predictions.picksFor(userId: userId, sessionId: d.next.id) as List<String>;
-    final locked =
-        scope.predictions.isLocked(userId: userId, sessionId: d.next.id) as bool;
+    final sessionId = d.next!.id;
+    final picks = scope.predictions
+        .picksFor(userId: userId, sessionId: sessionId) as List<String>;
+    final locked = scope.predictions
+        .isLocked(userId: userId, sessionId: sessionId) as bool;
     final empty = picks.isEmpty;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
@@ -315,8 +372,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 children: [
                   Text(
                     empty
-                        ? 'Make your pick · ${d.next.type.name.toUpperCase()}'
-                        : '${d.next.type.name.toUpperCase()} · ${locked ? 'locked' : 'draft'}',
+                        ? 'Make your pick · ${d.next!.type.name.toUpperCase()}'
+                        : '${d.next!.type.name.toUpperCase()} · ${locked ? 'locked' : 'draft'}',
                     style: AppText.label(11, color: t.colorScheme.onSurface.withOpacity(0.6)),
                   ),
                   const SizedBox(height: 6),
@@ -413,12 +470,17 @@ class _HomeScreenState extends State<HomeScreen> {
 
 class _HomeData {
   final List<Event> events;
-  final Session next;
-  final Event nextEvent;
-  final Event lastEvent;
+  final Session? next;
+  final Event? nextEvent;
+  final Event? lastEvent;
   final List<SessionResult> lastResult;
-  _HomeData({required this.events, required this.next, required this.nextEvent,
-    required this.lastEvent, required this.lastResult});
+  _HomeData({
+    required this.events,
+    required this.next,
+    required this.nextEvent,
+    required this.lastEvent,
+    required this.lastResult,
+  });
 }
 
 class _StripesPainter extends CustomPainter {
