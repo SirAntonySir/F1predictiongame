@@ -1,4 +1,4 @@
-import { eq, asc } from 'drizzle-orm'
+import { and, eq, asc } from 'drizzle-orm'
 import { getDb } from '../db/client.js'
 import { driverStanding, constructorStanding } from '../db/schema.js'
 import type { DriverStanding, ConstructorStanding } from '../domain/types.js'
@@ -39,4 +39,13 @@ export async function listConstructorStandings(year: number): Promise<Constructo
     .where(eq(constructorStanding.seasonYear, year))
     .orderBy(asc(constructorStanding.position))
   return rows as ConstructorStanding[]
+}
+
+export async function driverHasStandingForYear(driverCode: string, seasonYear: number): Promise<boolean> {
+  const db = getDb()
+  const rows = await db.select({ c: driverStanding.driverCode })
+    .from(driverStanding)
+    .where(and(eq(driverStanding.driverCode, driverCode), eq(driverStanding.seasonYear, seasonYear)))
+    .limit(1)
+  return rows.length > 0
 }

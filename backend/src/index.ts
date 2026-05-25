@@ -7,6 +7,7 @@ import { registerPublicRoutes } from './api/routes/public.js'
 import { registerAdminRoutes } from './api/routes/admin.js'
 import { registerAuthRoutes } from './api/routes/auth.js'
 import { registerLeagueRoutes } from './api/routes/leagues.js'
+import { registerPredictionRoutes } from './api/routes/predictions.js'
 import { Scheduler } from './crawler/scheduler.js'
 
 export type BuildAppOpts = { scheduler: Scheduler | null }
@@ -30,6 +31,7 @@ export async function buildApp(opts: BuildAppOpts): Promise<FastifyInstance> {
   await registerAdminRoutes(app, { scheduler: opts.scheduler })
   await app.register(registerAuthRoutes)
   await app.register(registerLeagueRoutes)
+  await app.register(registerPredictionRoutes)
 
   app.get('/api/health', async (_req, reply) => {
     const db = (await pingDb()) ? 'up' : 'down'
