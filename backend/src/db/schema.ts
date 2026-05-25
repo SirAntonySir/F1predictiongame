@@ -1,5 +1,5 @@
 import {
-  pgTable, integer, text, boolean, timestamp, pgEnum, primaryKey, uniqueIndex
+  pgTable, integer, text, boolean, timestamp, pgEnum, primaryKey, uniqueIndex, index
 } from 'drizzle-orm/pg-core'
 
 export const sessionType = pgEnum('session_type', [
@@ -33,7 +33,9 @@ export const session = pgTable('session', {
   scheduledEnd: timestamp('scheduled_end', { withTimezone: true }).notNull(),
   status: sessionStatus('status').notNull().default('scheduled')
 }, (t) => ({
-  uqEventType: uniqueIndex('session_event_type_uq').on(t.eventId, t.type)
+  uqEventType: uniqueIndex('session_event_type_uq').on(t.eventId, t.type),
+  idxStatusStart: index('session_status_start_idx').on(t.status, t.scheduledStart),
+  idxStatusEnd: index('session_status_end_idx').on(t.status, t.scheduledEnd)
 }))
 
 export const driver = pgTable('driver', {

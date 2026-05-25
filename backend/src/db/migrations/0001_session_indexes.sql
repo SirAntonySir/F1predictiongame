@@ -1,0 +1,2 @@
+CREATE INDEX "session_status_start_idx" ON "session" USING btree ("status","scheduled_start");--> statement-breakpoint
+CREATE INDEX "session_status_end_idx" ON "session" USING btree ("status","scheduled_end");
