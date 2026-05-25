@@ -9,6 +9,7 @@ import '../api/models/session_result.dart';
 import '../components/race_tile.dart';
 import '../domain/scoring.dart';
 import '../state/app_state.dart';
+import '../theme/country_flags.dart';
 import '../theme/tokens.dart';
 import '../theme/typography.dart';
 
@@ -159,7 +160,10 @@ class _CalendarScreenState extends State<CalendarScreen> {
                     horizontal: Spacing.lg, vertical: 5),
                 child: RaceTile(
                   round: e.round,
-                  country: '${e.country} · ${e.circuitName}',
+                  country: () {
+                    final flag = flagFor(e.country);
+                    return '${flag != null ? '$flag  ' : ''}${e.country} · ${e.circuitName}';
+                  }(),
                   name: e.name.replaceAll('Grand Prix', 'GP'),
                   when:
                       '${DateFormat('d MMM').format(e.sessions.first.scheduledStart)} – ${DateFormat('d MMM').format(race.scheduledStart)}',
