@@ -78,11 +78,14 @@ export async function leagueLeaderboard(leagueId: string, seasonYear: number): P
       COUNT(s.session_id)::int              AS "sessionsScored"
     FROM ${leagueMember} lm
     JOIN ${user} u ON u.id = lm.user_id
-    LEFT JOIN ${score} s ON s.user_id = lm.user_id
-    LEFT JOIN ${session} ses ON ses.id = s.session_id
-    LEFT JOIN ${event} ev ON ev.id = ses.event_id AND ev.season_year = ${seasonYear}
+    LEFT JOIN (
+      SELECT s.user_id, s.session_id, s.points_total
+      FROM ${score} s
+      JOIN ${session} ses ON ses.id = s.session_id
+      JOIN ${event} ev ON ev.id = ses.event_id
+      WHERE ev.season_year = ${seasonYear}
+    ) s ON s.user_id = lm.user_id
     WHERE lm.league_id = ${leagueId}
-      AND (s.session_id IS NULL OR ev.season_year = ${seasonYear})
     GROUP BY lm.user_id, u.display_name
     ORDER BY "pointsTotal" DESC, "displayName" ASC
   `)

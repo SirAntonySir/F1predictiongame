@@ -7,6 +7,9 @@ import { runBootstrap } from '../../crawler/bootstrap.js'
 import * as seasonsRepo from '../../repo/seasons.js'
 import * as driversRepo from '../../repo/drivers.js'
 import * as constructorsRepo from '../../repo/constructors.js'
+import * as eventsRepo from '../../repo/events.js'
+import * as sessionsRepo from '../../repo/sessions.js'
+import { rescoreSession } from '../../scoring/rescorer.js'
 import type { Scheduler } from '../../crawler/scheduler.js'
 
 export type AdminDeps = {
@@ -57,5 +60,28 @@ export async function registerAdminRoutes(app: FastifyInstance, deps: AdminDeps)
       driversAttempted: missingDrivers.length,
       constructorsAttempted: missingCtors.length
     }
+  })
+
+  app.post<{ Params: { id: string } }>('/admin/rescore-session/:id', async (req) => {
+    const id = Number(req.params.id)
+    if (!Number.isFinite(id)) throw new ApiError('BAD_REQUEST', 'id must be a number')
+    const summary = await rescoreSession(id)
+    return { ok: true, sessionId: id, ...summary }
+  })
+
+  app.post<{ Params: { year: string } }>('/admin/rescore-season/:year', async (req) => {
+    const year = Number(req.params.year)
+    if (!Number.isFinite(year)) throw new ApiError('BAD_REQUEST', 'year must be a number')
+    const evs = await eventsRepo.listForSeason(year)
+    let users = 0, totalPoints = 0
+    for (const ev of evs) {
+      const sessions = await sessionsRepo.listForEvent(ev.id)
+      for (const ses of sessions) {
+        const summary = await rescoreSession(ses.id)
+        users += summary.users
+        totalPoints += summary.totalPoints
+      }
+    }
+    return { ok: true, season: year, users, totalPoints }
   })
 }
