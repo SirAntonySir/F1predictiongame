@@ -7,21 +7,22 @@ import 'trend_badge.dart';
 
 class LeagueRow extends StatelessWidget {
   final int rank;
-  final String initials;
   final String name;
   final String? subtitle;
   final int points;
   final TrendDirection trend;
   final bool isMe;
+  final Color? accentStripe;
+
   const LeagueRow({
     super.key,
     required this.rank,
-    required this.initials,
     required this.name,
     this.subtitle,
     required this.points,
     required this.trend,
     this.isMe = false,
+    this.accentStripe,
   });
 
   @override
@@ -37,13 +38,10 @@ class LeagueRow extends StatelessWidget {
             child: Text('$rank',
                 style: AppText.display(18, color: isMe ? BrandColors.accent : t.colorScheme.onSurface)),
           ),
-          const SizedBox(width: 10),
-          Container(
-            width: 32, height: 32,
-            decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0xFFEEEEEE)),
-            alignment: Alignment.center,
-            child: Text(initials, style: AppText.display(12)),
-          ),
+          if (accentStripe != null) ...[
+            const SizedBox(width: 10),
+            Container(width: 4, height: 22, color: accentStripe),
+          ],
           const SizedBox(width: 10),
           Expanded(
             child: Column(
@@ -59,8 +57,10 @@ class LeagueRow extends StatelessWidget {
               ],
             ),
           ),
-          TrendBadge(direction: trend, label: trend == TrendDirection.equal ? '' : '1'),
-          const SizedBox(width: Spacing.sm),
+          if (trend != TrendDirection.equal) ...[
+            TrendBadge(direction: trend, label: '1'),
+            const SizedBox(width: Spacing.sm),
+          ],
           SizedBox(
             width: 42,
             child: Column(

@@ -15,9 +15,9 @@ class LeagueTab extends StatelessWidget {
     final players = scope.league.league.players;
     // Mock cumulative points per player (deterministic ordering for visual)
     final rows = List.generate(players.length, (i) => (
-      player: players[i],
-      points: 200 - i * 18,
-    ));
+          player: players[i],
+          points: 200 - i * 18,
+        ));
     rows.sort((a, b) => b.points.compareTo(a.points));
     return ListView(
       padding: const EdgeInsets.only(bottom: Spacing.xxl),
@@ -37,7 +37,6 @@ class LeagueTab extends StatelessWidget {
                 final me = r.player.id == scope.auth.currentUserId;
                 return LeagueRow(
                   rank: i + 1,
-                  initials: r.player.initials,
                   name: me ? '${r.player.displayName} (you)' : r.player.displayName,
                   points: r.points,
                   trend: TrendDirection.equal,
@@ -59,37 +58,33 @@ class _Podium extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (rows.length < 3) return const SizedBox.shrink();
-    final colors = [const Color(0xFFFFD233), const Color(0xFFCFCFCF), const Color(0xFFC08350)];
-    final heights = [60.0, 42.0, 30.0];
-    final order = [rows[1], rows[0], rows[2]]; // visual: 2-1-3
-    final pos = [2, 1, 3];
+    // visual layout: 2nd | 1st | 3rd
+    const colors = [Color(0xFFCFCFCF), Color(0xFFFFD233), Color(0xFFC08350)];
+    const heights = [54.0, 78.0, 36.0];
+    final order = [rows[1], rows[0], rows[2]];
+    const pos = [2, 1, 3];
     return AppCard(
       background: const Color(0xFFFAFAFA),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: List.generate(3, (i) {
           final r = order[i];
-          final p = pos[i];
           return Expanded(
             child: Column(
               children: [
-                CircleAvatar(
-                  backgroundColor: p == 1 ? const Color(0xFFFFD233) : Colors.black,
-                  child: Text(
-                    r.player.initials,
-                    style: AppText.display(14, color: p == 1 ? Colors.black : Colors.white),
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(r.player.displayName, style: AppText.label(11)),
-                Text('${r.points}', style: AppText.display(13)),
-                const SizedBox(height: 6),
+                Text(r.player.displayName,
+                    style: AppText.body(12, weight: FontWeight.w800)),
+                const SizedBox(height: 2),
+                Text('${r.points}',
+                    style: AppText.display(16,
+                        color: i == 1 ? Colors.black : Colors.black.withAlpha(180))),
+                const SizedBox(height: 8),
                 Container(
                   width: double.infinity,
                   height: heights[i],
                   color: colors[i],
                   alignment: Alignment.center,
-                  child: Text('$p', style: AppText.display(18)),
+                  child: Text('${pos[i]}', style: AppText.display(22)),
                 ),
               ],
             ),

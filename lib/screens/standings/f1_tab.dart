@@ -1,8 +1,7 @@
+// ignore_for_file: deprecated_member_use
 import 'package:flutter/material.dart';
 import '../../api/models/standing.dart';
 import '../../components/app_card.dart';
-import '../../components/league_row.dart';
-import '../../components/trend_badge.dart';
 import '../../state/app_state.dart';
 import '../../theme/team_colors.dart';
 import '../../theme/tokens.dart';
@@ -68,19 +67,47 @@ class _F1TabState extends State<F1Tab> {
             return const SizedBox.shrink();
           }
           if (snap.hasError) return Center(child: Text('${snap.error}'));
+          final t = Theme.of(context);
           return ListView(
             padding: const EdgeInsets.symmetric(horizontal: Spacing.lg, vertical: Spacing.md),
             children: [
               AppCard(
                 padding: EdgeInsets.zero,
                 child: Column(
-                  children: snap.data!.map((d) => LeagueRow(
-                    rank: d.position,
-                    initials: d.driverCode,
-                    name: d.driverName,
-                    subtitle: '${d.wins} wins',
-                    points: d.points,
-                    trend: TrendDirection.equal,
+                  children: snap.data!.map((d) => Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: Spacing.md, vertical: 10),
+                    child: Row(
+                      children: [
+                        SizedBox(width: 24, child: Text('${d.position}', style: AppText.display(16))),
+                        Container(width: 4, height: 22, color: teamColor(d.constructorId)),
+                        const SizedBox(width: 10),
+                        SizedBox(
+                          width: 44,
+                          child: Text(d.driverCode, style: AppText.body(13, weight: FontWeight.w800)),
+                        ),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(d.driverName, style: AppText.body(13, weight: FontWeight.w600)),
+                              Text('${d.wins} wins',
+                                  style: AppText.body(10, color: t.colorScheme.onSurface.withOpacity(0.5))),
+                            ],
+                          ),
+                        ),
+                        SizedBox(
+                          width: 42,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Text('${d.points}', style: AppText.display(18)),
+                              Text('pts', style: AppText.label(8, color: t.colorScheme.onSurface.withOpacity(0.6))),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
                   )).toList(),
                 ),
               ),
