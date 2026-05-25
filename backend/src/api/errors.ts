@@ -1,12 +1,23 @@
 import type { FastifyReply } from 'fastify'
 
-export type ApiErrorCode = 'NOT_FOUND' | 'UPSTREAM_FAILURE' | 'BAD_REQUEST' | 'UNAUTHORIZED' | 'INTERNAL'
+export type ApiErrorCode =
+  | 'NOT_FOUND'
+  | 'UPSTREAM_FAILURE'
+  | 'BAD_REQUEST'
+  | 'UNAUTHORIZED'
+  | 'FORBIDDEN'
+  | 'CONFLICT'
+  | 'VALIDATION'
+  | 'INTERNAL'
 
 const STATUS: Record<ApiErrorCode, number> = {
   NOT_FOUND: 404,
   UPSTREAM_FAILURE: 502,
   BAD_REQUEST: 400,
   UNAUTHORIZED: 401,
+  FORBIDDEN: 403,
+  CONFLICT: 409,
+  VALIDATION: 422,
   INTERNAL: 500
 }
 
