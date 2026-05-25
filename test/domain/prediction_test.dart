@@ -11,11 +11,10 @@ void main() {
       picks: const ['VER', 'LEC'],
       lockedAt: DateTime.utc(2026, 5, 24, 14),
     );
-    final b = PredictionEntry(
+    const b = PredictionEntry(
       sessionId: 52,
       userId: 'anton',
-      picks: const ['NOR'],
-      lockedAt: null,
+      picks: ['NOR'],
     );
     expect(a.key, b.key);
   });
@@ -29,10 +28,10 @@ void main() {
   });
 
   test('League contains players', () {
-    final l = League(
+    const l = League(
       id: 'the_box',
       name: 'The Box',
-      players: const [
+      players: [
         Player(id: 'anton', displayName: 'Anton'),
         Player(id: 'lukas', displayName: 'Lukas'),
       ],
