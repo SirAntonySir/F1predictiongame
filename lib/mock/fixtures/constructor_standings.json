@@ -1,0 +1,6 @@
+[
+  { "position": 1, "constructorId": "mclaren", "constructorName": "McLaren", "points": 307, "wins": 6, "image": null },
+  { "position": 2, "constructorId": "red_bull", "constructorName": "Red Bull", "points": 175, "wins": 1, "image": null },
+  { "position": 3, "constructorId": "ferrari", "constructorName": "Ferrari", "points": 155, "wins": 0, "image": null },
+  { "position": 4, "constructorId": "mercedes", "constructorName": "Mercedes", "points": 110, "wins": 0, "image": null }
+]

@@ -1,0 +1,101 @@
+[
+  {
+    "round": 1,
+    "name": "Bahrain Grand Prix",
+    "country": "Bahrain",
+    "circuitName": "Bahrain International Circuit",
+    "hasSprint": false,
+    "sessions": [
+      { "id": 1, "type": "qualifying", "scheduledStart": "2026-03-14T15:00:00Z", "scheduledEnd": "2026-03-14T16:00:00Z", "status": "finished" },
+      { "id": 2, "type": "race", "scheduledStart": "2026-03-15T14:00:00Z", "scheduledEnd": "2026-03-15T16:00:00Z", "status": "finished" }
+    ]
+  },
+  {
+    "round": 2,
+    "name": "Saudi Arabian Grand Prix",
+    "country": "Saudi Arabia",
+    "circuitName": "Jeddah Corniche Circuit",
+    "hasSprint": false,
+    "sessions": [
+      { "id": 11, "type": "qualifying", "scheduledStart": "2026-03-21T17:00:00Z", "scheduledEnd": "2026-03-21T18:00:00Z", "status": "finished" },
+      { "id": 12, "type": "race", "scheduledStart": "2026-03-22T17:00:00Z", "scheduledEnd": "2026-03-22T19:00:00Z", "status": "finished" }
+    ]
+  },
+  {
+    "round": 3,
+    "name": "Australian Grand Prix",
+    "country": "Australia",
+    "circuitName": "Albert Park Circuit",
+    "hasSprint": false,
+    "sessions": [
+      { "id": 21, "type": "qualifying", "scheduledStart": "2026-03-28T05:00:00Z", "scheduledEnd": "2026-03-28T06:00:00Z", "status": "finished" },
+      { "id": 22, "type": "race", "scheduledStart": "2026-03-29T04:00:00Z", "scheduledEnd": "2026-03-29T06:00:00Z", "status": "finished" }
+    ]
+  },
+  {
+    "round": 4,
+    "name": "Japanese Grand Prix",
+    "country": "Japan",
+    "circuitName": "Suzuka International Racing Course",
+    "hasSprint": false,
+    "sessions": [
+      { "id": 24, "type": "qualifying", "scheduledStart": "2026-04-04T06:00:00Z", "scheduledEnd": "2026-04-04T07:00:00Z", "status": "finished" },
+      { "id": 25, "type": "race", "scheduledStart": "2026-04-05T06:00:00Z", "scheduledEnd": "2026-04-05T08:00:00Z", "status": "finished" }
+    ]
+  },
+  {
+    "round": 5,
+    "name": "Chinese Grand Prix",
+    "country": "China",
+    "circuitName": "Shanghai International Circuit",
+    "hasSprint": false,
+    "sessions": [
+      { "id": 31, "type": "qualifying", "scheduledStart": "2026-04-18T08:00:00Z", "scheduledEnd": "2026-04-18T09:00:00Z", "status": "finished" },
+      { "id": 32, "type": "race", "scheduledStart": "2026-04-19T08:00:00Z", "scheduledEnd": "2026-04-19T10:00:00Z", "status": "finished" }
+    ]
+  },
+  {
+    "round": 6,
+    "name": "Miami Grand Prix",
+    "country": "United States",
+    "circuitName": "Miami International Autodrome",
+    "hasSprint": false,
+    "sessions": [
+      { "id": 34, "type": "qualifying", "scheduledStart": "2026-05-09T19:00:00Z", "scheduledEnd": "2026-05-09T20:00:00Z", "status": "finished" },
+      { "id": 35, "type": "race", "scheduledStart": "2026-05-10T19:00:00Z", "scheduledEnd": "2026-05-10T21:00:00Z", "status": "finished" }
+    ]
+  },
+  {
+    "round": 7,
+    "name": "Emilia Romagna Grand Prix",
+    "country": "Italy",
+    "circuitName": "Imola",
+    "hasSprint": false,
+    "sessions": [
+      { "id": 41, "type": "qualifying", "scheduledStart": "2026-05-17T14:00:00Z", "scheduledEnd": "2026-05-17T15:00:00Z", "status": "finished" },
+      { "id": 42, "type": "race", "scheduledStart": "2026-05-18T13:00:00Z", "scheduledEnd": "2026-05-18T15:00:00Z", "status": "finished" }
+    ]
+  },
+  {
+    "round": 8,
+    "name": "Monaco Grand Prix",
+    "country": "Monaco",
+    "circuitName": "Circuit de Monaco",
+    "hasSprint": false,
+    "sessions": [
+      { "id": 51, "type": "qualifying", "scheduledStart": "2026-05-24T14:00:00Z", "scheduledEnd": "2026-05-24T15:00:00Z", "status": "finished" },
+      { "id": 52, "type": "race", "scheduledStart": "2026-05-26T13:00:00Z", "scheduledEnd": "2026-05-26T15:00:00Z", "status": "scheduled" }
+    ]
+  },
+  {
+    "round": 9,
+    "name": "Canadian Grand Prix",
+    "country": "Canada",
+    "circuitName": "Circuit Gilles Villeneuve",
+    "hasSprint": false,
+    "sessions": [
+      { "id": 61, "type": "qualifying", "scheduledStart": "2026-06-06T18:00:00Z", "scheduledEnd": "2026-06-06T19:00:00Z", "status": "scheduled" },
+      { "id": 62, "type": "race", "scheduledStart": "2026-06-07T18:00:00Z", "scheduledEnd": "2026-06-07T20:00:00Z", "status": "scheduled" }
+    ]
+  }
+]
