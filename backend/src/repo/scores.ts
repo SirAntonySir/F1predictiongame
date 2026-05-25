@@ -1,7 +1,7 @@
 import { and, desc, eq, sql } from 'drizzle-orm'
 import { getDb } from '../db/client.js'
 import { score, session, event, leagueMember, user } from '../db/schema.js'
-import type { Score, ScoreBreakdown } from '../domain/types.js'
+import type { Score, ScoreBreakdown, PreseasonScoreBreakdown } from '../domain/types.js'
 
 export type LeaderboardRow = {
   userId: string
@@ -172,7 +172,7 @@ export async function upsertPreseasonScore(
   seasonYear: number,
   category: string,
   pointsTotal: number,
-  breakdown: ScoreBreakdown
+  breakdown: ScoreBreakdown | PreseasonScoreBreakdown
 ): Promise<void> {
   const db = getDb()
   await db.execute(sql`

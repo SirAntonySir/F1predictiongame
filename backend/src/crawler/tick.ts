@@ -15,6 +15,7 @@ import * as constructorsRepo from '../repo/constructors.js'
 import * as standingsRepo from '../repo/standings.js'
 import * as seasonsRepo from '../repo/seasons.js'
 import { rescoreSession } from '../scoring/rescorer.js'
+import { rescorePreseasonForSeason } from '../preseason/rescorer.js'
 import type { SessionType, SessionResultRow } from '../domain/types.js'
 
 export type TickSummary = { sessionsFinished: number; sessionsSkipped: number; errors: number }
@@ -147,6 +148,12 @@ export async function runTick(jolpica: JolpicaClient, wiki: WikipediaClient): Pr
         if (ctorRaw) {
           await upsertNewConstructors(extractConstructorsFromStandings(ctorRaw), wiki)
           await standingsRepo.replaceConstructorStandings(cur.year, parseConstructorStandings(ctorRaw))
+        }
+        try {
+          const preseasonSummary = await rescorePreseasonForSeason(cur.year)
+          console.log('Preseason rescored', { year: cur.year, ...preseasonSummary })
+        } catch (err) {
+          console.error('Preseason rescore failed', err)
         }
       }
     } catch (err) {
