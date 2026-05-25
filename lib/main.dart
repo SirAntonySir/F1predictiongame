@@ -1,64 +1,29 @@
 import 'package:flutter/material.dart';
-import 'Screens/live_data_screen.dart';
-import 'Screens/live_table_screen.dart';
-import 'Screens/prediction_input_screen.dart';
+import 'package:http/http.dart' as http;
+import 'api/http_api_client.dart';
+import 'app.dart';
+import 'state/auth_controller.dart';
+import 'state/league_controller.dart';
+import 'state/predictions_store.dart';
+import 'state/preseason_store.dart';
+import 'state/theme_controller.dart';
 
-void main() {
-  runApp(MyTippingGameApp());
-}
+const _apiUrl =
+    String.fromEnvironment('API_URL', defaultValue: 'http://localhost:3000');
 
-class MyTippingGameApp extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Tipping Game',
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
-      ),
-      home: HomeScreen(),
-    );
-  }
-}
-
-class HomeScreen extends StatefulWidget {
-  @override
-  _HomeScreenState createState() => _HomeScreenState();
-}
-
-class _HomeScreenState extends State<HomeScreen> {
-  int _selectedIndex = 0;
-
-  // Pages for each tab
-  final List<Widget> _pages = [
-    PredictionInputScreen(),
-    LiveTableScreen(),
-    LiveDataPage(),
-  ];
-
-  void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: IndexedStack(
-        index: _selectedIndex,
-        children: _pages,
-      ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _selectedIndex,
-        onTap: _onItemTapped,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.edit), label: 'Tipping'),
-          BottomNavigationBarItem(
-              icon: Icon(Icons.leaderboard), label: 'Leaderboard'),
-          BottomNavigationBarItem(
-              icon: Icon(Icons.live_tv), label: 'Live Data'),
-        ],
-      ),
-    );
-  }
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  final api = HttpApiClient(baseUrl: _apiUrl, client: http.Client());
+  final auth = await AuthController.load();
+  final theme = await ThemeController.load();
+  final preds = await PredictionsStore.load();
+  final preseason = await PreseasonStore.load();
+  runApp(F1PgApp(
+    api: api,
+    auth: auth,
+    league: LeagueController(league: theBoxLeague),
+    theme: theme,
+    predictions: preds,
+    preseason: preseason,
+  ));
 }
