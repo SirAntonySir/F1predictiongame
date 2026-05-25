@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'api/api_client.dart';
+import 'nav/router.dart';
 import 'state/app_state.dart';
 import 'state/auth_controller.dart';
 import 'state/league_controller.dart';
@@ -7,7 +8,7 @@ import 'state/predictions_store.dart';
 import 'state/theme_controller.dart';
 import 'theme/app_theme.dart';
 
-class F1PgApp extends StatelessWidget {
+class F1PgApp extends StatefulWidget {
   final ApiClient api;
   final AuthController auth;
   final LeagueController league;
@@ -24,21 +25,28 @@ class F1PgApp extends StatelessWidget {
   });
 
   @override
+  State<F1PgApp> createState() => _F1PgAppState();
+}
+
+class _F1PgAppState extends State<F1PgApp> {
+  late final router = buildRouter(widget.auth);
+
+  @override
   Widget build(BuildContext context) {
     return AppState(
-      api: api,
-      auth: auth,
-      league: league,
-      theme: theme,
-      predictions: predictions,
+      api: widget.api,
+      auth: widget.auth,
+      league: widget.league,
+      theme: widget.theme,
+      predictions: widget.predictions,
       child: ListenableBuilder(
-        listenable: theme,
-        builder: (_, __) => MaterialApp(
+        listenable: widget.theme,
+        builder: (_, __) => MaterialApp.router(
           title: 'F1PG',
           theme: AppTheme.light(),
           darkTheme: AppTheme.dark(),
-          themeMode: theme.mode,
-          home: const Scaffold(body: Center(child: Text('F1PG'))),
+          themeMode: widget.theme.mode,
+          routerConfig: router,
         ),
       ),
     );
