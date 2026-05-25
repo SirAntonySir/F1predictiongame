@@ -1,6 +1,7 @@
 import {
   pgTable, integer, text, boolean, timestamp, pgEnum, primaryKey, uniqueIndex, index, uuid, customType, jsonb
 } from 'drizzle-orm/pg-core'
+import { sql } from 'drizzle-orm'
 
 const bytea = customType<{ data: Buffer; driverData: Buffer }>({
   dataType: () => 'bytea'
@@ -172,12 +173,63 @@ export const predictionPick = pgTable('prediction_pick', {
 
 export const score = pgTable('score', {
   userId: uuid('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
-  sessionId: integer('session_id').notNull().references(() => session.id, { onDelete: 'cascade' }),
+  sessionId: integer('session_id').references(() => session.id, { onDelete: 'cascade' }),
   pointsTotal: integer('points_total').notNull(),
   breakdown: jsonb('breakdown').notNull(),
-  computedAt: timestamp('computed_at', { withTimezone: true }).notNull().defaultNow()
+  computedAt: timestamp('computed_at', { withTimezone: true }).notNull().defaultNow(),
+  kind: text('kind').notNull().default('session'),
+  seasonYear: integer('season_year').references(() => season.year, { onDelete: 'cascade' }),
+  preseasonCategory: text('preseason_category')
 }, (t) => ({
-  pk: primaryKey({ columns: [t.userId, t.sessionId] }),
+  sessionUq: uniqueIndex('score_session_uq').on(t.userId, t.sessionId).where(sql`${t.kind} = 'session'`),
+  preseasonUq: uniqueIndex('score_preseason_uq').on(t.userId, t.seasonYear, t.preseasonCategory).where(sql`${t.kind} = 'preseason'`),
   sessionIdx: index('score_session_idx').on(t.sessionId),
   userIdx: index('score_user_idx').on(t.userId)
 }))
+
+export const preseasonCategory = pgEnum('preseason_category', [
+  'surprise', 'disappointment', 'dnf', 'poles', 'fastest_lap', 'wdc_wcc'
+])
+
+export const preseasonPick = pgTable('preseason_pick', {
+  userId: uuid('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  seasonYear: integer('season_year').notNull().references(() => season.year, { onDelete: 'cascade' }),
+  category: preseasonCategory('category').notNull(),
+  driverCode: text('driver_code').references(() => driver.code),
+  constructorId: text('constructor_id').references(() => constructor.id),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
+}, (t) => ({
+  pk: primaryKey({ columns: [t.userId, t.seasonYear, t.category] }),
+  seasonCategoryIdx: index('preseason_pick_season_category_idx').on(t.seasonYear, t.category)
+}))
+
+export const preseasonPickStandingsDriver = pgTable('preseason_pick_standings_driver', {
+  userId: uuid('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  seasonYear: integer('season_year').notNull().references(() => season.year, { onDelete: 'cascade' }),
+  position: integer('position').notNull(),
+  driverCode: text('driver_code').notNull().references(() => driver.code)
+}, (t) => ({
+  pk: primaryKey({ columns: [t.userId, t.seasonYear, t.position] }),
+  driverUq: uniqueIndex('preseason_psd_driver_uq').on(t.userId, t.seasonYear, t.driverCode),
+  seasonIdx: index('preseason_psd_season_idx').on(t.seasonYear)
+}))
+
+export const preseasonPickStandingsConstructor = pgTable('preseason_pick_standings_constructor', {
+  userId: uuid('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  seasonYear: integer('season_year').notNull().references(() => season.year, { onDelete: 'cascade' }),
+  position: integer('position').notNull(),
+  constructorId: text('constructor_id').notNull().references(() => constructor.id)
+}, (t) => ({
+  pk: primaryKey({ columns: [t.userId, t.seasonYear, t.position] }),
+  constructorUq: uniqueIndex('preseason_psc_constructor_uq').on(t.userId, t.seasonYear, t.constructorId),
+  seasonIdx: index('preseason_psc_season_idx').on(t.seasonYear)
+}))
+
+export const subjectiveTruth = pgTable('subjective_truth', {
+  seasonYear: integer('season_year').primaryKey().references(() => season.year, { onDelete: 'cascade' }),
+  surpriseDriverCode: text('surprise_driver_code').references(() => driver.code),
+  surpriseConstructorId: text('surprise_constructor_id').references(() => constructor.id),
+  disappointmentDriverCode: text('disappointment_driver_code').references(() => driver.code),
+  disappointmentConstructorId: text('disappointment_constructor_id').references(() => constructor.id),
+  setAt: timestamp('set_at', { withTimezone: true }).notNull().defaultNow()
+})

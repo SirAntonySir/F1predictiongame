@@ -144,3 +144,39 @@ export type Score = {
   breakdown: ScoreBreakdown
   computedAt: Date
 }
+
+export type PreseasonCategory =
+  | 'surprise' | 'disappointment' | 'dnf' | 'poles' | 'fastest_lap' | 'wdc_wcc'
+
+export type PreseasonPick = {
+  userId: string
+  seasonYear: number
+  category: PreseasonCategory
+  driverCode: string | null
+  constructorId: string | null
+  updatedAt: Date
+}
+
+export type PreseasonStandingsPickRow = {
+  userId: string
+  seasonYear: number
+  position: number
+  entityId: string  // driverCode or constructorId
+}
+
+export type SubjectiveTruth = {
+  seasonYear: number
+  surpriseDriverCode: string | null
+  surpriseConstructorId: string | null
+  disappointmentDriverCode: string | null
+  disappointmentConstructorId: string | null
+  setAt: Date
+}
+
+export type PreseasonScoreBreakdown = {
+  driver?: { picked: string | null; truth: string | null; correct: boolean; points: number }
+  team?:   { picked: string | null; truth: string | null; correct: boolean; points: number }
+  perPosition?: { position: number; picked: string; truth: string | null; correct: boolean; points: number }[]
+  pointsTotal: number
+  rule: string
+}

@@ -28,6 +28,7 @@ export async function upsertScore(
     .values({ userId, sessionId, pointsTotal, breakdown })
     .onConflictDoUpdate({
       target: [score.userId, score.sessionId],
+      targetWhere: sql`kind = 'session'`,
       set: { pointsTotal, breakdown, computedAt: sql`now()` }
     })
 }
@@ -49,12 +50,12 @@ export async function listForUser(userId: string, seasonYear: number): Promise<U
     .from(score)
     .innerJoin(session, eq(session.id, score.sessionId))
     .innerJoin(event, eq(event.id, session.eventId))
-    .where(and(eq(score.userId, userId), eq(event.seasonYear, seasonYear)))
+    .where(and(eq(score.userId, userId), eq(event.seasonYear, seasonYear), eq(score.kind, 'session')))
     .orderBy(desc(session.scheduledStart))
 
   return rows.map((r) => ({
     userId: r.userId,
-    sessionId: r.sessionId,
+    sessionId: r.sessionId as number,
     pointsTotal: r.pointsTotal,
     breakdown: r.breakdown as ScoreBreakdown,
     computedAt: r.computedAt,
@@ -124,22 +125,24 @@ export async function leagueSessionBreakdown(leagueId: string, seasonYear: numbe
     .innerJoin(event, eq(event.id, session.eventId))
     .innerJoin(user, eq(user.id, score.userId))
     .innerJoin(leagueMember, and(eq(leagueMember.userId, score.userId), eq(leagueMember.leagueId, leagueId)))
-    .where(eq(event.seasonYear, seasonYear))
+    .where(and(eq(event.seasonYear, seasonYear), eq(score.kind, 'session')))
     .orderBy(desc(session.scheduledStart))
 
   const bySession = new Map<number, SessionLeaderboardRow>()
   for (const r of rows) {
-    let entry = bySession.get(r.sessionId)
+    // innerJoin on session.id = score.sessionId guarantees sessionId is non-null here.
+    const sid = r.sessionId as number
+    let entry = bySession.get(sid)
     if (!entry) {
       entry = {
-        sessionId: r.sessionId,
+        sessionId: sid,
         sessionType: r.sessionType,
         eventRound: r.eventRound,
         eventName: r.eventName,
         scheduledStart: r.scheduledStart,
         members: []
       }
-      bySession.set(r.sessionId, entry)
+      bySession.set(sid, entry)
     }
     entry.members.push({
       userId: r.userId,
