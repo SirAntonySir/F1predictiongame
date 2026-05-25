@@ -14,6 +14,7 @@ import * as driversRepo from '../repo/drivers.js'
 import * as constructorsRepo from '../repo/constructors.js'
 import * as standingsRepo from '../repo/standings.js'
 import * as seasonsRepo from '../repo/seasons.js'
+import { rescoreSession } from '../scoring/rescorer.js'
 import type { SessionType, SessionResultRow } from '../domain/types.js'
 
 export type TickSummary = { sessionsFinished: number; sessionsSkipped: number; errors: number }
@@ -117,6 +118,12 @@ export async function runTick(jolpica: JolpicaClient, wiki: WikipediaClient): Pr
       await sessionsRepo.markFinished(ses.id!)
       summary.sessionsFinished++
       anyFinished = true
+      try {
+        const rescore = await rescoreSession(ses.id!)
+        console.log('Rescored session', { sessionId: ses.id, ...rescore })
+      } catch (err) {
+        console.error('Rescore failed (results saved)', { sessionId: ses.id, err })
+      }
     } catch (err) {
       summary.errors++
       console.error('Tick error for session', ses.id, err)
