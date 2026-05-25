@@ -1,6 +1,7 @@
 // ignore_for_file: deprecated_member_use
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import '../api/api_client.dart';
 import '../api/models/event.dart';
 import '../api/models/session_result.dart';
 import '../components/app_card.dart';
@@ -38,7 +39,12 @@ class _SessionResultsScreenState extends State<SessionResultsScreen> {
   Future<_RaceData> _load() async {
     final scope = AppState.of(context);
     final event = await scope.api.event(widget.round);
-    final result = await scope.api.sessionResults(widget.sessionId);
+    List<SessionResult> result;
+    try {
+      result = await scope.api.sessionResults(widget.sessionId);
+    } on NotFoundException {
+      result = const [];
+    }
     final myPicks = scope.predictions.picksFor(
       userId: scope.auth.currentUserId ?? 'anton',
       sessionId: widget.sessionId,
@@ -102,17 +108,47 @@ class _SessionResultsScreenState extends State<SessionResultsScreen> {
                       ],
                     ),
                   ),
-                  Padding(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: Spacing.lg),
-                    child: ScoreBanner(
-                      label: 'Your score',
-                      value: '+$score',
-                      subtitle:
-                          '${picksHits.where((p) => p.outcome == PickOutcome.exact).length} exact · ${picksHits.where((p) => p.outcome == PickOutcome.inTopN).length} in top-5 · ${picksHits.where((p) => p.outcome == PickOutcome.miss).length} miss',
+                  if (d.result.isEmpty) ...[
+                    Padding(
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: Spacing.lg),
+                      child: AppCard(
+                        background: t.mutedSurface,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: Spacing.lg, vertical: Spacing.xxl),
+                        child: Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text('RESULTS NOT IN YET',
+                                  style: AppText.label(11,
+                                      color: t.colorScheme.onSurface
+                                          .withOpacity(0.6))),
+                              const SizedBox(height: Spacing.sm),
+                              Text(
+                                "Come back after the chequered flag.",
+                                style: AppText.body(13,
+                                    color: t.colorScheme.onSurface
+                                        .withOpacity(0.7)),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
-                  if (d.myPicks.isNotEmpty) ...[
+                  ] else ...[
+                    Padding(
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: Spacing.lg),
+                      child: ScoreBanner(
+                        label: 'Your score',
+                        value: '+$score',
+                        subtitle:
+                            '${picksHits.where((p) => p.outcome == PickOutcome.exact).length} exact · ${picksHits.where((p) => p.outcome == PickOutcome.inTopN).length} in top-5 · ${picksHits.where((p) => p.outcome == PickOutcome.miss).length} miss',
+                      ),
+                    ),
+                  ],
+                  if (d.myPicks.isNotEmpty && d.result.isNotEmpty) ...[
                     Padding(
                       padding: const EdgeInsets.fromLTRB(
                           Spacing.lg, Spacing.lg, Spacing.lg, Spacing.xs),
@@ -189,22 +225,24 @@ class _SessionResultsScreenState extends State<SessionResultsScreen> {
                       ),
                     ),
                   ],
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(
-                        Spacing.lg, Spacing.lg, Spacing.lg, Spacing.xs),
-                    child: Text(
-                      'FULL CLASSIFICATION',
-                      style: AppText.label(11,
-                          color: t.colorScheme.onSurface.withOpacity(0.6)),
+                  if (d.result.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                          Spacing.lg, Spacing.lg, Spacing.lg, Spacing.xs),
+                      child: Text(
+                        'FULL CLASSIFICATION',
+                        style: AppText.label(11,
+                            color: t.colorScheme.onSurface.withOpacity(0.6)),
+                      ),
                     ),
-                  ),
-                  Padding(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: Spacing.lg),
-                    child: AppCard(
-                      padding: EdgeInsets.zero,
-                      child: Column(
-                        children: d.result.map((r) {
+                  if (d.result.isNotEmpty)
+                    Padding(
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: Spacing.lg),
+                      child: AppCard(
+                        padding: EdgeInsets.zero,
+                        child: Column(
+                          children: d.result.map((r) {
                           final mine = d.myPicks.contains(r.driverCode);
                           return Container(
                             color: mine ? t.rowHighlight : null,
@@ -241,13 +279,13 @@ class _SessionResultsScreenState extends State<SessionResultsScreen> {
                                     style: AppText.display(11,
                                         color: t.colorScheme.onSurface
                                             .withOpacity(0.6))),
-                              ],
-                            ),
-                          );
-                        }).toList(),
+                                ],
+                              ),
+                            );
+                          }).toList(),
+                        ),
                       ),
                     ),
-                  ),
                 ],
               ),
             );
