@@ -1,3 +1,11 @@
-// Placeholder. Task 6 (test infrastructure) replaces this with a beforeEach
-// truncate hook + an afterAll DB pool cleanup. Kept here only so that
-// vitest.config.ts's setupFiles reference resolves before Task 6 lands.
+import { beforeEach, afterAll } from 'vitest'
+import { truncateAll } from './db.js'
+import { _resetPoolForTests } from '../../src/db/client.js'
+
+beforeEach(async () => {
+  await truncateAll()
+})
+
+afterAll(async () => {
+  await _resetPoolForTests()
+})

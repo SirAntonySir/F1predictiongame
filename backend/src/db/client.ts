@@ -17,7 +17,7 @@ export const pool: pg.Pool = new Proxy({} as pg.Pool, {
 })
 
 let _db: ReturnType<typeof drizzle> | undefined
-function getDb() {
+export function getDb() {
   return _db ??= drizzle(getPool())
 }
 
