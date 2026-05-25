@@ -15,6 +15,27 @@
       "when": 1779704817523,
       "tag": "0001_session_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1779714695363,
+      "tag": "0002_users_auth",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1779731142390,
+      "tag": "0003_predictions",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1779743717193,
+      "tag": "0004_preseason",
+      "breakpoints": true
     }
   ]
 }

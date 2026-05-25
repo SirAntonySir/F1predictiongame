@@ -65,6 +65,8 @@ Boundary rules:
 
 ## API
 
+Authenticated endpoints require `Authorization: Bearer <token>` where `<token>` comes from `/api/auth/signup` or `/api/auth/login`. Sessions slide a 90-day expiry on every request.
+
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/api/health` | DB up/down + last tick info |
@@ -78,14 +80,86 @@ Boundary rules:
 | GET | `/api/standings/constructors` | Current constructor standings, with constructor image |
 | GET | `/api/drivers/:code` | Driver lookup (image included) |
 | GET | `/api/constructors/:id` | Constructor lookup (image included) |
+| POST | `/api/auth/signup` | Create account, returns `{ user, token }` |
+| POST | `/api/auth/login` | Login, returns `{ user, token }` |
+| POST | `/api/auth/logout` | Revoke caller's session (bearer) |
+| GET  | `/api/auth/me` | Current user + caller's leagues (bearer) |
+| PATCH | `/api/auth/me` | Update display name (bearer) |
+| POST | `/api/leagues` | Create caller's league (bearer, 1-per-user) |
+| GET  | `/api/leagues/mine` | List leagues caller belongs to (bearer) |
+| GET  | `/api/leagues/:id` | League + members; `joinCode` visible to owner only (bearer + member) |
+| PATCH | `/api/leagues/:id` | Rename (bearer + owner) |
+| POST | `/api/leagues/:id/regenerate-code` | New join code (bearer + owner) |
+| DELETE | `/api/leagues/:id` | Delete league (bearer + owner) |
+| POST | `/api/leagues/join` | Join via `{ joinCode }` (bearer) |
+| DELETE | `/api/leagues/:id/members/me` | Leave league (bearer + member, not owner) |
+| DELETE | `/api/leagues/:id/members/:userId` | Kick member (bearer + owner) |
+| GET  | `/api/predictions/upcoming` | Caller's upcoming scorable sessions, with `myPicks` (bearer) |
+| GET  | `/api/sessions/:id/my-prediction` | Caller's prediction for a session (bearer) |
+| PUT  | `/api/sessions/:id/my-prediction` | Submit/replace caller's picks; 409 after lock (bearer) |
+| DELETE | `/api/sessions/:id/my-prediction` | Remove caller's prediction; 409 after lock (bearer) |
+| GET  | `/api/sessions/:id/predictions` | Everyone's picks; only after lock (bearer) |
+| GET  | `/api/leagues/:id/leaderboard` | League leaderboard, sums of `score.points_total` (bearer + member) |
+| GET  | `/api/leagues/:id/leaderboard/sessions` | Per-session per-member breakdown (bearer + member) |
+| GET  | `/api/users/me/scores` | Caller's score history (bearer) |
+| GET  | `/api/preseason/my` | Caller's full questionnaire state (bearer) |
+| PUT  | `/api/preseason/:category` | Submit/replace single-pick category (bearer; 409 after lock) |
+| DELETE | `/api/preseason/:category` | Remove caller's pick (bearer; 409 after lock) |
+| PUT  | `/api/preseason/standings/drivers` | Full driver ordering (bearer; 409 after lock) |
+| PUT  | `/api/preseason/standings/constructors` | Full constructor ordering (bearer; 409 after lock) |
+| DELETE | `/api/preseason/standings/drivers` | Clear driver ordering (bearer; 409 after lock) |
+| DELETE | `/api/preseason/standings/constructors` | Clear constructor ordering (bearer; 409 after lock) |
+| GET  | `/api/seasons/:year/preseason-truth` | Observed + subjective truth + everyone's picks (bearer; only after lock) |
+| GET  | `/api/users/me/preseason-scores` | Caller's preseason scores for current season (bearer) |
 | POST | `/admin/bootstrap` | Re-fetch schedule + populate season (token-gated, idempotent) |
 | POST | `/admin/crawl` | Force an immediate tick (token-gated) |
 | POST | `/admin/refresh-images` | Re-attempt Wikipedia fetch for null image URLs (token-gated) |
+| POST | `/admin/rescore-session/:id` | Force rescore of one session (token-gated) |
+| POST | `/admin/rescore-season/:year` | Rescore every finished session in a season (token-gated) |
+| POST | `/admin/seasons/:year/subjective-truth` | Set 4 subjective picks; triggers rescore (token-gated) |
+| POST | `/admin/preseason-rescore/:year` | Force preseason rescore (token-gated) |
 
 Admin endpoints require `X-Admin-Token: <ADMIN_TOKEN>` header.
 
 Drivers/constructors expose an `image` field equal to `imageUrlOverride ?? imageUrl`.
 Both backing fields can be null — clients must degrade gracefully.
+
+## Scoring
+
+Per race weekend, four scorable session kinds:
+
+| Kind | Picks | Per-position exact | Wrong position | Team bonus | Max |
+|---|---|---|---|---|---|
+| Qualifying | P1, P2 | 3 each | 1 each | +1 if pole pick's team matches pole | 7 |
+| Sprint Shootout | P1 | 1 | — | +1 if P1 pick's team matches | 2 |
+| Sprint Race | P1, P2, P3 | 2 each | 1 each | +1 if winning team correct | 7 |
+| Race | P1–P5 | 3 each | 1 each | +2 if winning team correct | 17 |
+
+Picks lock at the session's scheduled start. The crawler auto-rescores after writing
+results, so FIA penalty updates flow through to scores automatically. Manual rescore
+is available via the `/admin/rescore-*` endpoints.
+
+## Pre-season scoring
+
+Each user submits a pre-season questionnaire that locks at the first session of round 1.
+Categories and points:
+
+| Category | Picks | Points | Max |
+|---|---|---|---|
+| Biggest surprise | 1 driver + 1 team | 4 each match | 8 |
+| Biggest disappointment | 1 driver + 1 team | 4 each match | 8 |
+| Most DNFs | 1 driver + 1 team | 4 each match | 8 |
+| Most poles | 1 driver + 1 team | 4 each match | 8 |
+| Most fastest laps | 1 driver + 1 team | 4 each match | 8 |
+| WDC + WCC | 1 driver + 1 team | 4 each match | 8 |
+| Complete championship | ~20 drivers + ~10 teams ordered | 3 per correct driver + 4 per correct team | 100 |
+
+Surprise + disappointment are subjective — admin sets them at season end via
+`POST /admin/seasons/:year/subjective-truth`. All other categories derive from
+the crawled F1 data (DNFs from `status`, poles from qualifying, FLs from
+`fastest_lap`, WDC/WCC + full standings from the standings tables).
+
+The crawler auto-rescores preseason after every standings refresh.
 
 ## Deploy
 
@@ -111,5 +185,4 @@ Both backing fields can be null — clients must degrade gracefully.
 
 ## What's NOT in this sub-project
 
-User accounts, auth, predictions, scoring engine, the pre-season questionnaire,
-Flutter UI changes. Each gets its own sub-project in subsequent rebuild cycles.
+Flutter UI changes — handled in a parallel sub-project.

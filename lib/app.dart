@@ -1,0 +1,58 @@
+import 'package:flutter/material.dart';
+import 'api/api_client.dart';
+import 'nav/router.dart';
+import 'state/app_state.dart';
+import 'state/auth_controller.dart';
+import 'state/league_controller.dart';
+import 'state/predictions_store.dart';
+import 'state/preseason_store.dart';
+import 'state/theme_controller.dart';
+import 'theme/app_theme.dart';
+
+class F1PgApp extends StatefulWidget {
+  final ApiClient api;
+  final AuthController auth;
+  final LeagueController league;
+  final ThemeController theme;
+  final PredictionsStore predictions;
+  final PreseasonStore preseason;
+
+  const F1PgApp({
+    super.key,
+    required this.api,
+    required this.auth,
+    required this.league,
+    required this.theme,
+    required this.predictions,
+    required this.preseason,
+  });
+
+  @override
+  State<F1PgApp> createState() => _F1PgAppState();
+}
+
+class _F1PgAppState extends State<F1PgApp> {
+  late final router = buildRouter(widget.auth);
+
+  @override
+  Widget build(BuildContext context) {
+    return AppState(
+      api: widget.api,
+      auth: widget.auth,
+      league: widget.league,
+      theme: widget.theme,
+      predictions: widget.predictions,
+      preseason: widget.preseason,
+      child: ListenableBuilder(
+        listenable: widget.theme,
+        builder: (_, __) => MaterialApp.router(
+          title: 'F1PG',
+          theme: AppTheme.light(),
+          darkTheme: AppTheme.dark(),
+          themeMode: widget.theme.mode,
+          routerConfig: router,
+        ),
+      ),
+    );
+  }
+}

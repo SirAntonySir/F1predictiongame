@@ -4,6 +4,7 @@ import { WikipediaClient } from '../wikipedia/client.js'
 import { runTick, type TickSummary } from './tick.js'
 import { runBootstrap } from './bootstrap.js'
 import * as seasonsRepo from '../repo/seasons.js'
+import { sweepExpiredSessions } from '../auth/sweeper.js'
 
 export class Scheduler {
   private isRunningTick = false
@@ -12,6 +13,7 @@ export class Scheduler {
   private lastTickStatus: 'ok' | 'error' | null = null
   private tickJob: ScheduledTask | null = null
   private weeklyJob: ScheduledTask | null = null
+  private sweepJob: ScheduledTask | null = null
 
   constructor(
     private jolpica = new JolpicaClient(),
@@ -23,6 +25,8 @@ export class Scheduler {
     this.tickJob = cron.schedule('*/15 * * * *', () => { void this.tickOnce() })
     // Mondays 03:00 UTC
     this.weeklyJob = cron.schedule('0 3 * * 1', () => { void this.weeklyOnce() }, { timezone: 'UTC' })
+    // Daily 04:00 UTC — delete expired sessions
+    this.sweepJob = cron.schedule('0 4 * * *', () => { void this.sweepOnce() }, { timezone: 'UTC' })
   }
 
   stop(): void {
@@ -30,6 +34,8 @@ export class Scheduler {
     this.weeklyJob?.stop()
     this.tickJob = null
     this.weeklyJob = null
+    this.sweepJob?.stop()
+    this.sweepJob = null
   }
 
   async tickOnce(): Promise<TickSummary | null> {
@@ -65,6 +71,15 @@ export class Scheduler {
       console.error('Weekly refresh failed', err)
     } finally {
       this.isRunningWeekly = false
+    }
+  }
+
+  async sweepOnce(): Promise<void> {
+    try {
+      const removed = await sweepExpiredSessions()
+      console.log('Session sweep complete', { removed })
+    } catch (err) {
+      console.error('Session sweep failed', err)
     }
   }
 
