@@ -49,3 +49,12 @@ export async function driverHasStandingForYear(driverCode: string, seasonYear: n
     .limit(1)
   return rows.length > 0
 }
+
+export async function constructorHasStandingForYear(constructorId: string, seasonYear: number): Promise<boolean> {
+  const db = getDb()
+  const rows = await db.select({ c: constructorStanding.constructorId })
+    .from(constructorStanding)
+    .where(and(eq(constructorStanding.constructorId, constructorId), eq(constructorStanding.seasonYear, seasonYear)))
+    .limit(1)
+  return rows.length > 0
+}
