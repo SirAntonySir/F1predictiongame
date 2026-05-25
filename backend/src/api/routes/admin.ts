@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify'
+import { z } from 'zod'
 import { config } from '../../config.js'
 import { ApiError } from '../errors.js'
 import { JolpicaClient } from '../../jolpica/client.js'
@@ -9,7 +10,9 @@ import * as driversRepo from '../../repo/drivers.js'
 import * as constructorsRepo from '../../repo/constructors.js'
 import * as eventsRepo from '../../repo/events.js'
 import * as sessionsRepo from '../../repo/sessions.js'
+import * as truthRepo from '../../repo/subjectiveTruth.js'
 import { rescoreSession } from '../../scoring/rescorer.js'
+import { rescorePreseasonForSeason } from '../../preseason/rescorer.js'
 import type { Scheduler } from '../../crawler/scheduler.js'
 
 export type AdminDeps = {
@@ -83,5 +86,29 @@ export async function registerAdminRoutes(app: FastifyInstance, deps: AdminDeps)
       }
     }
     return { ok: true, season: year, users, totalPoints }
+  })
+
+  const truthBody = z.object({
+    surpriseDriverCode: z.string().min(1).max(10).nullable(),
+    surpriseConstructorId: z.string().min(1).max(50).nullable(),
+    disappointmentDriverCode: z.string().min(1).max(10).nullable(),
+    disappointmentConstructorId: z.string().min(1).max(50).nullable()
+  })
+
+  app.post<{ Params: { year: string } }>('/admin/seasons/:year/subjective-truth', async (req) => {
+    const year = Number(req.params.year)
+    if (!Number.isFinite(year)) throw new ApiError('BAD_REQUEST', 'year must be a number')
+    const parsed = truthBody.safeParse(req.body)
+    if (!parsed.success) throw new ApiError('VALIDATION', parsed.error.issues[0]?.message ?? 'Invalid body')
+    await truthRepo.upsertTruth(year, parsed.data)
+    const summary = await rescorePreseasonForSeason(year)
+    return { ok: true, year, ...summary }
+  })
+
+  app.post<{ Params: { year: string } }>('/admin/preseason-rescore/:year', async (req) => {
+    const year = Number(req.params.year)
+    if (!Number.isFinite(year)) throw new ApiError('BAD_REQUEST', 'year must be a number')
+    const summary = await rescorePreseasonForSeason(year)
+    return { ok: true, year, ...summary }
   })
 }
