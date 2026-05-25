@@ -44,7 +44,8 @@ class RaceTile extends StatelessWidget {
         padding: EdgeInsets.zero,
         child: ClipRRect(
           borderRadius: Radii.rLg,
-          child: Row(
+          child: IntrinsicHeight(
+            child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               if (stripeColor != null)
@@ -101,6 +102,7 @@ class RaceTile extends StatelessWidget {
                 child: _rightSide(t),
               ),
             ],
+          ),
           ),
         ),
       ),
