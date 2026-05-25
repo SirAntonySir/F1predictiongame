@@ -84,7 +84,11 @@ export async function leagueLeaderboard(leagueId: string, seasonYear: number): P
       FROM ${score} s
       JOIN ${session} ses ON ses.id = s.session_id
       JOIN ${event} ev ON ev.id = ses.event_id
-      WHERE ev.season_year = ${seasonYear}
+      WHERE s.kind = 'session' AND ev.season_year = ${seasonYear}
+      UNION ALL
+      SELECT s.user_id, NULL::int AS session_id, s.points_total
+      FROM ${score} s
+      WHERE s.kind = 'preseason' AND s.season_year = ${seasonYear}
     ) s ON s.user_id = lm.user_id
     WHERE lm.league_id = ${leagueId}
     GROUP BY lm.user_id, u.display_name
@@ -152,4 +156,57 @@ export async function leagueSessionBreakdown(leagueId: string, seasonYear: numbe
     })
   }
   return Array.from(bySession.values())
+}
+
+export type UserPreseasonScoreRow = {
+  userId: string
+  seasonYear: number
+  category: string
+  pointsTotal: number
+  breakdown: ScoreBreakdown
+  computedAt: Date
+}
+
+export async function upsertPreseasonScore(
+  userId: string,
+  seasonYear: number,
+  category: string,
+  pointsTotal: number,
+  breakdown: ScoreBreakdown
+): Promise<void> {
+  const db = getDb()
+  await db.execute(sql`
+    INSERT INTO ${score} ("user_id", "session_id", "points_total", "breakdown", "kind", "season_year", "preseason_category")
+    VALUES (${userId}::uuid, NULL, ${pointsTotal}, ${JSON.stringify(breakdown)}::jsonb, 'preseason', ${seasonYear}, ${category})
+    ON CONFLICT ("user_id", "season_year", "preseason_category") WHERE kind = 'preseason'
+    DO UPDATE SET points_total = EXCLUDED.points_total,
+                  breakdown    = EXCLUDED.breakdown,
+                  computed_at  = now()
+  `)
+}
+
+export async function listPreseasonForUser(userId: string, seasonYear: number): Promise<UserPreseasonScoreRow[]> {
+  const db = getDb()
+  const rows = await db.execute(sql`
+    SELECT
+      "user_id"::text       AS "userId",
+      "season_year"         AS "seasonYear",
+      "preseason_category"  AS "category",
+      "points_total"        AS "pointsTotal",
+      "breakdown"           AS "breakdown",
+      "computed_at"         AS "computedAt"
+    FROM ${score}
+    WHERE "user_id" = ${userId}::uuid
+      AND "kind" = 'preseason'
+      AND "season_year" = ${seasonYear}
+    ORDER BY "preseason_category"
+  `)
+  return ((rows as unknown as { rows: any[] }).rows).map((r) => ({
+    userId: r.userId,
+    seasonYear: r.seasonYear,
+    category: r.category,
+    pointsTotal: r.pointsTotal,
+    breakdown: r.breakdown as ScoreBreakdown,
+    computedAt: new Date(r.computedAt)
+  }))
 }
