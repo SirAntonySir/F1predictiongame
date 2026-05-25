@@ -21,7 +21,7 @@ void main() {
       state: RaceState.next,
     )));
     expect(find.text('08'), findsOneWidget);
-    expect(find.text('Monaco GP'), findsOneWidget);
+    expect(find.text('MONACO GP'), findsOneWidget);
     expect(find.text('NEXT'), findsOneWidget);
   });
 

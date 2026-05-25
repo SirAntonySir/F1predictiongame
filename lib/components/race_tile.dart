@@ -67,7 +67,7 @@ class RaceTile extends StatelessWidget {
                           style: AppText.label(10, color: t.colorScheme.onSurface.withOpacity(0.55))),
                       const SizedBox(height: Spacing.xxs),
                       Text(
-                        name,
+                        name.toUpperCase(),
                         style: AppText.display(16).copyWith(
                           decoration: state == RaceState.past ? TextDecoration.lineThrough : null,
                           decorationColor: Colors.black26,
