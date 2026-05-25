@@ -30,7 +30,7 @@ GoRouter buildRouter(AuthController auth) {
           GoRoute(path: '/predict', builder: (_, __) => const PredictScreen()),
           GoRoute(
             path: '/standings',
-            redirect: (_, s) => s.matchedLocation == '/standings' ? '/standings/league' : null,
+            builder: (_, __) => const StandingsScreen(subTab: 'league'),
             routes: [
               GoRoute(path: 'league', builder: (_, __) => const StandingsScreen(subTab: 'league')),
               GoRoute(path: 'f1', builder: (_, __) => const StandingsScreen(subTab: 'f1')),
