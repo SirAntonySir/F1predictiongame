@@ -330,7 +330,7 @@ class _PreseasonScreenState extends State<PreseasonScreen> {
                             secondary: driver.driverName,
                             stripeColor: teamColor(driver.constructorId),
                           ),
-                    enabled: !locked,
+                    enabled: true,
                     onTap: () async {
                       final pickedCode = await _pickDriver(d.drivers);
                       if (pickedCode == null) return;
@@ -367,7 +367,7 @@ class _PreseasonScreenState extends State<PreseasonScreen> {
                             secondary: null,
                             stripeColor: teamColor(team.constructorId),
                           ),
-                    enabled: !locked,
+                    enabled: true,
                     onTap: () async {
                       final pickedId = await _pickConstructor(d.constructors);
                       if (pickedId == null) return;
