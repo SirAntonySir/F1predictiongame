@@ -1,16 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:predictiongame/api/api_client.dart';
-import 'package:predictiongame/api/models/constructor.dart';
-import 'package:predictiongame/api/models/driver.dart';
-import 'package:predictiongame/api/models/event.dart';
-import 'package:predictiongame/api/models/me_result.dart';
 import 'package:predictiongame/api/models/pick.dart';
 import 'package:predictiongame/api/models/prediction_view.dart';
-import 'package:predictiongame/api/models/season.dart';
 import 'package:predictiongame/api/models/session.dart';
 import 'package:predictiongame/api/models/session_result.dart';
-import 'package:predictiongame/api/models/standing.dart';
 import 'package:predictiongame/api/models/upcoming_prediction.dart';
 import 'package:predictiongame/screens/predict_screen.dart';
 import 'package:predictiongame/state/app_state.dart';

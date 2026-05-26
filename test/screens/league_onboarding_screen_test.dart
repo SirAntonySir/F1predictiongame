@@ -37,7 +37,7 @@ void main() {
 
   testWidgets('join → calls joinLeague + refreshMe', (tester) async {
     final api = _FakeApi()
-      ..joinReply = LeagueView(id: 'L', name: 'Eins', role: 'member', joinCode: null, members: const [])
+      ..joinReply = const LeagueView(id: 'L', name: 'Eins', role: 'member', joinCode: null, members: [])
       ..meReply = MeResult(
         user: User(id: 'u1', email: 'a@b.com', displayName: 'A', createdAt: DateTime.utc(2026,1,1)),
         leagues: const [UserLeague(id: 'L', name: 'Eins', role: 'member')],
@@ -58,7 +58,7 @@ void main() {
 
   testWidgets('create → calls createLeague + refreshMe', (tester) async {
     final api = _FakeApi()
-      ..createReply = LeagueView(id: 'L', name: 'New', role: 'owner', joinCode: 'JJJJ22', members: const [])
+      ..createReply = const LeagueView(id: 'L', name: 'New', role: 'owner', joinCode: 'JJJJ22', members: [])
       ..meReply = MeResult(
         user: User(id: 'u1', email: 'a@b.com', displayName: 'A', createdAt: DateTime.utc(2026,1,1)),
         leagues: const [UserLeague(id: 'L', name: 'New', role: 'owner')],
