@@ -78,7 +78,9 @@ class _LeagueTabState extends State<LeagueTab> {
                     return LeagueRow(
                       rank: i + 1,
                       name: isMe ? '${r.displayName} (you)' : r.displayName,
-                      points: r.pointsTotal,
+                      inSeasonPoints: r.inSeasonPoints,
+                      preseasonPoints: r.preseasonPoints,
+                      pointsTotal: r.pointsTotal,
                       trend: TrendDirection.equal,
                       isMe: isMe,
                     );

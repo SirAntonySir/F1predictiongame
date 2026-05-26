@@ -10,7 +10,9 @@ class LeagueRow extends StatelessWidget {
   final int rank;
   final String name;
   final String? subtitle;
-  final int points;
+  final int inSeasonPoints;
+  final int preseasonPoints;
+  final int pointsTotal;
   final TrendDirection trend;
   final bool isMe;
   final Color? accentStripe;
@@ -20,7 +22,9 @@ class LeagueRow extends StatelessWidget {
     required this.rank,
     required this.name,
     this.subtitle,
-    required this.points,
+    required this.inSeasonPoints,
+    required this.preseasonPoints,
+    required this.pointsTotal,
     required this.trend,
     this.isMe = false,
     this.accentStripe,
@@ -37,7 +41,8 @@ class LeagueRow extends StatelessWidget {
           SizedBox(
             width: 26,
             child: Text('$rank',
-                style: AppText.display(18, color: isMe ? BrandColors.accent : t.colorScheme.onSurface)),
+                style: AppText.display(18,
+                    color: isMe ? BrandColors.accent : t.colorScheme.onSurface)),
           ),
           if (accentStripe != null) ...[
             const SizedBox(width: 10),
@@ -49,11 +54,15 @@ class LeagueRow extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(name, style: AppText.body(13, weight: isMe ? FontWeight.w800 : FontWeight.w700)),
+                Text(name,
+                    style: AppText.body(13,
+                        weight: isMe ? FontWeight.w800 : FontWeight.w700)),
                 if (subtitle != null)
                   Padding(
                     padding: const EdgeInsets.only(top: 2),
-                    child: Text(subtitle!, style: AppText.body(10, color: t.colorScheme.onSurface.withOpacity(0.5))),
+                    child: Text(subtitle!,
+                        style: AppText.body(10,
+                            color: t.colorScheme.onSurface.withOpacity(0.5))),
                   ),
               ],
             ),
@@ -62,16 +71,30 @@ class LeagueRow extends StatelessWidget {
             TrendBadge(direction: trend, label: '1'),
             const SizedBox(width: Spacing.sm),
           ],
-          SizedBox(
-            width: 42,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text('$points', style: AppText.display(18)),
-                Text('pts', style: AppText.label(8, color: t.colorScheme.onSurface.withOpacity(0.6))),
-              ],
-            ),
-          ),
+          _pointsCell(t, '$inSeasonPoints', 'season'),
+          const SizedBox(width: 8),
+          _pointsCell(t, '$preseasonPoints', 'pre'),
+          const SizedBox(width: 8),
+          _pointsCell(t, '$pointsTotal', 'pts', emphasis: true),
+        ],
+      ),
+    );
+  }
+
+  Widget _pointsCell(ThemeData t, String value, String label, {bool emphasis = false}) {
+    return SizedBox(
+      width: 38,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Text(value,
+              style: AppText.display(emphasis ? 18 : 14,
+                  color: emphasis
+                      ? t.colorScheme.onSurface
+                      : t.colorScheme.onSurface.withOpacity(0.65))),
+          Text(label,
+              style: AppText.label(8,
+                  color: t.colorScheme.onSurface.withOpacity(0.6))),
         ],
       ),
     );

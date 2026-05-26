@@ -13,14 +13,17 @@ Widget _frame(Widget c) => MaterialApp(
     );
 
 void main() {
-  testWidgets('LeagueRow shows rank, name, points', (tester) async {
+  testWidgets('LeagueRow shows rank, name, and split points', (tester) async {
     await tester.pumpWidget(_frame(const LeagueRow(
-      rank: 3, name: 'Anton', subtitle: '+24 last race',
-      points: 148, trend: TrendDirection.equal, isMe: true,
+      rank: 3, name: 'Anton',
+      inSeasonPoints: 100, preseasonPoints: 48, pointsTotal: 148,
+      trend: TrendDirection.equal, isMe: true,
     )));
     expect(find.text('3'), findsOneWidget);
     expect(find.text('Anton'), findsOneWidget);
     expect(find.text('148'), findsOneWidget);
+    expect(find.text('100'), findsOneWidget);
+    expect(find.text('48'),  findsOneWidget);
   });
 
   testWidgets('ScoreBanner shows label + big number', (tester) async {
