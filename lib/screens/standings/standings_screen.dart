@@ -8,6 +8,7 @@ import '../../theme/typography.dart';
 import 'f1_tab.dart';
 import 'insights_tab.dart';
 import 'league_tab.dart';
+import 'preseason_tab.dart';
 
 class StandingsScreen extends StatefulWidget {
   final String subTab;
@@ -67,15 +68,18 @@ class _StandingsScreenState extends State<StandingsScreen> {
               padding: const EdgeInsets.fromLTRB(Spacing.xl, Spacing.md, Spacing.xl, Spacing.xs),
               child: Row(children: [
                 Expanded(child: _tab('league', 'LEAGUE')),
-                const SizedBox(width: 6),
+                const SizedBox(width: 4),
                 Expanded(child: _tab('f1', 'F1')),
-                const SizedBox(width: 6),
+                const SizedBox(width: 4),
                 Expanded(child: _tab('insights', 'INSIGHTS')),
+                const SizedBox(width: 4),
+                Expanded(child: _tab('preseason', 'PRESEASON')),
               ]),
             ),
             Expanded(child: switch (_subTab) {
               'f1' => const F1Tab(),
               'insights' => const InsightsTab(),
+              'preseason' => const PreseasonTab(),
               _ => const LeagueTab(),
             }),
           ],
