@@ -523,7 +523,7 @@ git commit -m "flutter: add SessionLeaderboardRow model + leagueSessionBreakdown
 
 ---
 
-### Task 5: Flutter — trajectory chart shows every league member
+### Task 5: Flutter — trajectory shows top-3 + me + my immediate neighbors
 
 **Files:**
 - Modify: `lib/screens/standings/insights_tab.dart` (replace `_buildTrajectory` + extend `_InsightsData` with `sessions`)
@@ -596,9 +596,11 @@ Future<_InsightsData> _load() async {
 }
 ```
 
-- [ ] **Step 4: Replace `_buildTrajectory` with a multi-series builder**
+- [ ] **Step 4: Replace `_buildTrajectory` with a filtered multi-series builder**
 
-Remove the existing `_buildTrajectory(_InsightsData d) → _Trajectory?` method and the `_Trajectory` class. Add:
+Remove the existing `_buildTrajectory(_InsightsData d) → _Trajectory?` method and the `_Trajectory` class. The new builder plots only the members that are interesting in context: the top 3 of the current league leaderboard, plus the caller, plus the caller's immediate neighbors in the standings (one position above + one below). When the caller is already in the top 3, neighbors are omitted (the top 3 already includes them).
+
+Add:
 
 ```dart
 List<ChartSeries> _buildTrajectorySeries(_InsightsData d) {
@@ -613,12 +615,31 @@ List<ChartSeries> _buildTrajectorySeries(_InsightsData d) {
   for (final s in sessions) {
     for (final m in s.members) names.putIfAbsent(m.userId, () => m.displayName);
   }
-  final allIds = names.keys.toList();
+
+  // Decide which members to plot: top 3 of current leaderboard + me + (if I'm not in
+  // the top 3) my immediate neighbors above & below me in the standings.
+  final leaderboard = [...d.leaderboard]..sort((a, b) => b.pointsTotal.compareTo(a.pointsTotal));
+  final selected = <String>{};
+  for (var i = 0; i < leaderboard.length && i < 3; i++) {
+    selected.add(leaderboard[i].userId);
+  }
+  if (d.myUserId != null) {
+    selected.add(d.myUserId!);
+    final myIdx = leaderboard.indexWhere((r) => r.userId == d.myUserId);
+    if (myIdx >= 3) {
+      if (myIdx - 1 >= 0) selected.add(leaderboard[myIdx - 1].userId);
+      if (myIdx + 1 < leaderboard.length) selected.add(leaderboard[myIdx + 1].userId);
+    }
+  }
+
+  // Plot order: caller first (accent), then everyone else in leaderboard rank order.
   final ordered = [
-    if (d.myUserId != null && names.containsKey(d.myUserId)) d.myUserId!,
-    ...(allIds.where((id) => id != d.myUserId).toList()
-      ..sort((a, b) => names[a]!.compareTo(names[b]!))),
+    if (d.myUserId != null && selected.contains(d.myUserId)) d.myUserId!,
+    ...leaderboard
+        .map((r) => r.userId)
+        .where((id) => selected.contains(id) && id != d.myUserId),
   ];
+
   const palette = [
     BrandColors.accent,
     Color(0xFF6B6F76),
@@ -631,7 +652,7 @@ List<ChartSeries> _buildTrajectorySeries(_InsightsData d) {
   return [
     for (var i = 0; i < ordered.length; i++)
       ChartSeries(
-        label: ordered[i] == d.myUserId ? 'You' : names[ordered[i]]!,
+        label: ordered[i] == d.myUserId ? 'You' : (names[ordered[i]] ?? '—'),
         color: palette[i % palette.length],
         points: _cumulativePoints(pointsByMemberPerSession, ordered[i]),
       ),
@@ -1836,6 +1857,200 @@ git commit -m "ui: add PRESEASON sub-tab on StandingsScreen"
 
 ---
 
+### Task 11: Backend — record picked `driverCode` on each `ScoreBreakdownPerPosition`
+
+The insights gained/cost stats in Task 12 need to know which driver was at each pick position. The scorers already receive that info (it's literally the `picks` argument) — they just discard it before writing the breakdown to the score table. Add it.
+
+**Files:**
+- Modify: `backend/src/scoring/types.ts`
+- Modify: `backend/src/scoring/race.ts`, `qualifying.ts`, `sprintRace.ts`, `sprintShootout.ts`
+- Modify: `backend/test/unit/scoring/race.test.ts`, `sprintShootout.test.ts` (assertions on the new field)
+
+- [ ] **Step 1: Update the existing scorer tests to assert the new field**
+
+In `backend/test/unit/scoring/race.test.ts`, modify the two `.toEqual({ position: ..., exact: ..., wrongPos: ..., points: ... })` assertions (lines 42–44 area) to include `driverCode`. Read the test to see which picks it uses; concretely:
+
+```ts
+    expect(b.perPosition[0]).toEqual({ position: 1, driverCode: /* P1 pick driver */, exact: false, wrongPos: true, points: 1 })
+    expect(b.perPosition[1]).toEqual({ position: 2, driverCode: /* P2 pick driver */, exact: false, wrongPos: true, points: 1 })
+    expect(b.perPosition[2]).toEqual({ position: 3, driverCode: /* P3 pick driver */, exact: true,  wrongPos: false, points: 3 })
+```
+
+(Open the test, look at the `picks` array being passed in, and substitute the actual driver codes into each `driverCode` slot.)
+
+In `backend/test/unit/scoring/sprintShootout.test.ts`, similarly update line ~16:
+
+```ts
+    expect(b.perPosition[0]).toEqual({ position: 1, driverCode: /* P1 pick driver */, exact: true, wrongPos: false, points: 1 })
+```
+
+The `b.perPosition[0].points` assertions on lines ~24, ~37, and the `race.test.ts` sum-over-perPosition assertion don't reference shape — they don't need updating.
+
+- [ ] **Step 2: Run tests to verify they fail**
+
+Run: `make backend-test`
+Expected: FAIL — the asserted objects don't yet include `driverCode`.
+
+- [ ] **Step 3: Add `driverCode` to the type**
+
+In `backend/src/scoring/types.ts`:
+
+```ts
+export type ScoreBreakdownPerPosition = {
+  position: number
+  driverCode: string
+  exact: boolean
+  wrongPos: boolean
+  points: number
+}
+```
+
+- [ ] **Step 4: Populate `driverCode` in every scorer**
+
+In each of `backend/src/scoring/race.ts`, `qualifying.ts`, `sprintRace.ts`, `sprintShootout.ts`, change the `picks.map((p) => { ... })` body so the returned object includes `driverCode: p.driverCode`. The pattern is:
+
+```ts
+const perPosition: ScoreBreakdownPerPosition[] = picks.map((p) => {
+  // ... existing exact/wrongPos/points computation ...
+  return { position: p.position, driverCode: p.driverCode, exact, wrongPos, points }
+})
+```
+
+Apply this change to all four scorers — the exact computation in between varies but the return shape is uniform.
+
+- [ ] **Step 5: Run tests to verify they pass**
+
+Run: `make backend-test`
+Expected: all green. Old scores stored in the DB without `driverCode` will still parse on the wire because the Flutter model in Task 12 will accept it as nullable. New scores include it.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add backend/src/scoring/types.ts backend/src/scoring/race.ts backend/src/scoring/qualifying.ts backend/src/scoring/sprintRace.ts backend/src/scoring/sprintShootout.ts backend/test/unit/scoring/race.test.ts backend/test/unit/scoring/sprintShootout.test.ts
+git commit -m "backend: record picked driverCode on each ScoreBreakdownPerPosition"
+```
+
+---
+
+### Task 12: Flutter — "gained / cost" driver stat cards in InsightsTab
+
+**Files:**
+- Modify: `lib/api/models/score_breakdown.dart` (make `driverCode` nullable on `ScoreBreakdownPerPosition`)
+- Modify: `lib/screens/standings/insights_tab.dart` (compute + render two extra stat cards)
+
+- [ ] **Step 1: Update the Flutter score-breakdown model**
+
+In `lib/api/models/score_breakdown.dart`, extend `ScoreBreakdownPerPosition` with a nullable `driverCode`:
+
+```dart
+class ScoreBreakdownPerPosition {
+  final int position;
+  final String? driverCode;
+  final bool exact;
+  final bool wrongPos;
+  final int points;
+
+  const ScoreBreakdownPerPosition({
+    required this.position,
+    required this.driverCode,
+    required this.exact,
+    required this.wrongPos,
+    required this.points,
+  });
+
+  factory ScoreBreakdownPerPosition.fromJson(Map<String, dynamic> j) => ScoreBreakdownPerPosition(
+        position: j['position'] as int,
+        driverCode: j['driverCode'] as String?,
+        exact: j['exact'] as bool,
+        wrongPos: j['wrongPos'] as bool,
+        points: j['points'] as int,
+      );
+}
+```
+
+Nullable handles old DB rows that pre-date Task 11.
+
+- [ ] **Step 2: Add gained/cost computation to `_computeStats`**
+
+In `lib/screens/standings/insights_tab.dart`, extend the `_Stats` class with two fields:
+
+```dart
+class _Stats {
+  // ... existing fields ...
+  final String? gainedDriverCode;
+  final int gainedPoints;
+  final String? costDriverCode;
+  final int costMisses;
+  // adjust the constructor signature accordingly
+}
+```
+
+Then in `_computeStats`, after the existing exact/pick loop, aggregate per-driver totals and misses:
+
+```dart
+final gainedByDriver = <String, int>{};   // sum of points per picked driver
+final missesByDriver = <String, int>{};   // count of zero-point picks per driver
+for (final s in d.scores) {
+  for (final p in s.breakdown.perPosition) {
+    final code = p.driverCode;
+    if (code == null) continue;       // old rows pre-Task 11
+    gainedByDriver.update(code, (v) => v + p.points, ifAbsent: () => p.points);
+    if (p.points == 0) {
+      missesByDriver.update(code, (v) => v + 1, ifAbsent: () => 1);
+    }
+  }
+}
+String? gainedDriver;
+var gainedPts = 0;
+gainedByDriver.forEach((code, pts) {
+  if (pts > gainedPts) { gainedPts = pts; gainedDriver = code; }
+});
+String? costDriver;
+var costN = 0;
+missesByDriver.forEach((code, n) {
+  if (n > costN) { costN = n; costDriver = code; }
+});
+```
+
+Pass these into the returned `_Stats`.
+
+- [ ] **Step 3: Render two extra stat cells in the `YOUR SEASON` block**
+
+In `build`, the YOUR SEASON `Column` currently shows a 2×2 grid (TOTAL POINTS / AVERAGE, HIT RATE / BEST ROUND). Add a third row below for the new cards:
+
+```dart
+const SizedBox(height: 6),
+Row(
+  children: [
+    Expanded(child: _stat(t,
+      'TOP EARNER',
+      stats.gainedDriverCode ?? '—',
+      stats.gainedDriverCode == null ? 'no scored picks yet' : '+${stats.gainedPoints} pts from your picks')),
+    const SizedBox(width: 6),
+    Expanded(child: _stat(t,
+      'BIGGEST MISS',
+      stats.costDriverCode ?? '—',
+      stats.costDriverCode == null ? 'no scored picks yet' : '${stats.costMisses} missed picks')),
+  ],
+),
+```
+
+The `_stat` helper already accepts a value + extra subtitle, so it renders cleanly.
+
+- [ ] **Step 4: Run tests + analyzer**
+
+Run: `flutter test && flutter analyze`
+Expected: all green. Existing `_computeStats` tests (if any) keep passing because we only added fields to `_Stats`. The widget tests don't assert on the new cells.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add lib/api/models/score_breakdown.dart lib/screens/standings/insights_tab.dart
+git commit -m "flutter: insights — surface top-earning and biggest-miss drivers"
+```
+
+---
+
 ### Final verification
 
 - [ ] **Run everything**
@@ -1856,8 +2071,9 @@ make app          # run the iOS app
 Verify:
 1. **Race scores screen:** open a finished session — only the FULL CLASSIFICATION card appears beneath the score banner; no "PICK VS RESULT" duplicate above it.
 2. **League tab:** each row shows three numbers (season / pre / total) with the total emphasized.
-3. **Insights tab → Trajectory:** all league members appear as separate lines; "You" is the red accent.
-4. **Standings header:** four pills visible — LEAGUE / F1 / INSIGHTS / PRESEASON. Tapping PRESEASON loads the new screen with category cards + member leaderboard. Surprise + Disappointment show "Set at season end".
+3. **Insights tab → Trajectory:** plot shows top-3 league members + you + your immediate neighbors (if you're not in the top 3); "You" is the red accent.
+4. **Insights tab → Your Season:** the stats grid includes "TOP EARNER" and "BIGGEST MISS" cards naming a driver code and the gained-points / missed-picks count.
+5. **Standings header:** four pills visible — LEAGUE / F1 / INSIGHTS / PRESEASON. Tapping PRESEASON loads the new screen with category cards + member leaderboard. Surprise + Disappointment show "Set at season end".
 
 - [ ] **Final commit / housekeeping**
 
