@@ -171,6 +171,9 @@ The crawler auto-rescores preseason after every standings refresh.
    Environment tab to call admin endpoints later.
 4. After first deploy, hit `/admin/bootstrap` once to populate the current
    season schedule. The scheduler will take over from there.
+5. On a mid-season bootstrap, the first scheduler tick (or a manual `/admin/crawl`)
+   will fetch every past `race` / `qualifying` / `sprint` session in one pass.
+   Expect the first tick to be noticeably longer than steady-state.
 
 ⚠️ Render's free Postgres plan expires after 90 days. Upgrade or migrate before then.
 
@@ -178,7 +181,10 @@ The crawler auto-rescores preseason after every standings refresh.
 
 - **Sprint Qualifying** isn't a real Jolpica endpoint (HTTP 400 / 404). Sessions of
   type `sprint_quali` will never receive results until a source becomes available.
-  Tick logs and retries until the 7-day cap.
+  The tick keeps `sprint_quali` as a candidate only for 7 days after its scheduled
+  end, then stops retrying. `race` / `qualifying` / `sprint` have no such cap — they
+  stay candidates until finished, so past sessions are backfilled automatically
+  after a bootstrap or outage.
 - **Free Render Postgres** has a 90-day expiry. Plan for this.
 - **Wikipedia images** are best-effort. Team logos in particular may be missing or
   low-quality; populate `image_url_override` manually if you want curated assets.
