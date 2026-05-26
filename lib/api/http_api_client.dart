@@ -7,10 +7,14 @@ import 'models/driver.dart';
 import 'models/event.dart';
 import 'models/league_view.dart';
 import 'models/me_result.dart';
+import 'models/my_score.dart';
+import 'models/pick.dart';
+import 'models/prediction_view.dart';
 import 'models/season.dart';
 import 'models/session.dart';
 import 'models/session_result.dart';
 import 'models/standing.dart';
+import 'models/upcoming_prediction.dart';
 
 typedef TokenProvider = String? Function();
 
@@ -172,5 +176,41 @@ class HttpApiClient implements ApiClient {
   Future<LeagueView> joinLeague({required String code}) async {
     final j = await _request('POST', '/api/leagues/join', body: {'joinCode': code}) as Map<String, dynamic>;
     return LeagueView.fromJson(j);
+  }
+
+  @override
+  Future<PredictionView?> getMyPrediction(int sessionId) async {
+    try {
+      final j = await _request('GET', '/api/sessions/$sessionId/my-prediction') as Map<String, dynamic>;
+      return PredictionView.fromJson(j['prediction'] as Map<String, dynamic>);
+    } on NotFoundException {
+      return null;
+    }
+  }
+
+  @override
+  Future<PredictionView> putMyPrediction(int sessionId, List<Pick> picks) async {
+    final j = await _request('PUT', '/api/sessions/$sessionId/my-prediction', body: {
+      'picks': picks.map((p) => p.toJson()).toList(),
+    }) as Map<String, dynamic>;
+    return PredictionView.fromJson(j['prediction'] as Map<String, dynamic>);
+  }
+
+  @override
+  Future<void> deleteMyPrediction(int sessionId) async {
+    await _request('DELETE', '/api/sessions/$sessionId/my-prediction');
+  }
+
+  @override
+  Future<List<UpcomingPrediction>> upcomingPredictions() async {
+    final j = await _request('GET', '/api/predictions/upcoming') as Map<String, dynamic>;
+    return (j['upcoming'] as List).cast<Map<String, dynamic>>().map(UpcomingPrediction.fromJson).toList();
+  }
+
+  @override
+  Future<List<MyScore>> myScores({int? season}) async {
+    final q = season == null ? '' : '?season=$season';
+    final j = await _request('GET', '/api/users/me/scores$q') as Map<String, dynamic>;
+    return (j['scores'] as List).cast<Map<String, dynamic>>().map(MyScore.fromJson).toList();
   }
 }

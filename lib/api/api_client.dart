@@ -4,10 +4,14 @@ import 'models/driver.dart';
 import 'models/event.dart';
 import 'models/league_view.dart';
 import 'models/me_result.dart';
+import 'models/my_score.dart';
+import 'models/pick.dart';
+import 'models/prediction_view.dart';
 import 'models/season.dart';
 import 'models/session.dart';
 import 'models/session_result.dart';
 import 'models/standing.dart';
+import 'models/upcoming_prediction.dart';
 
 abstract class ApiClient {
   // existing read methods
@@ -31,6 +35,15 @@ abstract class ApiClient {
   // leagues (onboarding)
   Future<LeagueView> createLeague({required String name});
   Future<LeagueView> joinLeague({required String code});
+
+  // predictions
+  Future<PredictionView?>          getMyPrediction(int sessionId);
+  Future<PredictionView>           putMyPrediction(int sessionId, List<Pick> picks);
+  Future<void>                     deleteMyPrediction(int sessionId);
+  Future<List<UpcomingPrediction>> upcomingPredictions();
+
+  // scores
+  Future<List<MyScore>>            myScores({int? season});
 }
 
 // Exceptions
