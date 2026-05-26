@@ -1,7 +1,33 @@
 import type { PreseasonCategory } from '../../domain/types.js'
 
 const DRIVER_ALIAS_OVERRIDES: Record<string, string> = {
-  HULK: 'HUL'
+  HULK: 'HUL',
+  // Full surname aliases used in preseason standings
+  VERSTAPPEN:   'VER',
+  NORRIS:       'NOR',
+  RUSSELL:      'RUS',
+  PIASTRI:      'PIA',
+  LECLERC:      'LEC',
+  HADJAR:       'HAD',
+  ANTONELLI:    'ANT',
+  HAMILTON:     'HAM',
+  GASLY:        'GAS',
+  BEARMAN:      'BEA',
+  BE:           'BEA',  // abbreviated form found in some cells
+  OCON:         'OCO',
+  LINDBLAD:     'LIN',
+  ALBON:        'ALB',
+  BORTOLETO:    'BOR',
+  COLAPINTO:    'COL',
+  LAWSON:       'LAW',
+  HULKENBERG:   'HUL',
+  'HÜLKENBERG': 'HUL',
+  HÜL:          'HUL',  // abbreviated umlaut form
+  SAINZ:        'SAI',
+  BOTTAS:       'BOT',
+  PEREZ:        'PER',
+  ALONSO:       'ALO',
+  STROLL:       'STR'
 }
 
 export const KNOWN_DRIVER_CODES = new Set([
@@ -20,14 +46,19 @@ export function mapDriverCode(raw: string): string {
 
 const CONSTRUCTOR_MAP: Record<string, string> = {
   'McLaren':      'mclaren',
+  'Mclaren':      'mclaren',
   'Merc':         'mercedes',
   'Mercedes':     'mercedes',
   'Ferrari':      'ferrari',
+  'Ferrai':       'ferrari',  // typo in spreadsheet
   'RedBull':      'red_bull',
   'Red Bull':     'red_bull',
   'Alpine':       'alpine',
   'Haas':         'haas',
   'Vcarb':        'rb',
+  'VCarb':        'rb',
+  'Racing Bulls': 'rb',
+  'RB':           'rb',
   'Audi':         'audi',
   'Williams':     'williams',
   'Cadillac':     'cadillac',

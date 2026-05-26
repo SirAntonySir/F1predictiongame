@@ -1,6 +1,6 @@
 import * as XLSX from 'xlsx'
 import { mapDriverCode, mapEventName, EVENTS_TO_SKIP, mapConstructorId, mapPreseasonCategory } from './mappings.js'
-import type { RacePicks } from './types.js'
+import type { RacePicks, ParsedSeason, ParsedPlayer } from './types.js'
 import type { PreseasonCategory } from '../../domain/types.js'
 
 export const RACE_HEADER_ROW           = 4
@@ -141,10 +141,31 @@ export function parsePlayerStandings(ws: Sheet, playerIndex: number): {
   const drivers: { position: number; driverCode: string }[] = []
   for (let i = 0; i < 22; i++) {
     const cell = readCell(ws, STANDINGS_FIRST_DATA_ROW + i, driversCol)
-    if (cell === null) throw new Error(`missing driver standings at position ${i + 1} (player index ${playerIndex})`)
+    if (cell === null) break  // some players left position 22 blank — stop collecting
     drivers.push({ position: i + 1, driverCode: mapDriverCode(cell) })
   }
   return { constructors, drivers }
+}
+
+export function parseWorkbook(wb: XLSX.WorkBook, seasonYear: number): ParsedSeason {
+  const sheetName = `Tippspiel ${seasonYear}`
+  const ws = wb.Sheets[sheetName]
+  if (!ws) throw new Error(`sheet "${sheetName}" not found (have: ${wb.SheetNames.join(', ')})`)
+
+  const players: ParsedPlayer[] = PLAYERS_IN_ORDER.map((name, idx) => {
+    const nameRow = PLAYER_FIRST_NAME_ROW + idx * PLAYER_ROW_STRIDE
+    return {
+      excelName: name,
+      racePicks: parsePlayerRaceBlock(ws, {
+        qualiRow:  nameRow + PLAYER_QUALI_OFFSET,
+        sprintRow: nameRow + PLAYER_SPRINT_OFFSET,
+        raceRow:   nameRow + PLAYER_RACE_OFFSET
+      }),
+      preseasonStandings: parsePlayerStandings(ws, idx),
+      preseasonSingle:    parsePlayerPreseasonSingle(ws, idx)
+    }
+  })
+  return { seasonYear, players }
 }
 
 export function parsePlayerPreseasonSingle(ws: Sheet, playerIndex: number): Partial<Record<PreseasonCategory, {

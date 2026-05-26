@@ -154,7 +154,7 @@ describe('parsePlayerRaceBlock', () => {
   })
 })
 
-import { parsePlayerStandings, parsePlayerPreseasonSingle } from '../../../src/scripts/tippspiel/parser.js'
+import { parsePlayerStandings, parsePlayerPreseasonSingle, parseWorkbook } from '../../../src/scripts/tippspiel/parser.js'
 
 describe('parsePlayerStandings', () => {
   it('reads 11 constructor and 22 driver positions for a given player column', () => {
@@ -216,5 +216,78 @@ describe('parsePlayerPreseasonSingle', () => {
     expect(result.surprise).toEqual({ constructorId: 'alpine', driverCode: 'BEA' })
     expect(result.wdc_wcc).toEqual({ constructorId: 'mclaren', driverCode: 'VER' })
     expect(result.dnf).toBeUndefined()
+  })
+})
+
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+
+describe('parseWorkbook (integration with real Tippspiel.xlsx if present)', () => {
+  const candidatePath = path.join(os.homedir(), 'Downloads', 'Tippspiel.xlsx')
+  const exists = fs.existsSync(candidatePath)
+
+  it.skipIf(!exists)('returns 11 players with at least Australia race picks', () => {
+    const wb = XLSX.readFile(candidatePath)
+    const parsed = parseWorkbook(wb, 2026)
+    expect(parsed.seasonYear).toBe(2026)
+    expect(parsed.players).toHaveLength(11)
+    const jan = parsed.players.find((p) => p.excelName === 'Jan')!
+    expect(jan).toBeDefined()
+    expect(jan.racePicks['Australia'].race).toHaveLength(5)
+    expect(jan.preseasonStandings.constructors).toHaveLength(11)
+    expect(jan.preseasonStandings.drivers).toHaveLength(22)
+  })
+})
+
+function buildMinimalWorkbook(): XLSX.WorkBook {
+  // Build a workbook with one sheet that has just enough cells for parseWorkbook
+  // not to throw and to produce empty pick blocks for all 11 players.
+  const ws: Record<string, XLSX.CellObject> = {}
+  // Race header row 4 — Australia at col 3
+  ws[XLSX.utils.encode_cell({ r: 3, c: 2 })] = { v: 'Australia', t: 's' } as XLSX.CellObject
+  // Preseason single-category label row 4 cols 35,38,41,44,47,50,53 (indices 34..52)
+  const labels: Record<number, string> = {
+    34: 'größte Enttäuschung',
+    37: 'größte Überraschung',
+    40: 'meiste DNFs',
+    43: 'meiste Poles',
+    46: 'meiste fastest laps',
+    49: 'meiste Rennsiege',
+    52: 'Champions'
+  }
+  for (const [c, v] of Object.entries(labels)) {
+    ws[XLSX.utils.encode_cell({ r: 3, c: Number(c) })] = { v, t: 's' } as XLSX.CellObject
+  }
+  // Standings: all 11 players, 11 constructors, 22 drivers, default values
+  const teams = ['McLaren','Merc','Ferrari','RedBull','Alpine','Haas','Vcarb','Audi','Williams','Cadillac','Aston']
+  const drivers = ['Ver','Nor','Rus','Pia','Lec','Had','Ant','Ham','Gas','Bea','Oco','Lin','Alb','Bor','Col','Law','Hul','Sai','Bot','Per','Alo','Str']
+  for (let p = 0; p < 11; p++) {
+    const teamsCol = 2 + p * 4
+    const driversCol = teamsCol + 2
+    teams.forEach((t, i)   => ws[XLSX.utils.encode_cell({ r: 32 + i, c: teamsCol })]   = { v: t, t: 's' } as XLSX.CellObject)
+    drivers.forEach((d, i) => ws[XLSX.utils.encode_cell({ r: 32 + i, c: driversCol })] = { v: d, t: 's' } as XLSX.CellObject)
+  }
+  const sheet = ws as XLSX.WorkSheet
+  ;(sheet as any)['!ref'] = 'A1:EQ151'
+  return { SheetNames: ['Tippspiel 2026'], Sheets: { 'Tippspiel 2026': sheet } } as XLSX.WorkBook
+}
+
+describe('parseWorkbook (in-memory)', () => {
+  it('parses 11 players with empty race picks and full standings', () => {
+    const parsed = parseWorkbook(buildMinimalWorkbook(), 2026)
+    expect(parsed.players.map((p) => p.excelName)).toEqual([
+      'Jan','Lukas','Jakob','Simon','Juli','Jonas','Janine','Jana','Anton','David','Merlin'
+    ])
+    const jan = parsed.players[0]
+    expect(jan.racePicks['Australia'].quali).toEqual([])
+    expect(jan.racePicks['Australia'].race).toEqual([])
+    expect(jan.preseasonStandings.constructors).toHaveLength(11)
+    expect(jan.preseasonStandings.drivers).toHaveLength(22)
+  })
+
+  it('throws when sheet "Tippspiel YYYY" is missing', () => {
+    const empty = { SheetNames: ['Other'], Sheets: { Other: {} as any } } as XLSX.WorkBook
+    expect(() => parseWorkbook(empty, 2026)).toThrow(/sheet.*Tippspiel 2026/i)
   })
 })
