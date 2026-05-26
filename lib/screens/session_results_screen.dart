@@ -60,18 +60,25 @@ class _SessionResultsScreenState extends State<SessionResultsScreen> {
   Future<_SessionPayload> _payloadFor(int sessionId) {
     return _payloads.putIfAbsent(sessionId, () async {
       final scope = AppState.of(context);
-      List<SessionResult> result;
+      // Fetch results, the caller's prediction (controller caches it), and
+      // the backend score table in parallel.
+      List<SessionResult> result = const [];
       try {
-        result = await scope.api.sessionResults(sessionId);
+        final results = await Future.wait([
+          scope.api.sessionResults(sessionId).then<dynamic>((v) => v),
+          scope.predictions.fetchPrediction(sessionId).then<dynamic>((v) => v),
+          scope.predictions.refreshScores().then<dynamic>((_) => null),
+        ]);
+        result = (results[0] as List<SessionResult>);
       } on NotFoundException {
-        result = const [];
+        // Results haven't published yet — still try the prediction + scores
+        // so we can show picks-without-results.
+        try { await scope.predictions.fetchPrediction(sessionId); } catch (_) {}
+        try { await scope.predictions.refreshScores(); } catch (_) {}
       }
       final picks = scope.predictions.prediction(sessionId)
               ?.picks.map((p) => p.driverCode).toList() ??
           const <String>[];
-      // Pull backend-computed score for this session so the displayed total
-      // matches what the engine recorded (instead of recomputing locally).
-      await scope.predictions.refreshScores();
       final backendScore = scope.predictions.score(sessionId)?.pointsTotal;
       return _SessionPayload(result: result, picks: picks, backendScore: backendScore);
     });
@@ -406,8 +413,20 @@ class _Body extends StatelessWidget {
                       : outcomeFor(
                           r.driverCode, pickedSlot, payload.result, topN);
                   final mine = pickedSlot != null;
+                  // Tint row by outcome — picks I got *exactly* right are
+                  // green-tinted, picks that landed in my top-N but at a
+                  // different slot are amber-tinted, picks that flat-out
+                  // missed get the neutral row highlight, and rows that
+                  // weren't my pick at all get no background.
+                  final rowBg = !mine
+                      ? null
+                      : (outcome == PickOutcome.exact
+                          ? BrandColors.ok.withOpacity(0.18)
+                          : outcome == PickOutcome.inTopN
+                              ? BrandColors.near.withOpacity(0.22)
+                              : t.rowHighlight);
                   return Container(
-                    color: mine ? t.rowHighlight : null,
+                    color: rowBg,
                     padding: const EdgeInsets.symmetric(
                         horizontal: Spacing.md, vertical: 7),
                     child: Row(
@@ -433,6 +452,10 @@ class _Body extends StatelessWidget {
                               style:
                                   AppText.body(12, weight: FontWeight.w500)),
                         ),
+                        if (pickedSlot != null) ...[
+                          _PickSlotChip(slot: pickedSlot),
+                          const SizedBox(width: 6),
+                        ],
                         if (outcome != null) ...[
                           _OutcomeTag(outcome: outcome),
                           const SizedBox(width: Spacing.sm),
@@ -477,6 +500,30 @@ class _OutcomeTag extends StatelessWidget {
           color: fg,
           fontWeight: FontWeight.w900,
           fontSize: 11,
+        ),
+      ),
+    );
+  }
+}
+
+class _PickSlotChip extends StatelessWidget {
+  final int slot;
+  const _PickSlotChip({required this.slot});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.black, width: 1.2),
+        borderRadius: const BorderRadius.all(Radius.circular(4)),
+      ),
+      child: Text(
+        'P$slot',
+        style: const TextStyle(
+          color: Colors.black,
+          fontWeight: FontWeight.w900,
+          fontSize: 10,
         ),
       ),
     );

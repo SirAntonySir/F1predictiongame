@@ -2,13 +2,10 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
-import '../api/api_client.dart';
 import '../api/models/event.dart';
 import '../api/models/session.dart';
-import '../api/models/session_result.dart';
 import '../components/error_view.dart';
 import '../components/race_tile.dart';
-import '../domain/scoring.dart';
 import '../state/app_state.dart';
 import '../theme/country_flags.dart';
 import '../theme/tokens.dart';
@@ -33,44 +30,16 @@ class _CalendarScreenState extends State<CalendarScreen> {
     final scope = AppState.of(context);
     final events = await scope.api.events();
     events.sort((a, b) => a.round.compareTo(b.round));
+    // Pull the backend's authoritative scores for the caller, then aggregate
+    // per event round. Single round-trip; no per-session prediction fetches.
+    await scope.predictions.refreshScores();
     final points = <int, int>{};
-    for (final e in events) {
-      final raceFinished = e.sessions.any(
-          (s) => s.type == SessionType.race && s.status == SessionStatus.finished);
-      if (!raceFinished) continue;
-      int total = 0;
-      for (final s in e.sessions) {
-        if (s.status != SessionStatus.finished) continue;
-        final picks = scope.predictions.prediction(s.id)
-                ?.picks.map((p) => p.driverCode).toList() ??
-            const <String>[];
-        if (picks.isEmpty) continue;
-        try {
-          final r = await scope.api.sessionResults(s.id);
-          total += _scoreFor(s.type, picks, r);
-        } on NotFoundException {
-          // no results published yet — skip
-        }
-      }
-      points[e.round] = total;
+    for (final sid in scope.predictions.allScoreIds) {
+      final s = scope.predictions.score(sid);
+      if (s == null) continue;
+      points.update(s.eventRound, (v) => v + s.pointsTotal, ifAbsent: () => s.pointsTotal);
     }
     return _CalData(events: events, pointsByRound: points);
-  }
-
-  int _scoreFor(
-      SessionType type, List<String> picks, List<SessionResult> result) {
-    switch (type) {
-      case SessionType.qualifying:
-        return scoreQualifying(picks, result);
-      case SessionType.sprint_quali:
-        return scoreSprintQualifying(picks, result);
-      case SessionType.sprint:
-        return scoreSprint(picks, result);
-      case SessionType.race:
-        return scoreRace(picks, result);
-      default:
-        return 0;
-    }
   }
 
   @override
