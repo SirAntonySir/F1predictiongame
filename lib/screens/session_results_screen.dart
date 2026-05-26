@@ -68,8 +68,12 @@ class _SessionResultsScreenState extends State<SessionResultsScreen> {
       }
       final picks = scope.predictions.prediction(sessionId)
               ?.picks.map((p) => p.driverCode).toList() ??
-          const [];
-      return _SessionPayload(result: result, picks: picks);
+          const <String>[];
+      // Pull backend-computed score for this session so the displayed total
+      // matches what the engine recorded (instead of recomputing locally).
+      await scope.predictions.refreshScores();
+      final backendScore = scope.predictions.score(sessionId)?.pointsTotal;
+      return _SessionPayload(result: result, picks: picks, backendScore: backendScore);
     });
   }
 
@@ -234,6 +238,11 @@ class _Body extends StatelessWidget {
   int get _topN => requiredPicks(session.type);
 
   int _score() {
+    // Prefer the backend's authoritative score; fall back to local calculation
+    // when the backend hasn't scored this session yet (results just landed,
+    // rescore not run, etc.).
+    final backend = payload.backendScore;
+    if (backend != null) return backend;
     switch (session.type) {
       case SessionType.qualifying:
         return scoreQualifying(payload.picks, payload.result);
@@ -477,5 +486,6 @@ class _OutcomeTag extends StatelessWidget {
 class _SessionPayload {
   final List<SessionResult> result;
   final List<String> picks;
-  _SessionPayload({required this.result, required this.picks});
+  final int? backendScore;
+  _SessionPayload({required this.result, required this.picks, this.backendScore});
 }

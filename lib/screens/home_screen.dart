@@ -166,23 +166,6 @@ class _HomeScreenState extends State<HomeScreen> {
                       scope.auth.currentUserId,
                       t),
                 ),
-                _section('My Season'),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
-                  child: InkWell(
-                    onTap: () => context.go('/scores'),
-                    borderRadius: const BorderRadius.all(Radius.circular(14)),
-                    child: const AppCard(
-                      child: ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        leading: Icon(Icons.scoreboard_outlined),
-                        title: Text('My Scores'),
-                        subtitle: Text('Per-session breakdown'),
-                        trailing: Icon(Icons.chevron_right),
-                      ),
-                    ),
-                  ),
-                ),
                 const SizedBox(height: Spacing.xxl),
               ],
             );
@@ -377,7 +360,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final sessionId = d.next!.id;
     final picks = scope.predictions.prediction(sessionId)
             ?.picks.map((p) => p.driverCode).toList() ??
-        const [];
+        const <String>[];
     final locked = scope.predictions.prediction(sessionId)?.isLocked ?? false;
     final empty = picks.isEmpty;
     return Padding(
@@ -447,7 +430,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ? const <String>[]
         : scope.predictions.prediction(lastSession.id)
               ?.picks.map((p) => p.driverCode).toList() ??
-          const [];
+          const <String>[];
     int score = 0;
     int exactHits = 0;
     if (picks.isNotEmpty && d.lastResult.isNotEmpty) {
