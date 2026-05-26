@@ -180,6 +180,12 @@ class HttpApiClient implements ApiClient {
   }
 
   @override
+  Future<LeagueView> getLeague(String id) async {
+    final j = await _request('GET', '/api/leagues/$id') as Map<String, dynamic>;
+    return LeagueView.fromJson(j);
+  }
+
+  @override
   Future<PredictionView?> getMyPrediction(int sessionId) async {
     try {
       final j = await _request('GET', '/api/sessions/$sessionId/my-prediction') as Map<String, dynamic>;

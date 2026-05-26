@@ -24,6 +24,10 @@ class _StandingsScreenState extends State<StandingsScreen> {
   Widget build(BuildContext context) {
     final t = Theme.of(context);
     final scope = AppState.of(context);
+    final league = scope.league.league;
+    final leagueLabel = league == null
+        ? 'No league'
+        : '${league.name} · ${league.members.length}';
     return Scaffold(
       backgroundColor: t.colorScheme.surface,
       body: SafeArea(
@@ -51,7 +55,7 @@ class _StandingsScreenState extends State<StandingsScreen> {
                       ),
                       const SizedBox(width: 6),
                       Text(
-                        '${scope.league.league.name} · ${scope.league.league.players.length}',
+                        leagueLabel,
                         style: AppText.label(11, color: t.colorScheme.onSurface),
                       ),
                     ]),

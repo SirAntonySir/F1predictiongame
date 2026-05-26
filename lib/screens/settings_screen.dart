@@ -14,10 +14,10 @@ class SettingsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = Theme.of(context);
     final scope = AppState.of(context);
-    final currentName = scope.league.league.players
-        .firstWhere((p) => p.id == scope.auth.currentUserId,
-            orElse: () => scope.league.league.players.first)
-        .displayName;
+    final user = scope.auth.user;
+    final currentName = user?.displayName ?? 'Unknown';
+    final currentEmail = user?.email ?? '';
+    final league = scope.league.league;
     return Scaffold(
       backgroundColor: t.colorScheme.surface,
       body: SafeArea(
@@ -49,11 +49,42 @@ class SettingsScreen extends StatelessWidget {
               t,
               child: Row(children: [
                 Expanded(
-                  child: Text(currentName,
-                      style: AppText.body(14, weight: FontWeight.w700)),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(currentName,
+                          style: AppText.body(14, weight: FontWeight.w700)),
+                      if (currentEmail.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 2),
+                          child: Text(currentEmail,
+                              style: AppText.body(11,
+                                  color: t.colorScheme.onSurface
+                                      .withOpacity(0.6))),
+                        ),
+                    ],
+                  ),
                 ),
                 TextButton(
-                  onPressed: () => scope.auth.logout(),
+                  onPressed: () async {
+                    final confirmed = await showDialog<bool>(
+                      context: context,
+                      builder: (_) => AlertDialog(
+                        title: const Text('Log out?'),
+                        actions: [
+                          TextButton(
+                              onPressed: () => Navigator.of(context).pop(false),
+                              child: const Text('Cancel')),
+                          FilledButton(
+                              onPressed: () => Navigator.of(context).pop(true),
+                              child: const Text('Log out')),
+                        ],
+                      ),
+                    );
+                    if (confirmed == true && context.mounted) {
+                      await AppState.of(context).auth.logout();
+                    }
+                  },
                   child: Text('Sign out',
                       style: AppText.body(13,
                           weight: FontWeight.w700,
@@ -85,8 +116,25 @@ class SettingsScreen extends StatelessWidget {
             const SizedBox(height: Spacing.sm),
             _boxed(
               t,
-              child: Text(scope.league.league.name,
-                  style: AppText.body(14, weight: FontWeight.w700)),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(league?.name ?? 'No league',
+                      style: AppText.body(14, weight: FontWeight.w700)),
+                  if (league != null) ...[
+                    const SizedBox(height: 4),
+                    Text('${league.members.length} members',
+                        style: AppText.body(11,
+                            color: t.colorScheme.onSurface.withOpacity(0.6))),
+                    if (league.joinCode != null) ...[
+                      const SizedBox(height: 4),
+                      Text('Join code: ${league.joinCode}',
+                          style: AppText.body(11,
+                              color: t.colorScheme.onSurface.withOpacity(0.6))),
+                    ],
+                  ],
+                ],
+              ),
             ),
             const SizedBox(height: Spacing.xl),
             Text('ABOUT', style: AppText.label(11)),
@@ -94,26 +142,6 @@ class SettingsScreen extends StatelessWidget {
             Text('F1 Prediction Game · v1.0.0',
                 style: AppText.body(12,
                     color: t.colorScheme.onSurface.withOpacity(0.6))),
-            const SizedBox(height: Spacing.xl),
-            ListTile(
-              leading: const Icon(Icons.logout),
-              title: const Text('Log out'),
-              onTap: () async {
-                final confirmed = await showDialog<bool>(
-                  context: context,
-                  builder: (_) => AlertDialog(
-                    title: const Text('Log out?'),
-                    actions: [
-                      TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
-                      FilledButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Log out')),
-                    ],
-                  ),
-                );
-                if (confirmed == true && context.mounted) {
-                  await AppState.of(context).auth.logout();
-                }
-              },
-            ),
           ],
         ),
       ),

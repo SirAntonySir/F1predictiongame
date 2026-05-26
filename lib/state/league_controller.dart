@@ -1,20 +1,33 @@
 import 'package:flutter/foundation.dart';
-import '../domain/league.dart';
+import '../api/api_client.dart';
+import '../api/models/league_view.dart';
 
-const League theBoxLeague = League(
-  id: 'the_box',
-  name: 'The Box',
-  players: [
-    Player(id: 'anton', displayName: 'Anton'),
-    Player(id: 'lukas', displayName: 'Lukas'),
-    Player(id: 'simon', displayName: 'Simon'),
-    Player(id: 'paul', displayName: 'Paul'),
-    Player(id: 'peter', displayName: 'Peter'),
-  ],
-);
-
+/// Holds the currently-active league (members, name, joinCode) fetched from
+/// the backend. Loaded once after auth bootstrap; reloaded on demand.
 class LeagueController extends ChangeNotifier {
-  final League _league;
-  LeagueController({required League league}) : _league = league;
-  League get league => _league;
+  LeagueController({required this.api});
+  final ApiClient api;
+
+  LeagueView? _league;
+  Object? _lastError;
+
+  LeagueView? get league => _league;
+  Object? get lastError => _lastError;
+  bool get hasLeague => _league != null;
+
+  Future<void> load(String leagueId) async {
+    try {
+      _league = await api.getLeague(leagueId);
+      _lastError = null;
+    } catch (e) {
+      _lastError = e;
+    }
+    notifyListeners();
+  }
+
+  void clear() {
+    _league = null;
+    _lastError = null;
+    notifyListeners();
+  }
 }

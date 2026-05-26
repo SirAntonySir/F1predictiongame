@@ -43,7 +43,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
         if (s.status != SessionStatus.finished) continue;
         final picks = scope.predictions.prediction(s.id)
                 ?.picks.map((p) => p.driverCode).toList() ??
-            const [];
+            const <String>[];
         if (picks.isEmpty) continue;
         try {
           final r = await scope.api.sessionResults(s.id);

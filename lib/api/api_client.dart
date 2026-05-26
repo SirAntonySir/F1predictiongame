@@ -33,9 +33,10 @@ abstract class ApiClient {
   Future<MeResult>   me();
   Future<void>       logout();
 
-  // leagues (onboarding)
+  // leagues
   Future<LeagueView> createLeague({required String name});
   Future<LeagueView> joinLeague({required String code});
+  Future<LeagueView> getLeague(String id);
 
   // predictions
   Future<PredictionView?>          getMyPrediction(int sessionId);

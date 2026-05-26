@@ -1,7 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:predictiongame/api/models/session.dart';
 import 'package:predictiongame/domain/prediction.dart';
-import 'package:predictiongame/domain/league.dart';
 
 void main() {
   test('PredictionEntry equality by sessionId + userId', () {
@@ -27,16 +26,4 @@ void main() {
     expect(requiredPicks(SessionType.fp1), 0);
   });
 
-  test('League contains players', () {
-    const l = League(
-      id: 'the_box',
-      name: 'The Box',
-      players: [
-        Player(id: 'anton', displayName: 'Anton'),
-        Player(id: 'lukas', displayName: 'Lukas'),
-      ],
-    );
-    expect(l.players.length, 2);
-    expect(l.players.first.displayName, 'Anton');
-  });
 }

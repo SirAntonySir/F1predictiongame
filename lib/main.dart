@@ -94,8 +94,12 @@ class _AfterBootState extends State<_AfterBoot> {
     final theme = await ThemeController.load();
     final preds = PredictionsController(api: widget.api);
     widget.auth.attachPredictionsController(preds);
+    final league = LeagueController(api: widget.api);
+    if (widget.auth.leagues.isNotEmpty) {
+      await league.load(widget.auth.leagues.first.id);
+    }
     final preseason = await PreseasonStore.load();
-    return _LateState(theme: theme, predictions: preds, preseason: preseason);
+    return _LateState(theme: theme, predictions: preds, preseason: preseason, league: league);
   }
 
   @override
@@ -110,7 +114,7 @@ class _AfterBootState extends State<_AfterBoot> {
         return F1PgApp(
           api: widget.api,
           auth: widget.auth,
-          league: LeagueController(league: theBoxLeague),
+          league: s.league,
           theme: s.theme,
           predictions: s.predictions,
           preseason: s.preseason,
@@ -124,5 +128,6 @@ class _LateState {
   final ThemeController theme;
   final PredictionsController predictions;
   final PreseasonStore preseason;
-  _LateState({required this.theme, required this.predictions, required this.preseason});
+  final LeagueController league;
+  _LateState({required this.theme, required this.predictions, required this.preseason, required this.league});
 }

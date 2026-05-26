@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../api/api_client.dart';
 import '../api/models/event.dart';
+import '../api/models/leaderboard_row.dart';
 import '../api/models/session.dart';
 import '../api/models/session_result.dart';
 import '../components/app_card.dart';
@@ -35,7 +36,17 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<_HomeData> _load(ApiClient api) async {
+    final scope = AppState.of(context);
     final events = await api.events();
+    final leagues = scope.auth.leagues;
+    List<LeaderboardRow> leaderboard = const [];
+    if (leagues.isNotEmpty) {
+      try {
+        leaderboard = await api.leagueLeaderboard(leagues.first.id);
+      } catch (_) {
+        leaderboard = const [];
+      }
+    }
     Session? next;
     try {
       next = await api.nextSession();
@@ -85,6 +96,7 @@ class _HomeScreenState extends State<HomeScreen> {
       lastEvent: lastEvent,
       lastRaceSession: lastRaceSession,
       lastResult: lastResult,
+      leaderboard: leaderboard,
     );
   }
 
@@ -130,11 +142,14 @@ class _HomeScreenState extends State<HomeScreen> {
               );
             }
             final d = snap.data!;
+            final leagueName = scope.league.league?.name ??
+                (scope.auth.leagues.isNotEmpty ? scope.auth.leagues.first.name : 'No league');
+            final memberCount = scope.league.league?.members.length ??
+                d.leaderboard.length;
             return ListView(
               padding: const EdgeInsets.fromLTRB(0, Spacing.lg, 0, Spacing.xxl),
               children: [
-                _topbar(scope.league.league.name,
-                    scope.league.league.players.length),
+                _topbar(leagueName, memberCount),
                 const SizedBox(height: Spacing.xs),
                 if (d.next != null && d.nextEvent != null)
                   _hero(d.next!, d.nextEvent!, t)
@@ -155,16 +170,11 @@ class _HomeScreenState extends State<HomeScreen> {
                   }),
                   _lastCard(d, scope, t),
                 ],
-                _section('${scope.league.league.name} · Standings',
+                _section('$leagueName · Standings',
                     onTap: () => context.go('/standings/league')),
                 InkWell(
                   onTap: () => context.go('/standings/league'),
-                  child: _leagueCard(
-                      scope.league.league.players
-                          .map((p) => p.displayName)
-                          .toList(),
-                      scope.auth.currentUserId,
-                      t),
+                  child: _leagueCard(d.leaderboard, scope.auth.currentUserId, t),
                 ),
                 const SizedBox(height: Spacing.xxl),
               ],
@@ -502,30 +512,48 @@ class _HomeScreenState extends State<HomeScreen> {
     return picks[slotIndex] == r.driverCode ? PodMark.exact : PodMark.miss;
   }
 
-  Widget _leagueCard(List<String> names, String? meId, ThemeData t) => Padding(
+  Widget _leagueCard(List<LeaderboardRow> rows, String? meId, ThemeData t) {
+    if (rows.isEmpty) {
+      return Padding(
         padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
         child: AppCard(
-          child: Column(
-            children: List.generate(names.length.clamp(0, 4), (i) {
-              final isMe = names[i].toLowerCase() == (meId ?? '');
-              return Padding(
-                padding: const EdgeInsets.symmetric(vertical: 6),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Row(children: [
-                      SizedBox(width: 18, child: Text('${i+1}', style: AppText.display(13, color: isMe ? BrandColors.accent : t.colorScheme.onSurface))),
-                      const SizedBox(width: 8),
-                      Text(isMe ? '${names[i]} (you)' : names[i], style: AppText.body(13, weight: isMe ? FontWeight.w800 : FontWeight.w600)),
-                    ]),
-                    Text('${(200 - i * 18)}', style: AppText.display(13)),
-                  ],
-                ),
-              );
-            }),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: Spacing.md),
+            child: Text(
+              'Leaderboard will fill in as sessions finish.',
+              style: AppText.body(12, color: t.colorScheme.onSurface.withOpacity(0.6)),
+            ),
           ),
         ),
       );
+    }
+    final preview = rows.take(4).toList();
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
+      child: AppCard(
+        child: Column(
+          children: List.generate(preview.length, (i) {
+            final r = preview[i];
+            final isMe = r.userId == meId;
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(children: [
+                    SizedBox(width: 18, child: Text('${i + 1}', style: AppText.display(13, color: isMe ? BrandColors.accent : t.colorScheme.onSurface))),
+                    const SizedBox(width: 8),
+                    Text(isMe ? '${r.displayName} (you)' : r.displayName, style: AppText.body(13, weight: isMe ? FontWeight.w800 : FontWeight.w600)),
+                  ]),
+                  Text('${r.pointsTotal}', style: AppText.display(13)),
+                ],
+              ),
+            );
+          }),
+        ),
+      ),
+    );
+  }
 }
 
 class _HomeData {
@@ -535,6 +563,7 @@ class _HomeData {
   final Event? lastEvent;
   final Session? lastRaceSession;
   final List<SessionResult> lastResult;
+  final List<LeaderboardRow> leaderboard;
   _HomeData({
     required this.events,
     required this.next,
@@ -542,6 +571,7 @@ class _HomeData {
     required this.lastEvent,
     required this.lastRaceSession,
     required this.lastResult,
+    required this.leaderboard,
   });
 }
 

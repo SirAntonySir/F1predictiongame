@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:predictiongame/state/league_controller.dart';
 import 'package:predictiongame/state/theme_controller.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -21,12 +20,6 @@ void main() {
     expect(c2.mode, ThemeMode.dark);
   });
 
-  // AuthController is now covered by test/state/auth_controller_test.dart (real
-  // backend-wired state machine; the demo single-string login is gone).
-
-  test('LeagueController holds the box', () {
-    final c = LeagueController(league: theBoxLeague);
-    expect(c.league.name, 'The Box');
-    expect(c.league.players.length, 5);
-  });
+  // AuthController is covered by test/state/auth_controller_test.dart.
+  // LeagueController is a thin backend-backed cache — covered by integration via screens.
 }

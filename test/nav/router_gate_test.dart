@@ -5,7 +5,6 @@ import 'package:predictiongame/api/api_client.dart';
 import 'package:predictiongame/api/models/me_result.dart';
 import 'package:predictiongame/api/models/user.dart';
 import 'package:predictiongame/api/models/user_league.dart';
-import 'package:predictiongame/domain/league.dart';
 import 'package:predictiongame/nav/router.dart';
 import 'package:predictiongame/state/app_state.dart';
 import 'package:predictiongame/state/auth_controller.dart';
@@ -28,7 +27,7 @@ Widget _withAppState({required AuthController auth, required GoRouter router}) {
   return AppState(
     api: _FakeApi(),
     auth: auth,
-    league: LeagueController(league: const League(id: 'L', name: 'Eins', players: [])),
+    league: LeagueController(api: _FakeApi()),
     theme: ThemeController(ThemeMode.system),
     predictions: PredictionsController(api: _FakeApi()),
     preseason: PreseasonStore(const {}),
