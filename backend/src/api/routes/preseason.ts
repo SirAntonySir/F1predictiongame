@@ -1,7 +1,8 @@
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { ApiError } from '../errors.js'
-import { getCurrentUser, registerAuthHook } from '../auth-context.js'
+import { getCurrentUser, registerAuthHook, requireLeagueMember } from '../auth-context.js'
+import { buildLeaguePreseasonView } from '../../preseason/projection.js'
 import * as seasonsRepo from '../../repo/seasons.js'
 import * as eventsRepo from '../../repo/events.js'
 import * as sessionsRepo from '../../repo/sessions.js'
@@ -218,5 +219,12 @@ export async function registerPreseasonRoutes(app: FastifyInstance): Promise<voi
     const year = await getCurrentSeasonYear()
     const scores = await scoresRepo.listPreseasonForUser(u.id, year)
     return { scores, seasonYear: year }
+  })
+
+  app.get<{ Params: { id: string } }>('/api/leagues/:id/preseason', async (req) => {
+    const u = getCurrentUser(req)
+    await requireLeagueMember(req, req.params.id)
+    const year = await getCurrentSeasonYear()
+    return await buildLeaguePreseasonView(req.params.id, u.id, year)
   })
 }
