@@ -1,7 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../api/api_client.dart';
-import '../api/models/me_result.dart';
 import '../api/models/user.dart';
 import '../api/models/user_league.dart';
 import 'token_storage.dart';
