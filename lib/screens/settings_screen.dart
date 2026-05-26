@@ -94,6 +94,26 @@ class SettingsScreen extends StatelessWidget {
             Text('F1 Prediction Game · v1.0.0',
                 style: AppText.body(12,
                     color: t.colorScheme.onSurface.withOpacity(0.6))),
+            const SizedBox(height: Spacing.xl),
+            ListTile(
+              leading: const Icon(Icons.logout),
+              title: const Text('Log out'),
+              onTap: () async {
+                final confirmed = await showDialog<bool>(
+                  context: context,
+                  builder: (_) => AlertDialog(
+                    title: const Text('Log out?'),
+                    actions: [
+                      TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
+                      FilledButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Log out')),
+                    ],
+                  ),
+                );
+                if (confirmed == true && context.mounted) {
+                  await AppState.of(context).auth.logout();
+                }
+              },
+            ),
           ],
         ),
       ),
