@@ -20,6 +20,7 @@ import { rescoreSession } from '../scoring/rescorer.js'
 import { rescorePreseasonForSeason } from '../preseason/rescorer.js'
 import type { SessionType, SessionResultRow } from '../domain/types.js'
 import { compareClassifications } from './crossCheck.js'
+import { enrichDriversAndConstructors } from './openf1Enrichment.js'
 
 export type TickSummary = { sessionsFinished: number; sessionsSkipped: number; errors: number }
 
@@ -142,6 +143,7 @@ export async function runTick(jolpica: JolpicaClient, wiki: WikipediaClient, ope
       let rowsToPersist = jolpicaOut.rows
       let driversToUpsert = jolpicaOut.drivers
       let constructorsToUpsert = jolpicaOut.constructors
+      let openF1Drivers: OpenF1DriverLookup[] | null = null
 
       const isCrossCheckable = ses.type === 'race' || ses.type === 'qualifying' || ses.type === 'sprint'
       if (isCrossCheckable && ses.openf1SessionKey != null) {
@@ -149,15 +151,15 @@ export async function runTick(jolpica: JolpicaClient, wiki: WikipediaClient, ope
           const sr = await openf1.getSessionResult(ses.openf1SessionKey)
           const drv = await openf1.getDrivers(ses.openf1SessionKey)
           if (sr && drv) {
-            const oDrv = parseOpenF1Drivers(drv)
-            const oRows = parseOpenF1SessionResult(sr, oDrv)
+            openF1Drivers = parseOpenF1Drivers(drv)
+            const oRows = parseOpenF1SessionResult(sr, openF1Drivers)
             if (rowsToPersist.length === 0 && oRows.length > 0) {
               rowsToPersist = oRows
-              driversToUpsert = oDrv.map((d) => ({
+              driversToUpsert = openF1Drivers.map((d) => ({
                 code: d.code, givenName: d.givenName, familyName: d.familyName,
                 nationality: null, permanentNumber: d.driverNumber, wikipediaUrl: null
               }))
-              constructorsToUpsert = dedupeConstructorsFromOpenF1(oDrv)
+              constructorsToUpsert = dedupeConstructorsFromOpenF1(openF1Drivers)
             } else if (oRows.length > 0) {
               const cmp = compareClassifications(rowsToPersist, oRows)
               if (cmp.kind !== 'match') {
@@ -178,6 +180,18 @@ export async function runTick(jolpica: JolpicaClient, wiki: WikipediaClient, ope
 
       await resultsRepo.replaceForSession(ses.id!, rowsToPersist.map((r) => ({ ...r, sessionId: ses.id! })))
       await sessionsRepo.markFinished(ses.id!)
+
+      if (openF1Drivers) {
+        await enrichDriversAndConstructors(openF1Drivers)
+      } else if (ses.type === 'sprint_quali' && ses.openf1SessionKey != null) {
+        try {
+          const drv = await openf1.getDrivers(ses.openf1SessionKey)
+          if (drv) await enrichDriversAndConstructors(parseOpenF1Drivers(drv))
+        } catch (err) {
+          console.warn('OpenF1 enrichment fetch failed (sprint_quali)', { sessionId: ses.id, err })
+        }
+      }
+
       summary.sessionsFinished++
       anyFinished = true
       try {
