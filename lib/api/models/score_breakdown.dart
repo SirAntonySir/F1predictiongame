@@ -1,11 +1,13 @@
 class ScoreBreakdownPerPosition {
   final int position;
+  final String? driverCode;
   final bool exact;
   final bool wrongPos;
   final int points;
 
   const ScoreBreakdownPerPosition({
     required this.position,
+    required this.driverCode,
     required this.exact,
     required this.wrongPos,
     required this.points,
@@ -13,6 +15,7 @@ class ScoreBreakdownPerPosition {
 
   factory ScoreBreakdownPerPosition.fromJson(Map<String, dynamic> j) => ScoreBreakdownPerPosition(
         position: j['position'] as int,
+        driverCode: j['driverCode'] as String?,
         exact: j['exact'] as bool,
         wrongPos: j['wrongPos'] as bool,
         points: j['points'] as int,

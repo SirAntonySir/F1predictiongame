@@ -90,6 +90,28 @@ class _InsightsTabState extends State<InsightsTab> {
                       Expanded(child: _stat(t, 'BEST ROUND', stats.bestLabel, stats.bestSub)),
                     ],
                   ),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Expanded(child: _stat(
+                        t,
+                        'TOP EARNER',
+                        stats.gainedDriverCode ?? '—',
+                        stats.gainedDriverCode == null
+                            ? 'no scored picks yet'
+                            : '+${stats.gainedPoints} pts from your picks',
+                      )),
+                      const SizedBox(width: 6),
+                      Expanded(child: _stat(
+                        t,
+                        'BIGGEST MISS',
+                        stats.costDriverCode ?? '—',
+                        stats.costDriverCode == null
+                            ? 'no scored picks yet'
+                            : '${stats.costMisses} missed picks',
+                      )),
+                    ],
+                  ),
                 ],
               ),
             ),
@@ -196,6 +218,32 @@ class _InsightsTabState extends State<InsightsTab> {
     final bestLabel = bestRound == null ? '—' : '+$bestPts';
     final bestSub = bestRound == null ? 'no scored round yet' : '$bestName · R$bestRound';
 
+    // Gained/cost drivers: aggregate per-pick points and misses across all scored sessions.
+    // ScoreBreakdownPerPosition.driverCode is nullable to handle rows pre-dating the
+    // backend change that recorded it; skip those entries.
+    final gainedByDriver = <String, int>{};
+    final missesByDriver = <String, int>{};
+    for (final s in d.scores) {
+      for (final p in s.breakdown.perPosition) {
+        final code = p.driverCode;
+        if (code == null) continue;
+        gainedByDriver.update(code, (v) => v + p.points, ifAbsent: () => p.points);
+        if (p.points == 0) {
+          missesByDriver.update(code, (v) => v + 1, ifAbsent: () => 1);
+        }
+      }
+    }
+    String? gainedDriver;
+    var gainedPts = 0;
+    gainedByDriver.forEach((code, pts) {
+      if (pts > gainedPts) { gainedPts = pts; gainedDriver = code; }
+    });
+    String? costDriver;
+    var costN = 0;
+    missesByDriver.forEach((code, n) {
+      if (n > costN) { costN = n; costDriver = code; }
+    });
+
     return _Stats(
       totalPoints: totalPoints,
       avgLabel: eventCount == 0 ? '—' : avg.toStringAsFixed(1),
@@ -205,6 +253,10 @@ class _InsightsTabState extends State<InsightsTab> {
       hitRateSub: hitRateSub,
       bestLabel: bestLabel,
       bestSub: bestSub,
+      gainedDriverCode: gainedDriver,
+      gainedPoints: gainedPts,
+      costDriverCode: costDriver,
+      costMisses: costN,
     );
   }
 
@@ -393,6 +445,10 @@ class _Stats {
   final String hitRateSub;
   final String bestLabel;
   final String bestSub;
+  final String? gainedDriverCode;
+  final int gainedPoints;
+  final String? costDriverCode;
+  final int costMisses;
   const _Stats({
     required this.totalPoints,
     required this.avgLabel,
@@ -402,6 +458,10 @@ class _Stats {
     required this.hitRateSub,
     required this.bestLabel,
     required this.bestSub,
+    required this.gainedDriverCode,
+    required this.gainedPoints,
+    required this.costDriverCode,
+    required this.costMisses,
   });
 }
 
