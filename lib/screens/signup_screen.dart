@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../api/api_client.dart';
 import '../state/auth_controller.dart';
 
@@ -96,7 +97,7 @@ class _SignupScreenState extends State<SignupScreen> {
                 ),
                 const SizedBox(height: 12),
                 TextButton(
-                  onPressed: _busy ? null : () => Navigator.of(context).pushReplacementNamed('/login'),
+                  onPressed: _busy ? null : () => context.go('/login'),
                   child: const Text('Already have an account? Log in'),
                 ),
               ],

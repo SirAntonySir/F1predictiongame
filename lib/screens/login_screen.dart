@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../api/api_client.dart';
 import '../state/auth_controller.dart';
 
@@ -97,7 +98,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 const SizedBox(height: 12),
                 TextButton(
-                  onPressed: _busy ? null : () => Navigator.of(context).pushReplacementNamed('/signup'),
+                  onPressed: _busy ? null : () => context.go('/signup'),
                   child: const Text('No account? Sign up'),
                 ),
               ],
