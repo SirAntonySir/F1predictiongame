@@ -3,6 +3,7 @@ import 'models/constructor.dart';
 import 'models/driver.dart';
 import 'models/event.dart';
 import 'models/leaderboard_row.dart';
+import 'models/league_preseason_view.dart';
 import 'models/league_view.dart';
 import 'models/me_result.dart';
 import 'models/my_score.dart';
@@ -62,6 +63,7 @@ abstract class ApiClient {
   Future<void>                     deletePreseasonSinglePick(PreseasonCategory category);
   Future<List<PreseasonStandingsDriverPick>> putPreseasonDriverStandings(List<PreseasonStandingsDriverPick> picks);
   Future<List<PreseasonStandingsConstructorPick>> putPreseasonConstructorStandings(List<PreseasonStandingsConstructorPick> picks);
+  Future<LeaguePreseasonView> leaguePreseason(String leagueId);
 }
 
 // Exceptions

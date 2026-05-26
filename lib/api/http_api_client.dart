@@ -6,6 +6,7 @@ import 'models/constructor.dart';
 import 'models/driver.dart';
 import 'models/event.dart';
 import 'models/leaderboard_row.dart';
+import 'models/league_preseason_view.dart';
 import 'models/league_view.dart';
 import 'models/me_result.dart';
 import 'models/my_score.dart';
@@ -277,5 +278,11 @@ class HttpApiClient implements ApiClient {
     final j = await _request('PUT', '/api/preseason/standings/constructors',
         body: {'picks': picks.map((p) => p.toJson()).toList()}) as Map<String, dynamic>;
     return (j['picks'] as List).cast<Map<String, dynamic>>().map(PreseasonStandingsConstructorPick.fromJson).toList();
+  }
+
+  @override
+  Future<LeaguePreseasonView> leaguePreseason(String leagueId) async {
+    final j = await _request('GET', '/api/leagues/$leagueId/preseason') as Map<String, dynamic>;
+    return LeaguePreseasonView.fromJson(j);
   }
 }
