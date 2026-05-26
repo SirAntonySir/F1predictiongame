@@ -10,7 +10,7 @@ import 'package:predictiongame/nav/router.dart';
 import 'package:predictiongame/state/app_state.dart';
 import 'package:predictiongame/state/auth_controller.dart';
 import 'package:predictiongame/state/league_controller.dart';
-import 'package:predictiongame/state/predictions_store.dart';
+import 'package:predictiongame/state/predictions_controller.dart';
 import 'package:predictiongame/state/preseason_store.dart';
 import 'package:predictiongame/state/theme_controller.dart';
 import 'package:predictiongame/state/token_storage.dart';
@@ -30,7 +30,7 @@ Widget _withAppState({required AuthController auth, required GoRouter router}) {
     auth: auth,
     league: LeagueController(league: const League(id: 'L', name: 'Eins', players: [])),
     theme: ThemeController(ThemeMode.system),
-    predictions: PredictionsStore(const {}),
+    predictions: PredictionsController(api: _FakeApi()),
     preseason: PreseasonStore(const {}),
     child: MaterialApp.router(routerConfig: router),
   );

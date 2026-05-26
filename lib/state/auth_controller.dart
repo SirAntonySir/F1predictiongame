@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../api/api_client.dart';
 import '../api/models/user.dart';
 import '../api/models/user_league.dart';
+import 'predictions_controller.dart';
 import 'token_storage.dart';
 
 class AuthController extends ChangeNotifier {
@@ -24,6 +25,9 @@ class AuthController extends ChangeNotifier {
 
   bool get isLoggedIn => _token != null && _user != null;
   bool get hasLeague  => _leagues.isNotEmpty;
+
+  PredictionsController? _predictions;
+  void attachPredictionsController(PredictionsController c) { _predictions = c; }
 
   bool consumeSessionExpiredFlag() {
     if (!_sessionExpiredFlag) return false;
@@ -94,6 +98,7 @@ class AuthController extends ChangeNotifier {
     _token = null;
     _user = null;
     _leagues = const [];
+    _predictions?.clear();
     await storage.clear();
   }
 

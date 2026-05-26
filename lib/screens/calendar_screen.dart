@@ -33,7 +33,6 @@ class _CalendarScreenState extends State<CalendarScreen> {
     final scope = AppState.of(context);
     final events = await scope.api.events();
     events.sort((a, b) => a.round.compareTo(b.round));
-    final userId = scope.auth.currentUserId ?? '';
     final points = <int, int>{};
     for (final e in events) {
       final raceFinished = e.sessions.any(
@@ -42,8 +41,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
       int total = 0;
       for (final s in e.sessions) {
         if (s.status != SessionStatus.finished) continue;
-        final picks =
-            scope.predictions.picksFor(userId: userId, sessionId: s.id);
+        final picks = scope.predictions.prediction(s.id)
+                ?.picks.map((p) => p.driverCode).toList() ??
+            const [];
         if (picks.isEmpty) continue;
         try {
           final r = await scope.api.sessionResults(s.id);

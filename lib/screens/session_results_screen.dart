@@ -66,10 +66,9 @@ class _SessionResultsScreenState extends State<SessionResultsScreen> {
       } on NotFoundException {
         result = const [];
       }
-      final picks = scope.predictions.picksFor(
-        userId: scope.auth.currentUserId ?? 'anton',
-        sessionId: sessionId,
-      );
+      final picks = scope.predictions.prediction(sessionId)
+              ?.picks.map((p) => p.driverCode).toList() ??
+          const [];
       return _SessionPayload(result: result, picks: picks);
     });
   }

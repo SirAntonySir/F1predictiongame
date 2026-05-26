@@ -357,12 +357,11 @@ class _HomeScreenState extends State<HomeScreen> {
       );
 
   Widget _pickCard(_HomeData d, scope, ThemeData t) {
-    final userId = scope.auth.currentUserId ?? '';
     final sessionId = d.next!.id;
-    final picks = scope.predictions
-        .picksFor(userId: userId, sessionId: sessionId) as List<String>;
-    final locked = scope.predictions
-        .isLocked(userId: userId, sessionId: sessionId) as bool;
+    final picks = scope.predictions.prediction(sessionId)
+            ?.picks.map((p) => p.driverCode).toList() ??
+        const [];
+    final locked = scope.predictions.prediction(sessionId)?.isLocked ?? false;
     final empty = picks.isEmpty;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
@@ -427,11 +426,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _lastCard(_HomeData d, scope, ThemeData t) {
     final lastSession = d.lastRaceSession;
-    final userId = scope.auth.currentUserId ?? '';
     final picks = lastSession == null
         ? const <String>[]
-        : scope.predictions.picksFor(userId: userId, sessionId: lastSession.id)
-            as List<String>;
+        : scope.predictions.prediction(lastSession.id)
+              ?.picks.map((p) => p.driverCode).toList() ??
+          const [];
     int score = 0;
     int exactHits = 0;
     if (picks.isNotEmpty && d.lastResult.isNotEmpty) {

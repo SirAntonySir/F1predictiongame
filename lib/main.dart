@@ -5,7 +5,7 @@ import 'app.dart';
 import 'screens/splash_screen.dart';
 import 'state/auth_controller.dart';
 import 'state/league_controller.dart';
-import 'state/predictions_store.dart';
+import 'state/predictions_controller.dart';
 import 'state/preseason_store.dart';
 import 'state/theme_controller.dart';
 import 'state/token_storage.dart';
@@ -92,7 +92,8 @@ class _AfterBootState extends State<_AfterBoot> {
 
   Future<_LateState> _loadLate() async {
     final theme = await ThemeController.load();
-    final preds = await PredictionsStore.load();
+    final preds = PredictionsController(api: widget.api);
+    widget.auth.attachPredictionsController(preds);
     final preseason = await PreseasonStore.load();
     return _LateState(theme: theme, predictions: preds, preseason: preseason);
   }
@@ -121,7 +122,7 @@ class _AfterBootState extends State<_AfterBoot> {
 
 class _LateState {
   final ThemeController theme;
-  final PredictionsStore predictions;
+  final PredictionsController predictions;
   final PreseasonStore preseason;
   _LateState({required this.theme, required this.predictions, required this.preseason});
 }
