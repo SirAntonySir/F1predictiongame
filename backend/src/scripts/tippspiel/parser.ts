@@ -56,7 +56,7 @@ export function parsePickList(cells: (string | null)[], startPosition: number): 
   const picks: { position: number; driverCode: string }[] = []
   const seen = new Set<string>()
   for (let i = 0; i < cells.length; i++) {
-    const cell = cells[i]
+    const cell = cells[i] ?? null
     if (cell === null || isSkipMarker(cell)) {
       throw new Error(`incomplete pick list at index ${i} (expected driver code, got ${JSON.stringify(cell)})`)
     }
