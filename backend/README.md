@@ -114,6 +114,7 @@ Authenticated endpoints require `Authorization: Bearer <token>` where `<token>` 
 | POST | `/admin/bootstrap` | Re-fetch schedule + populate season (token-gated, idempotent) |
 | POST | `/admin/crawl` | Force an immediate tick (token-gated) |
 | POST | `/admin/refresh-images` | Re-attempt Wikipedia fetch for null image URLs (token-gated) |
+| POST | `/admin/refresh-openf1-metadata` | Backfill driver headshots + constructor team colours from OpenF1 (token-gated) |
 | POST | `/admin/rescore-session/:id` | Force rescore of one session (token-gated) |
 | POST | `/admin/rescore-season/:year` | Rescore every finished session in a season (token-gated) |
 | POST | `/admin/seasons/:year/subjective-truth` | Set 4 subjective picks; triggers rescore (token-gated) |
@@ -121,8 +122,10 @@ Authenticated endpoints require `Authorization: Bearer <token>` where `<token>` 
 
 Admin endpoints require `X-Admin-Token: <ADMIN_TOKEN>` header.
 
-Drivers/constructors expose an `image` field equal to `imageUrlOverride ?? imageUrl`.
-Both backing fields can be null — clients must degrade gracefully.
+Drivers expose an `image` field equal to `imageUrlOverride ?? headshotUrl ?? imageUrl`
+(manual override > OpenF1 headshot > Wikipedia scrape). Constructors expose
+`imageUrlOverride ?? imageUrl` and a separate `teamColour` (OpenF1 hex). All backing
+fields can be null — clients must degrade gracefully.
 
 ## Scoring
 
@@ -179,12 +182,14 @@ The crawler auto-rescores preseason after every standings refresh.
 
 ## Known limitations
 
-- **Sprint Qualifying** isn't a real Jolpica endpoint (HTTP 400 / 404). Sessions of
-  type `sprint_quali` will never receive results until a source becomes available.
-  The tick keeps `sprint_quali` as a candidate only for 7 days after its scheduled
-  end, then stops retrying. `race` / `qualifying` / `sprint` have no such cap — they
-  stay candidates until finished, so past sessions are backfilled automatically
-  after a bootstrap or outage.
+- **Sprint Qualifying** is sourced from OpenF1 (Jolpica's sprint-quali endpoint
+  always errors). The tick fetches it via `/session_result?session_key=…` once
+  the session's `openf1_session_key` is set by the bootstrap-time mapping.
+  Historical caveat: the pre-existing 7-day floor in `listCandidates` for
+  `sprint_quali` still applies, so sprint_quali sessions older than 7 days at the
+  moment of integration deploy are not picked up automatically — relax that
+  guard if you want them backfilled. `race` / `qualifying` / `sprint` have no
+  such cap and are backfilled automatically after a bootstrap or outage.
 - **Free Render Postgres** has a 90-day expiry. Plan for this.
 - **Wikipedia images** are best-effort. Team logos in particular may be missing or
   low-quality; populate `image_url_override` manually if you want curated assets.
