@@ -77,4 +77,33 @@ describe('leaderboard sums session + preseason scores', () => {
     const lb = await scores.leagueLeaderboard(l.id, 2026)
     expect(lb.find((r) => r.userId === owner.id)!.pointsTotal).toBe(0)
   })
+
+  it('exposes inSeasonPoints and preseasonPoints separately', async () => {
+    const ses = await seedSession()
+    const owner = await users.insertUser({ email: 'sp@x.com', passwordHash: 'h', displayName: 'SP' })
+    const l = await leagues.createLeagueWithOwner({ name: 'LS', ownerUserId: owner.id, joinCode: 'CMB005' })
+
+    await scores.upsertScore(owner.id, ses.id, 10, bd(10))
+    await scores.upsertPreseasonScore(owner.id, 2026, 'surprise', 4, bdp(4))
+    await scores.upsertPreseasonScore(owner.id, 2026, 'dnf',      8, bdp(8))
+
+    const lb = await scores.leagueLeaderboard(l.id, 2026)
+    const me = lb.find((r) => r.userId === owner.id)!
+    expect(me.inSeasonPoints).toBe(10)
+    expect(me.preseasonPoints).toBe(12)
+    expect(me.pointsTotal).toBe(22)
+    expect(me.sessionsScored).toBe(1)
+  })
+
+  it('preseason-only user has zero inSeasonPoints', async () => {
+    await seedSession()
+    const owner = await users.insertUser({ email: 'po@x.com', passwordHash: 'h', displayName: 'PO' })
+    const l = await leagues.createLeagueWithOwner({ name: 'LPO', ownerUserId: owner.id, joinCode: 'CMB006' })
+    await scores.upsertPreseasonScore(owner.id, 2026, 'wdc_wcc', 8, bdp(8))
+    const lb = await scores.leagueLeaderboard(l.id, 2026)
+    const me = lb.find((r) => r.userId === owner.id)!
+    expect(me.inSeasonPoints).toBe(0)
+    expect(me.preseasonPoints).toBe(8)
+    expect(me.pointsTotal).toBe(8)
+  })
 })

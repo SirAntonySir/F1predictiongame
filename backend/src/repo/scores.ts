@@ -6,6 +6,8 @@ import type { Score, ScoreBreakdown, PreseasonScoreBreakdown } from '../domain/t
 export type LeaderboardRow = {
   userId: string
   displayName: string
+  inSeasonPoints: number
+  preseasonPoints: number
   pointsTotal: number
   sessionsScored: number
 }
@@ -75,18 +77,20 @@ export async function leagueLeaderboard(leagueId: string, seasonYear: number): P
     SELECT
       lm.user_id::text AS "userId",
       u.display_name   AS "displayName",
-      COALESCE(SUM(s.points_total), 0)::int AS "pointsTotal",
-      COUNT(s.session_id)::int              AS "sessionsScored"
+      COALESCE(SUM(s.points_total) FILTER (WHERE s.kind = 'session'),   0)::int AS "inSeasonPoints",
+      COALESCE(SUM(s.points_total) FILTER (WHERE s.kind = 'preseason'), 0)::int AS "preseasonPoints",
+      COALESCE(SUM(s.points_total), 0)::int                                     AS "pointsTotal",
+      COUNT(*) FILTER (WHERE s.kind = 'session')::int                           AS "sessionsScored"
     FROM ${leagueMember} lm
     JOIN ${user} u ON u.id = lm.user_id
     LEFT JOIN (
-      SELECT s.user_id, s.session_id, s.points_total
+      SELECT s.user_id, s.kind, s.points_total
       FROM ${score} s
       JOIN ${session} ses ON ses.id = s.session_id
-      JOIN ${event} ev ON ev.id = ses.event_id
+      JOIN ${event}   ev  ON ev.id  = ses.event_id
       WHERE s.kind = 'session' AND ev.season_year = ${seasonYear}
       UNION ALL
-      SELECT s.user_id, NULL::int AS session_id, s.points_total
+      SELECT s.user_id, s.kind, s.points_total
       FROM ${score} s
       WHERE s.kind = 'preseason' AND s.season_year = ${seasonYear}
     ) s ON s.user_id = lm.user_id
