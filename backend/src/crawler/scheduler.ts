@@ -1,6 +1,7 @@
 import cron, { type ScheduledTask } from 'node-cron'
 import { JolpicaClient } from '../jolpica/client.js'
 import { WikipediaClient } from '../wikipedia/client.js'
+import { OpenF1Client } from '../openf1/client.js'
 import { runTick, type TickSummary } from './tick.js'
 import { runBootstrap } from './bootstrap.js'
 import * as seasonsRepo from '../repo/seasons.js'
@@ -17,7 +18,8 @@ export class Scheduler {
 
   constructor(
     private jolpica = new JolpicaClient(),
-    private wiki = new WikipediaClient()
+    private wiki = new WikipediaClient(),
+    private openf1 = new OpenF1Client()
   ) {}
 
   start(): void {
@@ -65,7 +67,7 @@ export class Scheduler {
     try {
       const cur = await seasonsRepo.getCurrent()
       if (!cur) return
-      await runBootstrap(this.jolpica, cur.year)
+      await runBootstrap(this.jolpica, cur.year, this.openf1)
       console.log('Weekly schedule refresh complete')
     } catch (err) {
       console.error('Weekly refresh failed', err)

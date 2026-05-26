@@ -4,6 +4,7 @@ import { config } from '../../config.js'
 import { ApiError } from '../errors.js'
 import { JolpicaClient } from '../../jolpica/client.js'
 import { WikipediaClient } from '../../wikipedia/client.js'
+import { OpenF1Client } from '../../openf1/client.js'
 import { runBootstrap } from '../../crawler/bootstrap.js'
 import * as seasonsRepo from '../../repo/seasons.js'
 import * as driversRepo from '../../repo/drivers.js'
@@ -19,11 +20,13 @@ export type AdminDeps = {
   scheduler: Scheduler | null
   jolpica?: JolpicaClient
   wiki?: WikipediaClient
+  openf1?: OpenF1Client
 }
 
 export async function registerAdminRoutes(app: FastifyInstance, deps: AdminDeps): Promise<void> {
   const jolpica = deps.jolpica ?? new JolpicaClient()
   const wiki = deps.wiki ?? new WikipediaClient()
+  const openf1 = deps.openf1 ?? new OpenF1Client()
 
   // preHandler hook: gate every /admin/* request behind the admin token.
   app.addHook('preHandler', async (req) => {
@@ -37,7 +40,7 @@ export async function registerAdminRoutes(app: FastifyInstance, deps: AdminDeps)
   app.post('/admin/bootstrap', async () => {
     const cur = await seasonsRepo.getCurrent()
     const year = cur?.year ?? new Date().getUTCFullYear()
-    await runBootstrap(jolpica, year)
+    await runBootstrap(jolpica, year, openf1)
     return { ok: true, year }
   })
 

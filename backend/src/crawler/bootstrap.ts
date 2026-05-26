@@ -1,10 +1,16 @@
 import { JolpicaClient } from '../jolpica/client.js'
+import { OpenF1Client } from '../openf1/client.js'
 import { parseSchedule } from '../jolpica/parsers.js'
 import * as seasonsRepo from '../repo/seasons.js'
 import * as eventsRepo from '../repo/events.js'
 import * as sessionsRepo from '../repo/sessions.js'
+import { mapSessionsToOpenF1 } from './openf1Mapping.js'
 
-export async function runBootstrap(client: JolpicaClient, year: number): Promise<void> {
+export async function runBootstrap(
+  client: JolpicaClient,
+  year: number,
+  openf1?: OpenF1Client
+): Promise<void> {
   const raw = await client.getSeasonSchedule(year)
   if (!raw) throw new Error(`Jolpica returned null for season ${year}`)
   const schedule = parseSchedule(raw)
@@ -29,6 +35,14 @@ export async function runBootstrap(client: JolpicaClient, year: number): Promise
         status: 'scheduled',
         openf1SessionKey: null
       })
+    }
+  }
+
+  if (openf1) {
+    try {
+      await mapSessionsToOpenF1(year, openf1)
+    } catch (err) {
+      console.error('OpenF1 mapping failed (bootstrap continues)', err)
     }
   }
 }
