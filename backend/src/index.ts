@@ -4,7 +4,7 @@ import { config } from './config.js'
 import { pingDb, _resetPoolForTests } from './db/client.js'
 import { sendError, ApiError } from './api/errors.js'
 import { registerPublicRoutes } from './api/routes/public.js'
-import { registerAdminRoutes } from './api/routes/admin.js'
+import { registerAdminRoutes, type AdminDeps } from './api/routes/admin.js'
 import { registerAuthRoutes } from './api/routes/auth.js'
 import { registerLeagueRoutes } from './api/routes/leagues.js'
 import { registerPredictionRoutes } from './api/routes/predictions.js'
@@ -12,7 +12,7 @@ import { registerLeaderboardRoutes } from './api/routes/leaderboard.js'
 import { registerPreseasonRoutes } from './api/routes/preseason.js'
 import { Scheduler } from './crawler/scheduler.js'
 
-export type BuildAppOpts = { scheduler: Scheduler | null }
+export type BuildAppOpts = { scheduler: Scheduler | null } & Omit<AdminDeps, 'scheduler'>
 
 export async function buildApp(opts: BuildAppOpts): Promise<FastifyInstance> {
   const app = Fastify({
@@ -22,6 +22,10 @@ export async function buildApp(opts: BuildAppOpts): Promise<FastifyInstance> {
   await app.register(cors, { origin: true })
 
   app.setErrorHandler((err, _req, reply) => {
+    if (!(err instanceof ApiError)) {
+      // eslint-disable-next-line no-console
+      console.error('[backend error]', err)
+    }
     sendError(reply, err)
   })
 
@@ -30,7 +34,7 @@ export async function buildApp(opts: BuildAppOpts): Promise<FastifyInstance> {
   })
 
   await registerPublicRoutes(app)
-  await registerAdminRoutes(app, { scheduler: opts.scheduler })
+  await registerAdminRoutes(app, { scheduler: opts.scheduler, jolpica: opts.jolpica, wiki: opts.wiki, openf1: opts.openf1 })
   await app.register(registerAuthRoutes)
   await app.register(registerLeagueRoutes)
   await app.register(registerPredictionRoutes)

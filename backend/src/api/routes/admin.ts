@@ -15,6 +15,7 @@ import * as truthRepo from '../../repo/subjectiveTruth.js'
 import { rescoreSession } from '../../scoring/rescorer.js'
 import { rescorePreseasonForSeason } from '../../preseason/rescorer.js'
 import type { Scheduler } from '../../crawler/scheduler.js'
+import { parseDrivers as parseOpenF1Drivers } from '../../openf1/parsers.js'
 
 export type AdminDeps = {
   scheduler: Scheduler | null
@@ -66,6 +67,39 @@ export async function registerAdminRoutes(app: FastifyInstance, deps: AdminDeps)
       driversAttempted: missingDrivers.length,
       constructorsAttempted: missingCtors.length
     }
+  })
+
+  app.post('/admin/refresh-openf1-metadata', async () => {
+    const missingDrivers = await driversRepo.listMissingHeadshot()
+    const missingCtors = await constructorsRepo.listMissingTeamColour()
+    const finished = await sessionsRepo.listRecentFinishedWithOpenF1Key(5)
+
+    let driversUpdated = 0
+    let constructorsUpdated = 0
+    const driverFilled = new Set<string>()
+    const ctorFilled = new Set<string>()
+
+    for (const ses of finished) {
+      if (driverFilled.size >= missingDrivers.length && ctorFilled.size >= missingCtors.length) break
+      const drvRaw = await openf1.getDrivers(ses.openf1SessionKey!)
+      if (!drvRaw) continue
+      const oDrv = parseOpenF1Drivers(drvRaw)
+      for (const d of oDrv) {
+        if (missingDrivers.some((md) => md.code === d.code) && !driverFilled.has(d.code) && d.headshotUrl) {
+          await driversRepo.setHeadshotUrl(d.code, d.headshotUrl)
+          driverFilled.add(d.code)
+          driversUpdated++
+        }
+        const ctorId = d.teamName.toLowerCase().replace(/\s+/g, '_')
+        if (missingCtors.some((mc) => mc.id === ctorId) && !ctorFilled.has(ctorId) && d.teamColour) {
+          await constructorsRepo.setTeamColour(ctorId, d.teamColour)
+          ctorFilled.add(ctorId)
+          constructorsUpdated++
+        }
+      }
+    }
+
+    return { ok: true, driversUpdated, constructorsUpdated }
   })
 
   app.post<{ Params: { id: string } }>('/admin/rescore-session/:id', async (req) => {

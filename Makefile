@@ -73,6 +73,10 @@ bootstrap:      ## POST /admin/bootstrap (populate schedule from Jolpica)
 crawl:          ## POST /admin/crawl (force a crawler tick)
 	@curl -fsS -X POST -H "X-Admin-Token: $(ADMIN_TOKEN)" $(API_URL)/admin/crawl | python3 -m json.tool
 
+.PHONY: refresh-openf1
+refresh-openf1:  ## POST /admin/refresh-openf1-metadata (token-gated)
+	@curl -fsS -X POST -H "X-Admin-Token: $(ADMIN_TOKEN)" $(API_URL)/admin/refresh-openf1-metadata | python3 -m json.tool
+
 .PHONY: health
 health:         ## GET /api/health
 	@curl -fsS $(API_URL)/api/health | python3 -m json.tool

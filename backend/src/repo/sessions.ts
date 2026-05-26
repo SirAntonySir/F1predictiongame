@@ -1,4 +1,4 @@
-import { and, eq, lt, gt, sql, asc } from 'drizzle-orm'
+import { and, eq, lt, gt, sql, asc, desc } from 'drizzle-orm'
 import { getDb } from '../db/client.js'
 import { session } from '../db/schema.js'
 import type { Session } from '../domain/types.js'
@@ -90,4 +90,20 @@ export async function listForEvent(eventId: number): Promise<StoredSession[]> {
 export async function setOpenF1SessionKey(id: number, key: number | null): Promise<void> {
   const db = getDb()
   await db.update(session).set({ openf1SessionKey: key }).where(eq(session.id, id))
+}
+
+export async function listRecentFinishedWithOpenF1Key(limit: number): Promise<StoredSession[]> {
+  const db = getDb()
+  const rows = await db
+    .select()
+    .from(session)
+    .where(
+      and(
+        eq(session.status, 'finished'),
+        sql`${session.openf1SessionKey} IS NOT NULL`
+      )
+    )
+    .orderBy(desc(session.scheduledEnd))
+    .limit(limit)
+  return rows as StoredSession[]
 }
