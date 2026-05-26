@@ -7,6 +7,7 @@ import '../screens/predict_screen.dart';
 import '../screens/preseason_screen.dart';
 import '../screens/preseason_standings_screen.dart';
 import '../screens/session_results_screen.dart';
+import '../screens/score_detail_screen.dart';
 import '../screens/settings_screen.dart';
 import '../screens/signup_screen.dart';
 import '../screens/standings/standings_screen.dart';
@@ -58,6 +59,7 @@ GoRouter buildRouter(AuthController auth) {
           sessionId: int.parse(s.pathParameters['session']!),
         ),
       ),
+      GoRoute(path: '/scores',   builder: (_, __) => const ScoreDetailScreen()),
       GoRoute(path: '/settings', builder: (_, __) => const SettingsScreen()),
       GoRoute(
         path: '/preseason',
