@@ -23,7 +23,14 @@ const Map<String, String> _aliases = {
 
 const Color _fallback = Color(0xFF707070);
 
-Color teamColor(String constructorId) {
+/// Curated map first; if missing and a fallback hex is provided
+/// (e.g. from the backend's OpenF1 `teamColour` field), use it; else neutral grey.
+Color teamColor(String constructorId, {String? fallbackHex}) {
   final id = _aliases[constructorId] ?? constructorId;
-  return _teamColors[id] ?? _fallback;
+  final curated = _teamColors[id];
+  if (curated != null) return curated;
+  if (fallbackHex != null && RegExp(r'^[0-9A-Fa-f]{6}$').hasMatch(fallbackHex)) {
+    return Color(int.parse(fallbackHex, radix: 16) | 0xFF000000);
+  }
+  return _fallback;
 }

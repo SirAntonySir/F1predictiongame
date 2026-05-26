@@ -5,6 +5,7 @@ class Driver {
   final String nationality;
   final int? permanentNumber;
   final String? image;
+  final String? headshotUrl;
 
   const Driver({
     required this.code,
@@ -13,6 +14,7 @@ class Driver {
     required this.nationality,
     this.permanentNumber,
     this.image,
+    this.headshotUrl,
   });
 
   factory Driver.fromJson(Map<String, dynamic> j) => Driver(
@@ -22,5 +24,6 @@ class Driver {
         nationality: j['nationality'] as String,
         permanentNumber: j['permanentNumber'] as int?,
         image: j['image'] as String?,
+        headshotUrl: j['headshotUrl'] as String?,
       );
 }
