@@ -2,6 +2,7 @@ import 'models/auth_result.dart';
 import 'models/constructor.dart';
 import 'models/driver.dart';
 import 'models/event.dart';
+import 'models/leaderboard_row.dart';
 import 'models/league_view.dart';
 import 'models/me_result.dart';
 import 'models/my_score.dart';
@@ -44,6 +45,7 @@ abstract class ApiClient {
 
   // scores
   Future<List<MyScore>>            myScores({int? season});
+  Future<List<LeaderboardRow>>     leagueLeaderboard(String leagueId, {int? season});
 }
 
 // Exceptions

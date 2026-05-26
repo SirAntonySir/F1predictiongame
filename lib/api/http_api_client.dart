@@ -5,6 +5,7 @@ import 'models/auth_result.dart';
 import 'models/constructor.dart';
 import 'models/driver.dart';
 import 'models/event.dart';
+import 'models/leaderboard_row.dart';
 import 'models/league_view.dart';
 import 'models/me_result.dart';
 import 'models/my_score.dart';
@@ -212,5 +213,12 @@ class HttpApiClient implements ApiClient {
     final q = season == null ? '' : '?season=$season';
     final j = await _request('GET', '/api/users/me/scores$q') as Map<String, dynamic>;
     return (j['scores'] as List).cast<Map<String, dynamic>>().map(MyScore.fromJson).toList();
+  }
+
+  @override
+  Future<List<LeaderboardRow>> leagueLeaderboard(String leagueId, {int? season}) async {
+    final q = season == null ? '' : '?season=$season';
+    final j = await _request('GET', '/api/leagues/$leagueId/leaderboard$q') as Map<String, dynamic>;
+    return (j['leaderboard'] as List).cast<Map<String, dynamic>>().map(LeaderboardRow.fromJson).toList();
   }
 }

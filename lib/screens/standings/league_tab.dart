@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import '../../api/models/leaderboard_row.dart';
 import '../../components/app_card.dart';
+import '../../components/error_view.dart';
 import '../../components/league_row.dart';
 import '../../components/trend_badge.dart';
 import '../../state/app_state.dart';
@@ -7,53 +9,92 @@ import '../../theme/app_theme.dart';
 import '../../theme/tokens.dart';
 import '../../theme/typography.dart';
 
-class LeagueTab extends StatelessWidget {
+class LeagueTab extends StatefulWidget {
   const LeagueTab({super.key});
+
+  @override
+  State<LeagueTab> createState() => _LeagueTabState();
+}
+
+class _LeagueTabState extends State<LeagueTab> {
+  Future<List<LeaderboardRow>>? _data;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _data ??= _load();
+  }
+
+  Future<List<LeaderboardRow>> _load() async {
+    final scope = AppState.of(context);
+    final leagues = scope.auth.leagues;
+    if (leagues.isEmpty) return const [];
+    return scope.api.leagueLeaderboard(leagues.first.id);
+  }
 
   @override
   Widget build(BuildContext context) {
     final scope = AppState.of(context);
-    final players = scope.league.league.players;
-    // Mock cumulative points per player (deterministic ordering for visual)
-    final rows = List.generate(players.length, (i) => (
-          player: players[i],
-          points: 200 - i * 18,
-        ));
-    rows.sort((a, b) => b.points.compareTo(a.points));
-    return ListView(
-      padding: const EdgeInsets.only(bottom: Spacing.xxl),
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(Spacing.lg, Spacing.md, Spacing.lg, 0),
-          child: _Podium(rows: rows.take(3).toList()),
-        ),
-        const SizedBox(height: Spacing.md),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
-          child: AppCard(
-            padding: EdgeInsets.zero,
-            child: Column(
-              children: List.generate(rows.length, (i) {
-                final r = rows[i];
-                final me = r.player.id == scope.auth.currentUserId;
-                return LeagueRow(
-                  rank: i + 1,
-                  name: me ? '${r.player.displayName} (you)' : r.player.displayName,
-                  points: r.points,
-                  trend: TrendDirection.equal,
-                  isMe: me,
-                );
-              }),
+    return FutureBuilder<List<LeaderboardRow>>(
+      future: _data,
+      builder: (_, snap) {
+        if (snap.connectionState != ConnectionState.done) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (snap.hasError) {
+          return ErrorView(
+            error: snap.error!,
+            stack: snap.stackTrace,
+            where: 'League standings',
+            onRetry: () => setState(() => _data = _load()),
+          );
+        }
+        final rows = snap.data!;
+        if (rows.isEmpty) {
+          return const Center(
+            child: Padding(
+              padding: EdgeInsets.all(Spacing.lg),
+              child: Text('No scores yet — once a session finishes, the leaderboard fills in.'),
             ),
-          ),
-        ),
-      ],
+          );
+        }
+        final me = scope.auth.currentUserId;
+        return ListView(
+          padding: const EdgeInsets.only(bottom: Spacing.xxl),
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(Spacing.lg, Spacing.md, Spacing.lg, 0),
+              child: _Podium(rows: rows.take(3).toList()),
+            ),
+            const SizedBox(height: Spacing.md),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
+              child: AppCard(
+                padding: EdgeInsets.zero,
+                child: Column(
+                  children: List.generate(rows.length, (i) {
+                    final r = rows[i];
+                    final isMe = r.userId == me;
+                    return LeagueRow(
+                      rank: i + 1,
+                      name: isMe ? '${r.displayName} (you)' : r.displayName,
+                      points: r.pointsTotal,
+                      trend: TrendDirection.equal,
+                      isMe: isMe,
+                    );
+                  }),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }
 
 class _Podium extends StatelessWidget {
-  final List<dynamic> rows;
+  final List<LeaderboardRow> rows;
   const _Podium({required this.rows});
 
   @override
@@ -74,10 +115,10 @@ class _Podium extends StatelessWidget {
           return Expanded(
             child: Column(
               children: [
-                Text(r.player.displayName,
+                Text(r.displayName,
                     style: AppText.body(12, weight: FontWeight.w800)),
                 const SizedBox(height: 2),
-                Text('${r.points}', style: AppText.display(16)),
+                Text('${r.pointsTotal}', style: AppText.display(16)),
                 const SizedBox(height: 8),
                 Container(
                   width: double.infinity,
