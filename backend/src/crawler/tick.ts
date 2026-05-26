@@ -19,6 +19,7 @@ import * as seasonsRepo from '../repo/seasons.js'
 import { rescoreSession } from '../scoring/rescorer.js'
 import { rescorePreseasonForSeason } from '../preseason/rescorer.js'
 import type { SessionType, SessionResultRow } from '../domain/types.js'
+import { compareClassifications } from './crossCheck.js'
 
 export type TickSummary = { sessionsFinished: number; sessionsSkipped: number; errors: number }
 
@@ -136,14 +137,46 @@ export async function runTick(jolpica: JolpicaClient, wiki: WikipediaClient, ope
     try {
       const ev = await getEvent(ses.eventId)
       if (!ev) { summary.errors++; continue }
-      const { rows, drivers, constructors } = await fetchByType(jolpica, openf1, ses.type, ev.seasonYear, ev.round, ses.openf1SessionKey)
-      if (rows.length === 0) { summary.sessionsSkipped++; continue }
+      const jolpicaOut = await fetchByType(jolpica, openf1, ses.type, ev.seasonYear, ev.round, ses.openf1SessionKey)
+
+      let rowsToPersist = jolpicaOut.rows
+      let driversToUpsert = jolpicaOut.drivers
+      let constructorsToUpsert = jolpicaOut.constructors
+
+      const isCrossCheckable = ses.type === 'race' || ses.type === 'qualifying' || ses.type === 'sprint'
+      if (isCrossCheckable && ses.openf1SessionKey != null) {
+        try {
+          const sr = await openf1.getSessionResult(ses.openf1SessionKey)
+          const drv = await openf1.getDrivers(ses.openf1SessionKey)
+          if (sr && drv) {
+            const oDrv = parseOpenF1Drivers(drv)
+            const oRows = parseOpenF1SessionResult(sr, oDrv)
+            if (rowsToPersist.length === 0 && oRows.length > 0) {
+              rowsToPersist = oRows
+              driversToUpsert = oDrv.map((d) => ({
+                code: d.code, givenName: d.givenName, familyName: d.familyName,
+                nationality: null, permanentNumber: d.driverNumber, wikipediaUrl: null
+              }))
+              constructorsToUpsert = dedupeConstructorsFromOpenF1(oDrv)
+            } else if (oRows.length > 0) {
+              const cmp = compareClassifications(rowsToPersist, oRows)
+              if (cmp.kind !== 'match') {
+                console.warn('OpenF1 cross-check mismatch', { sessionId: ses.id, type: ses.type, summary: cmp })
+              }
+            }
+          }
+        } catch (err) {
+          console.warn('OpenF1 cross-check fetch failed', { sessionId: ses.id, err })
+        }
+      }
+
+      if (rowsToPersist.length === 0) { summary.sessionsSkipped++; continue }
 
       // Drivers/constructors must exist before session_result rows reference them via FK.
-      await upsertNewDrivers(drivers, wiki)
-      await upsertNewConstructors(constructors, wiki)
+      await upsertNewDrivers(driversToUpsert, wiki)
+      await upsertNewConstructors(constructorsToUpsert, wiki)
 
-      await resultsRepo.replaceForSession(ses.id!, rows.map((r) => ({ ...r, sessionId: ses.id! })))
+      await resultsRepo.replaceForSession(ses.id!, rowsToPersist.map((r) => ({ ...r, sessionId: ses.id! })))
       await sessionsRepo.markFinished(ses.id!)
       summary.sessionsFinished++
       anyFinished = true
