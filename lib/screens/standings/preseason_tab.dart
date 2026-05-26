@@ -146,7 +146,7 @@ class _Body extends StatelessWidget {
         for (final c in view.me.categories)
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: Spacing.lg, vertical: 3),
-            child: _CategoryCard(card: c),
+            child: _CategoryCard(card: c, constructorById: data.constructorById),
           ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: Spacing.lg, vertical: 3),
@@ -218,9 +218,21 @@ class _LeaderRow extends StatelessWidget {
   }
 }
 
+/// `red_bull` -> `Red Bull`. Used as a fallback when we don't have a
+/// ConstructorStanding for the id (e.g. category projections list a
+/// constructorId without a paired standings row).
+String _prettyConstructorId(String id) =>
+    id.split('_').where((s) => s.isNotEmpty).map((s) {
+      return s[0].toUpperCase() + s.substring(1);
+    }).join(' ');
+
+String constructorDisplayName(String id, Map<String, ConstructorStanding> byId) =>
+    byId[id]?.constructorName ?? _prettyConstructorId(id);
+
 class _CategoryCard extends StatelessWidget {
   final CategoryProjectionView card;
-  const _CategoryCard({required this.card});
+  final Map<String, ConstructorStanding> constructorById;
+  const _CategoryCard({required this.card, required this.constructorById});
 
   String _categoryLabel() {
     switch (card.category) {
@@ -243,7 +255,9 @@ class _CategoryCard extends StatelessWidget {
     if (p == null) return '—';
     final parts = <String>[];
     if (p.driverCode != null) parts.add(p.driverCode!);
-    if (p.constructorId != null) parts.add(p.constructorId!);
+    if (p.constructorId != null) {
+      parts.add(constructorDisplayName(p.constructorId!, constructorById));
+    }
     return parts.isEmpty ? '—' : parts.join(' · ');
   }
 
@@ -455,7 +469,7 @@ class _TeamPositionTile extends StatelessWidget {
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: Spacing.sm),
                 child: Text(
-                  projectedStanding?.constructorName ?? projectedId,
+                  projectedStanding?.constructorName ?? _prettyConstructorId(projectedId),
                   style: AppText.display(15),
                 ),
               ),
@@ -465,7 +479,7 @@ class _TeamPositionTile extends StatelessWidget {
               child: Align(
                 alignment: Alignment.center,
                 child: _PickIndicator(
-                  myLabel: myStanding?.constructorName ?? myId,
+                  myLabel: myStanding?.constructorName ?? (myId == null ? null : _prettyConstructorId(myId!)),
                   correct: correct,
                   pickedDifferent: pickedDifferent,
                 ),
