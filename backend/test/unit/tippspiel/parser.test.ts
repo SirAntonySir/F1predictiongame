@@ -75,3 +75,81 @@ describe('layout constants', () => {
     expect(RACE_COLS_EACH).toBe(6)
   })
 })
+
+import * as XLSX from 'xlsx'
+import { parsePlayerRaceBlock } from '../../../src/scripts/tippspiel/parser.js'
+
+function buildSheetWithRaceHeaders() {
+  const ws: Record<string, XLSX.CellObject> = {}
+  // Race headers row 4, cols 3 (Australia), 9 (China), 15 (Japan)
+  ws[XLSX.utils.encode_cell({ r: 3, c: 2 })] = { v: 'Australia', t: 's' } as XLSX.CellObject
+  ws[XLSX.utils.encode_cell({ r: 3, c: 8 })] = { v: 'China',     t: 's' } as XLSX.CellObject
+  ws[XLSX.utils.encode_cell({ r: 3, c: 14 })] = { v: 'Japan',    t: 's' } as XLSX.CellObject
+  return ws
+}
+
+describe('parsePlayerRaceBlock', () => {
+  it('extracts quali (2), sprintQuali (1), sprint (3), race (5) per race', () => {
+    const ws = buildSheetWithRaceHeaders()
+    // Quali row r=qualiRow=72 → r index 71
+    // Australia quali (cols 3,4): Ver, Nor
+    ws[XLSX.utils.encode_cell({ r: 71, c: 2 })] = { v: 'Ver', t: 's' } as XLSX.CellObject
+    ws[XLSX.utils.encode_cell({ r: 71, c: 3 })] = { v: 'Nor', t: 's' } as XLSX.CellObject
+    // Quali points (col 8)
+    ws[XLSX.utils.encode_cell({ r: 71, c: 7 })] = { v: 6, t: 'n' } as XLSX.CellObject
+    // Race row r=raceRow=74 → r index 73 — Rus, Ant, Had, Lec, Nor
+    const raceDrivers = ['Rus','Ant','Had','Lec','Nor']
+    raceDrivers.forEach((d, i) => {
+      ws[XLSX.utils.encode_cell({ r: 73, c: 2 + i })] = { v: d, t: 's' } as XLSX.CellObject
+    })
+    ws[XLSX.utils.encode_cell({ r: 73, c: 7 })] = { v: 13, t: 'n' } as XLSX.CellObject
+    // China: sprint shootout col 9 (idx 8), sprint race cols 11,12,13 (idx 10,11,12)
+    ws[XLSX.utils.encode_cell({ r: 72, c: 8 })]  = { v: 'Rus', t: 's' } as XLSX.CellObject  // sprintQuali
+    ws[XLSX.utils.encode_cell({ r: 72, c: 10 })] = { v: 'Ver', t: 's' } as XLSX.CellObject  // sprint P1
+    ws[XLSX.utils.encode_cell({ r: 72, c: 11 })] = { v: 'Ant', t: 's' } as XLSX.CellObject  // sprint P2
+    ws[XLSX.utils.encode_cell({ r: 72, c: 12 })] = { v: 'Nor', t: 's' } as XLSX.CellObject  // sprint P3
+    ws[XLSX.utils.encode_cell({ r: 72, c: 13 })] = { v: 5, t: 'n' } as XLSX.CellObject       // points
+
+    const result = parsePlayerRaceBlock(ws as any, { qualiRow: 72, sprintRow: 73, raceRow: 74 })
+
+    expect(result['Australia'].quali).toEqual([
+      { position: 1, driverCode: 'VER' },
+      { position: 2, driverCode: 'NOR' }
+    ])
+    expect(result['Australia'].race).toEqual([
+      { position: 1, driverCode: 'RUS' },
+      { position: 2, driverCode: 'ANT' },
+      { position: 3, driverCode: 'HAD' },
+      { position: 4, driverCode: 'LEC' },
+      { position: 5, driverCode: 'NOR' }
+    ])
+    expect(result['Australia'].sprint).toEqual([])
+    expect(result['Australia'].sprintQuali).toEqual([])
+    expect(result['Australia'].excelPoints).toEqual({ quali: 6, sprint: 0, race: 13 })
+
+    expect(result['China'].sprintQuali).toEqual([{ position: 1, driverCode: 'RUS' }])
+    expect(result['China'].sprint).toEqual([
+      { position: 1, driverCode: 'VER' },
+      { position: 2, driverCode: 'ANT' },
+      { position: 3, driverCode: 'NOR' }
+    ])
+    expect(result['China'].excelPoints.sprint).toBe(5)
+
+    // Japan has no cells: every list empty, points zero
+    expect(result['Japan']).toBeDefined()
+    expect(result['Japan'].quali).toEqual([])
+    expect(result['Japan'].race).toEqual([])
+    expect(result['Japan'].excelPoints).toEqual({ quali: 0, sprint: 0, race: 0 })
+  })
+
+  it('skips events present in EVENTS_TO_SKIP (e.g. Bahrain)', () => {
+    const ws = buildSheetWithRaceHeaders()
+    ws[XLSX.utils.encode_cell({ r: 3, c: 20 })] = { v: 'Bahrain', t: 's' } as XLSX.CellObject
+    // Bahrain quali col 21 (idx 20) — should be ignored
+    ws[XLSX.utils.encode_cell({ r: 71, c: 20 })] = { v: 'Ver', t: 's' } as XLSX.CellObject
+    const result = parsePlayerRaceBlock(ws as any, { qualiRow: 72, sprintRow: 73, raceRow: 74 })
+    expect(result['Bahrain']).toBeUndefined()
+    expect(result['Australian Grand Prix']).toBeUndefined()  // keys are the *Excel* race header
+    expect(Object.keys(result)).toContain('Australia')
+  })
+})

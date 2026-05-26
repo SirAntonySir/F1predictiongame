@@ -1,5 +1,6 @@
 import * as XLSX from 'xlsx'
-import { mapDriverCode } from './mappings.js'
+import { mapDriverCode, mapEventName, EVENTS_TO_SKIP } from './mappings.js'
+import type { RacePicks } from './types.js'
 
 export const RACE_HEADER_ROW           = 4
 export const RACE_START_COL            = 3
@@ -64,4 +65,52 @@ export function parsePickList(cells: (string | null)[], startPosition: number): 
     picks.push({ position: startPosition + i, driverCode: code })
   }
   return picks
+}
+
+export type PlayerBlockRows = { qualiRow: number; sprintRow: number; raceRow: number }
+
+/**
+ * Reads the per-race tipping block for one player. Returns picks keyed by the *Excel*
+ * race header (e.g. "Australia"), not the DB event name — caller does the DB mapping.
+ * Skips events in EVENTS_TO_SKIP entirely (no key in the result).
+ */
+export function parsePlayerRaceBlock(ws: Sheet, rows: PlayerBlockRows): Record<string, RacePicks> {
+  const out: Record<string, RacePicks> = {}
+  // Walk race header columns left-to-right
+  for (let col = RACE_START_COL; ; col += RACE_COLS_EACH) {
+    const header = readCell(ws, RACE_HEADER_ROW, col)
+    if (header === null) break
+    // Skip events not in DB
+    if (EVENTS_TO_SKIP.has(header)) continue
+    // Validate header is known (throws if unknown — surfaces typos early)
+    mapEventName(header)
+
+    const quali = parsePickList(
+      [readCell(ws, rows.qualiRow, col + 0), readCell(ws, rows.qualiRow, col + 1)],
+      1
+    )
+    const sprintQuali = parsePickList(
+      [readCell(ws, rows.sprintRow, col + 0)],
+      1
+    )
+    const sprint = parsePickList(
+      [
+        readCell(ws, rows.sprintRow, col + 2),
+        readCell(ws, rows.sprintRow, col + 3),
+        readCell(ws, rows.sprintRow, col + 4)
+      ],
+      1
+    )
+    const race = parsePickList(
+      [0, 1, 2, 3, 4].map((d) => readCell(ws, rows.raceRow, col + d)),
+      1
+    )
+    const excelPoints = {
+      quali:  readNumber(ws, rows.qualiRow,  col + 5) ?? 0,
+      sprint: readNumber(ws, rows.sprintRow, col + 5) ?? 0,
+      race:   readNumber(ws, rows.raceRow,   col + 5) ?? 0
+    }
+    out[header] = { quali, sprintQuali, sprint, race, excelPoints }
+  }
+  return out
 }
