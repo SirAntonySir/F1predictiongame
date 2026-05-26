@@ -40,8 +40,11 @@ export async function markFinished(id: number): Promise<void> {
 
 export async function listCandidates(): Promise<StoredSession[]> {
   const db = getDb()
-  // Eligible: status=scheduled AND end + 30 min < now AND end > now - 7 days
-  // AND type NOT IN practice
+  // Eligible: status=scheduled AND end + 30 min < now AND not practice.
+  // Only sprint_quali keeps the 7-day floor — its Jolpica endpoint never
+  // returns data, and the floor stops us retrying it forever. race /
+  // qualifying / sprint stay eligible until they're finished so historical
+  // past sessions are picked up after a bootstrap or outage.
   const rows = await db
     .select()
     .from(session)
@@ -50,7 +53,7 @@ export async function listCandidates(): Promise<StoredSession[]> {
         eq(session.status, 'scheduled'),
         sql`${session.type} NOT IN ('fp1','fp2','fp3')`,
         lt(session.scheduledEnd, sql`now() - interval '30 minutes'`),
-        gt(session.scheduledEnd, sql`now() - interval '7 days'`)
+        sql`(${session.type} <> 'sprint_quali' OR ${session.scheduledEnd} > now() - interval '7 days')`
       )
     )
   return rows as StoredSession[]
