@@ -10,10 +10,10 @@ import * as standings from '../../src/repo/standings.js'
 async function seedFuture() {
   await seasons.upsertSeason({ year: 2026, isCurrent: true })
   for (const c of ['red_bull', 'mercedes', 'mclaren']) {
-    await constructors.upsertConstructor({ id: c, name: c, nationality: null, wikipediaUrl: null, imageUrl: null, imageUrlOverride: null })
+    await constructors.upsertConstructor({ id: c, name: c, nationality: null, wikipediaUrl: null, imageUrl: null, imageUrlOverride: null, teamColour: null })
   }
   for (const code of ['VER', 'HAM', 'NOR']) {
-    await drivers.upsertDriver({ code, givenName: code, familyName: 'X', nationality: null, permanentNumber: null, wikipediaUrl: null, imageUrl: null, imageUrlOverride: null })
+    await drivers.upsertDriver({ code, givenName: code, familyName: 'X', nationality: null, permanentNumber: null, wikipediaUrl: null, imageUrl: null, imageUrlOverride: null, headshotUrl: null })
   }
   await standings.replaceDriverStandings(2026, [
     { seasonYear: 2026, driverCode: 'VER', position: 1, points: 0, wins: 0, constructorId: 'red_bull' },
@@ -30,7 +30,8 @@ async function seedFuture() {
   await sessions.upsertSession({
     eventId: ev.id, type: 'fp1',
     scheduledStart: new Date(Date.now() + 24 * 60 * 60 * 1000),
-    scheduledEnd: new Date(Date.now() + 25 * 60 * 60 * 1000), status: 'scheduled'
+    scheduledEnd: new Date(Date.now() + 25 * 60 * 60 * 1000), status: 'scheduled',
+  openf1SessionKey: null
   })
 }
 
@@ -41,7 +42,8 @@ async function seedPast() {
   await sessions.upsertSession({
     eventId: ev!.id, type: 'fp1',
     scheduledStart: new Date(Date.now() - 60 * 60 * 1000),
-    scheduledEnd: new Date(Date.now() - 30 * 60 * 1000), status: 'scheduled'
+    scheduledEnd: new Date(Date.now() - 30 * 60 * 1000), status: 'scheduled',
+  openf1SessionKey: null
   })
 }
 
@@ -99,7 +101,7 @@ describe('PUT /api/preseason/:category', () => {
   it('rejects driver not in season with 422', async () => {
     await seedFuture()
     const { app, token } = await buildAndUser()
-    await drivers.upsertDriver({ code: 'OLD', givenName: 'O', familyName: 'X', nationality: null, permanentNumber: null, wikipediaUrl: null, imageUrl: null, imageUrlOverride: null })
+    await drivers.upsertDriver({ code: 'OLD', givenName: 'O', familyName: 'X', nationality: null, permanentNumber: null, wikipediaUrl: null, imageUrl: null, imageUrlOverride: null, headshotUrl: null })
     const res = await app.inject({
       method: 'PUT', url: '/api/preseason/dnf', headers: auth(token),
       payload: { driverCode: 'OLD' }

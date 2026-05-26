@@ -45,10 +45,11 @@ describe('tick triggers rescore', () => {
       eventId: ev.id, type: 'race',
       scheduledStart: new Date(Date.now() - 3 * 60 * 60 * 1000),
       scheduledEnd: new Date(Date.now() - 60 * 60 * 1000),
-      status: 'scheduled'
+      status: 'scheduled',
+    openf1SessionKey: null
     })
-    await constructors.upsertConstructor({ id: 'red_bull', name: 'Red Bull', nationality: null, wikipediaUrl: null, imageUrl: null, imageUrlOverride: null })
-    await drivers.upsertDriver({ code: 'VER', givenName: 'Max', familyName: 'V', nationality: 'NL', permanentNumber: 33, wikipediaUrl: null, imageUrl: null, imageUrlOverride: null })
+    await constructors.upsertConstructor({ id: 'red_bull', name: 'Red Bull', nationality: null, wikipediaUrl: null, imageUrl: null, imageUrlOverride: null, teamColour: null })
+    await drivers.upsertDriver({ code: 'VER', givenName: 'Max', familyName: 'V', nationality: 'NL', permanentNumber: 33, wikipediaUrl: null, imageUrl: null, imageUrlOverride: null, headshotUrl: null })
     await standings.replaceDriverStandings(2026, [
       { seasonYear: 2026, driverCode: 'VER', position: 1, points: 0, wins: 0, constructorId: 'red_bull' }
     ])

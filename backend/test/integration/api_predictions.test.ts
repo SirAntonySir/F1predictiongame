@@ -13,10 +13,10 @@ async function seedScene() {
     seasonYear: 2026, round: 1, name: 'Bahrain', circuitName: 'BIC', country: 'B', hasSprint: false
   })
   for (const c of ['red_bull', 'mercedes', 'mclaren']) {
-    await constructors.upsertConstructor({ id: c, name: c, nationality: null, wikipediaUrl: null, imageUrl: null, imageUrlOverride: null })
+    await constructors.upsertConstructor({ id: c, name: c, nationality: null, wikipediaUrl: null, imageUrl: null, imageUrlOverride: null, teamColour: null })
   }
   for (const code of ['VER', 'HAM', 'NOR', 'PIA', 'RUS']) {
-    await drivers.upsertDriver({ code, givenName: code, familyName: 'X', nationality: null, permanentNumber: null, wikipediaUrl: null, imageUrl: null, imageUrlOverride: null })
+    await drivers.upsertDriver({ code, givenName: code, familyName: 'X', nationality: null, permanentNumber: null, wikipediaUrl: null, imageUrl: null, imageUrlOverride: null, headshotUrl: null })
   }
   await standings.replaceDriverStandings(2026, [
     { seasonYear: 2026, driverCode: 'VER', position: 1, points: 0, wins: 0, constructorId: 'red_bull' },
@@ -29,13 +29,15 @@ async function seedScene() {
     eventId: ev.id, type: 'race',
     scheduledStart: new Date(Date.now() + 60 * 60 * 1000),
     scheduledEnd: new Date(Date.now() + 3 * 60 * 60 * 1000),
-    status: 'scheduled'
+    status: 'scheduled',
+  openf1SessionKey: null
   })
   const pastSession = await sessions.upsertSession({
     eventId: ev.id, type: 'qualifying',
     scheduledStart: new Date(Date.now() - 60 * 60 * 1000),
     scheduledEnd: new Date(Date.now() - 30 * 60 * 1000),
-    status: 'scheduled'
+    status: 'scheduled',
+  openf1SessionKey: null
   })
   return { ev, futureSession, pastSession }
 }

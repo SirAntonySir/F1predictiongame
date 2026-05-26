@@ -38,7 +38,8 @@ export async function makeSession(
   const start = overrides.scheduledStart ?? new Date(Date.now() + 24 * 60 * 60 * 1000)
   const end = overrides.scheduledEnd ?? new Date(start.getTime() + 2 * 60 * 60 * 1000)
   return sessions.upsertSession({
-    eventId, type, scheduledStart: start, scheduledEnd: end, status: 'scheduled'
+    eventId, type, scheduledStart: start, scheduledEnd: end, status: 'scheduled',
+  openf1SessionKey: null
   })
 }
 

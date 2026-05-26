@@ -13,11 +13,11 @@ async function seed() {
   })
   await drivers.upsertDriver({
     code: 'VER', givenName: 'Max', familyName: 'Verstappen',
-    nationality: 'Dutch', permanentNumber: 33, wikipediaUrl: null, imageUrl: null, imageUrlOverride: null
+    nationality: 'Dutch', permanentNumber: 33, wikipediaUrl: null, imageUrl: null, imageUrlOverride: null, headshotUrl: null
   })
   await constructors.upsertConstructor({
     id: 'red_bull', name: 'Red Bull', nationality: 'Austrian',
-    wikipediaUrl: null, imageUrl: null, imageUrlOverride: null
+    wikipediaUrl: null, imageUrl: null, imageUrlOverride: null, teamColour: null
   })
   return ev
 }
@@ -28,7 +28,8 @@ describe('sessions repo', () => {
     const start = new Date('2024-03-02T15:00:00Z')
     const end = new Date('2024-03-02T17:00:00Z')
     const ses = await sessions.upsertSession({
-      eventId: ev.id, type: 'race', scheduledStart: start, scheduledEnd: end, status: 'scheduled'
+      eventId: ev.id, type: 'race', scheduledStart: start, scheduledEnd: end, status: 'scheduled',
+    openf1SessionKey: null
     })
     expect(ses.id).toBeGreaterThan(0)
     await sessions.markFinished(ses.id!)
@@ -42,8 +43,8 @@ describe('sessions repo', () => {
     const past2 = new Date(Date.now() - 3 * 60 * 60 * 1000)   // 3h ago
     const future = new Date(Date.now() + 60 * 60 * 1000)      // 1h ahead
 
-    await sessions.upsertSession({ eventId: ev.id, type: 'race', scheduledStart: past2, scheduledEnd: past, status: 'scheduled' })
-    await sessions.upsertSession({ eventId: ev.id, type: 'qualifying', scheduledStart: new Date(), scheduledEnd: future, status: 'scheduled' })
+    await sessions.upsertSession({ eventId: ev.id, type: 'race', scheduledStart: past2, scheduledEnd: past, status: 'scheduled', openf1SessionKey: null })
+    await sessions.upsertSession({ eventId: ev.id, type: 'qualifying', scheduledStart: new Date(), scheduledEnd: future, status: 'scheduled', openf1SessionKey: null })
 
     const candidates = await sessions.listCandidates()
     expect(candidates.map((c) => c.type)).toEqual(['race'])
@@ -53,13 +54,16 @@ describe('sessions repo', () => {
     const ev = await seed()
     const longAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
     await sessions.upsertSession({
-      eventId: ev.id, type: 'race', scheduledStart: longAgo, scheduledEnd: longAgo, status: 'scheduled'
+      eventId: ev.id, type: 'race', scheduledStart: longAgo, scheduledEnd: longAgo, status: 'scheduled',
+    openf1SessionKey: null
     })
     await sessions.upsertSession({
-      eventId: ev.id, type: 'qualifying', scheduledStart: longAgo, scheduledEnd: longAgo, status: 'scheduled'
+      eventId: ev.id, type: 'qualifying', scheduledStart: longAgo, scheduledEnd: longAgo, status: 'scheduled',
+    openf1SessionKey: null
     })
     await sessions.upsertSession({
-      eventId: ev.id, type: 'sprint', scheduledStart: longAgo, scheduledEnd: longAgo, status: 'scheduled'
+      eventId: ev.id, type: 'sprint', scheduledStart: longAgo, scheduledEnd: longAgo, status: 'scheduled',
+    openf1SessionKey: null
     })
     const types = (await sessions.listCandidates()).map((c) => c.type).sort()
     expect(types).toEqual(['qualifying', 'race', 'sprint'])
@@ -69,7 +73,8 @@ describe('sessions repo', () => {
     const ev = await seed()
     const longAgo = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000)
     await sessions.upsertSession({
-      eventId: ev.id, type: 'sprint_quali', scheduledStart: longAgo, scheduledEnd: longAgo, status: 'scheduled'
+      eventId: ev.id, type: 'sprint_quali', scheduledStart: longAgo, scheduledEnd: longAgo, status: 'scheduled',
+    openf1SessionKey: null
     })
     expect(await sessions.listCandidates()).toEqual([])
   })
@@ -78,7 +83,8 @@ describe('sessions repo', () => {
     const ev = await seed()
     const recent = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000)
     await sessions.upsertSession({
-      eventId: ev.id, type: 'sprint_quali', scheduledStart: recent, scheduledEnd: recent, status: 'scheduled'
+      eventId: ev.id, type: 'sprint_quali', scheduledStart: recent, scheduledEnd: recent, status: 'scheduled',
+    openf1SessionKey: null
     })
     const candidates = await sessions.listCandidates()
     expect(candidates.map((c) => c.type)).toEqual(['sprint_quali'])
@@ -88,7 +94,8 @@ describe('sessions repo', () => {
     const ev = await seed()
     const longAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
     const ses = await sessions.upsertSession({
-      eventId: ev.id, type: 'race', scheduledStart: longAgo, scheduledEnd: longAgo, status: 'scheduled'
+      eventId: ev.id, type: 'race', scheduledStart: longAgo, scheduledEnd: longAgo, status: 'scheduled',
+    openf1SessionKey: null
     })
     await sessions.markFinished(ses.id!)
     expect(await sessions.listCandidates()).toEqual([])
@@ -97,9 +104,9 @@ describe('sessions repo', () => {
   it('excludes practice sessions from candidates', async () => {
     const ev = await seed()
     const past = new Date(Date.now() - 60 * 60 * 1000)
-    await sessions.upsertSession({ eventId: ev.id, type: 'fp1', scheduledStart: past, scheduledEnd: past, status: 'scheduled' })
-    await sessions.upsertSession({ eventId: ev.id, type: 'fp2', scheduledStart: past, scheduledEnd: past, status: 'scheduled' })
-    await sessions.upsertSession({ eventId: ev.id, type: 'fp3', scheduledStart: past, scheduledEnd: past, status: 'scheduled' })
+    await sessions.upsertSession({ eventId: ev.id, type: 'fp1', scheduledStart: past, scheduledEnd: past, status: 'scheduled', openf1SessionKey: null })
+    await sessions.upsertSession({ eventId: ev.id, type: 'fp2', scheduledStart: past, scheduledEnd: past, status: 'scheduled', openf1SessionKey: null })
+    await sessions.upsertSession({ eventId: ev.id, type: 'fp3', scheduledStart: past, scheduledEnd: past, status: 'scheduled', openf1SessionKey: null })
     expect(await sessions.listCandidates()).toEqual([])
   })
 
@@ -107,8 +114,8 @@ describe('sessions repo', () => {
     const ev = await seed()
     const soon = new Date(Date.now() + 60 * 60 * 1000)
     const later = new Date(Date.now() + 24 * 60 * 60 * 1000)
-    await sessions.upsertSession({ eventId: ev.id, type: 'race', scheduledStart: later, scheduledEnd: later, status: 'scheduled' })
-    await sessions.upsertSession({ eventId: ev.id, type: 'qualifying', scheduledStart: soon, scheduledEnd: soon, status: 'scheduled' })
+    await sessions.upsertSession({ eventId: ev.id, type: 'race', scheduledStart: later, scheduledEnd: later, status: 'scheduled', openf1SessionKey: null })
+    await sessions.upsertSession({ eventId: ev.id, type: 'qualifying', scheduledStart: soon, scheduledEnd: soon, status: 'scheduled', openf1SessionKey: null })
     const next = await sessions.nextScheduled()
     expect(next?.type).toBe('qualifying')
   })
@@ -118,9 +125,9 @@ describe('sessions repo', () => {
     const t1 = new Date('2024-03-01T10:00:00Z')
     const t2 = new Date('2024-03-02T10:00:00Z')
     const t3 = new Date('2024-03-03T10:00:00Z')
-    await sessions.upsertSession({ eventId: ev.id, type: 'race', scheduledStart: t3, scheduledEnd: t3, status: 'scheduled' })
-    await sessions.upsertSession({ eventId: ev.id, type: 'qualifying', scheduledStart: t2, scheduledEnd: t2, status: 'scheduled' })
-    await sessions.upsertSession({ eventId: ev.id, type: 'fp1', scheduledStart: t1, scheduledEnd: t1, status: 'scheduled' })
+    await sessions.upsertSession({ eventId: ev.id, type: 'race', scheduledStart: t3, scheduledEnd: t3, status: 'scheduled', openf1SessionKey: null })
+    await sessions.upsertSession({ eventId: ev.id, type: 'qualifying', scheduledStart: t2, scheduledEnd: t2, status: 'scheduled', openf1SessionKey: null })
+    await sessions.upsertSession({ eventId: ev.id, type: 'fp1', scheduledStart: t1, scheduledEnd: t1, status: 'scheduled', openf1SessionKey: null })
     const list = await sessions.listForEvent(ev.id)
     expect(list.map((s) => s.type)).toEqual(['fp1', 'qualifying', 'race'])
   })
@@ -132,7 +139,8 @@ describe('results repo', () => {
     const ses = await sessions.upsertSession({
       eventId: ev.id, type: 'race',
       scheduledStart: new Date(), scheduledEnd: new Date(),
-      status: 'scheduled'
+      status: 'scheduled',
+    openf1SessionKey: null
     })
     const rows = [
       {
@@ -153,7 +161,8 @@ describe('results repo', () => {
   it('empty rows on a session that had results clears them', async () => {
     const ev = await seed()
     const ses = await sessions.upsertSession({
-      eventId: ev.id, type: 'race', scheduledStart: new Date(), scheduledEnd: new Date(), status: 'scheduled'
+      eventId: ev.id, type: 'race', scheduledStart: new Date(), scheduledEnd: new Date(), status: 'scheduled',
+    openf1SessionKey: null
     })
     await results.replaceForSession(ses.id!, [{
       sessionId: ses.id!, position: 1, driverCode: 'VER', driverName: 'Max',

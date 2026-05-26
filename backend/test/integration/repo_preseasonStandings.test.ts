@@ -8,10 +8,10 @@ import * as standings from '../../src/repo/preseasonStandings.js'
 async function seedDriversAndUser() {
   await seasons.upsertSeason({ year: 2026, isCurrent: true })
   for (const c of ['red_bull', 'mercedes', 'mclaren']) {
-    await constructors.upsertConstructor({ id: c, name: c, nationality: null, wikipediaUrl: null, imageUrl: null, imageUrlOverride: null })
+    await constructors.upsertConstructor({ id: c, name: c, nationality: null, wikipediaUrl: null, imageUrl: null, imageUrlOverride: null, teamColour: null })
   }
   for (const code of ['VER', 'PER', 'HAM', 'RUS', 'NOR']) {
-    await drivers.upsertDriver({ code, givenName: code, familyName: 'X', nationality: null, permanentNumber: null, wikipediaUrl: null, imageUrl: null, imageUrlOverride: null })
+    await drivers.upsertDriver({ code, givenName: code, familyName: 'X', nationality: null, permanentNumber: null, wikipediaUrl: null, imageUrl: null, imageUrlOverride: null, headshotUrl: null })
   }
   return await users.insertUser({ email: 's@x.com', passwordHash: 'h', displayName: 'S' })
 }

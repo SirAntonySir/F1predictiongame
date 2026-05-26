@@ -6,7 +6,8 @@ const Env = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   PORT: z.coerce.number().int().positive().default(3000),
   JOLPICA_BASE: z.string().url().default('https://api.jolpi.ca/ergast'),
-  WIKIPEDIA_BASE: z.string().url().default('https://en.wikipedia.org')
+  WIKIPEDIA_BASE: z.string().url().default('https://en.wikipedia.org'),
+  OPENF1_BASE: z.string().url().default('https://api.openf1.org/v1')
 })
 
 export type Config = {
@@ -16,6 +17,7 @@ export type Config = {
   port: number
   jolpicaBase: string
   wikipediaBase: string
+  openf1Base: string
 }
 
 export function parseConfig(env: Record<string, string | undefined>): Config {
@@ -26,7 +28,8 @@ export function parseConfig(env: Record<string, string | undefined>): Config {
     nodeEnv: parsed.NODE_ENV,
     port: parsed.PORT,
     jolpicaBase: parsed.JOLPICA_BASE,
-    wikipediaBase: parsed.WIKIPEDIA_BASE
+    wikipediaBase: parsed.WIKIPEDIA_BASE,
+    openf1Base: parsed.OPENF1_BASE
   }
 }
 

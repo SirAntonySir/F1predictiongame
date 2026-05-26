@@ -55,3 +55,14 @@ export async function exists(code: string): Promise<boolean> {
   const rows = await db.select({ c: sql<number>`1` }).from(driver).where(eq(driver.code, code)).limit(1)
   return rows.length > 0
 }
+
+export async function setHeadshotUrl(code: string, url: string | null): Promise<void> {
+  const db = getDb()
+  await db.update(driver).set({ headshotUrl: url }).where(eq(driver.code, code))
+}
+
+export async function listMissingHeadshot(): Promise<Driver[]> {
+  const db = getDb()
+  const rows = await db.select().from(driver).where(isNull(driver.headshotUrl))
+  return rows as Driver[]
+}

@@ -53,3 +53,14 @@ export async function exists(id: string): Promise<boolean> {
   const rows = await db.select({ c: sql<number>`1` }).from(constructor).where(eq(constructor.id, id)).limit(1)
   return rows.length > 0
 }
+
+export async function setTeamColour(id: string, colour: string | null): Promise<void> {
+  const db = getDb()
+  await db.update(constructor).set({ teamColour: colour }).where(eq(constructor.id, id))
+}
+
+export async function listMissingTeamColour(): Promise<Constructor[]> {
+  const db = getDb()
+  const rows = await db.select().from(constructor).where(isNull(constructor.teamColour))
+  return rows as Constructor[]
+}

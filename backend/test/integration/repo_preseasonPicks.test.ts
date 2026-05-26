@@ -7,8 +7,8 @@ import * as picks from '../../src/repo/preseasonPicks.js'
 
 async function seed() {
   await seasons.upsertSeason({ year: 2026, isCurrent: true })
-  await constructors.upsertConstructor({ id: 'red_bull', name: 'Red Bull', nationality: null, wikipediaUrl: null, imageUrl: null, imageUrlOverride: null })
-  await drivers.upsertDriver({ code: 'VER', givenName: 'Max', familyName: 'V', nationality: null, permanentNumber: null, wikipediaUrl: null, imageUrl: null, imageUrlOverride: null })
+  await constructors.upsertConstructor({ id: 'red_bull', name: 'Red Bull', nationality: null, wikipediaUrl: null, imageUrl: null, imageUrlOverride: null, teamColour: null })
+  await drivers.upsertDriver({ code: 'VER', givenName: 'Max', familyName: 'V', nationality: null, permanentNumber: null, wikipediaUrl: null, imageUrl: null, imageUrlOverride: null, headshotUrl: null })
   return await users.insertUser({ email: 't@x.com', passwordHash: 'h', displayName: 'T' })
 }
 

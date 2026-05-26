@@ -84,3 +84,8 @@ export async function listForEvent(eventId: number): Promise<StoredSession[]> {
     .orderBy(asc(session.scheduledStart))
   return rows as StoredSession[]
 }
+
+export async function setOpenF1SessionKey(id: number, key: number | null): Promise<void> {
+  const db = getDb()
+  await db.update(session).set({ openf1SessionKey: key }).where(eq(session.id, id))
+}

@@ -26,7 +26,8 @@ async function seedSession() {
   })
   return sessions.upsertSession({
     eventId: ev.id, type: 'race',
-    scheduledStart: new Date(2026, 2, 8, 15), scheduledEnd: new Date(2026, 2, 8, 17), status: 'scheduled'
+    scheduledStart: new Date(2026, 2, 8, 15), scheduledEnd: new Date(2026, 2, 8, 17), status: 'scheduled',
+  openf1SessionKey: null
   })
 }
 

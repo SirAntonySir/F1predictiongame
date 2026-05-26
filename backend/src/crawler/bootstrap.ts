@@ -26,7 +26,8 @@ export async function runBootstrap(client: JolpicaClient, year: number): Promise
         type: s.type,
         scheduledStart: s.scheduledStart,
         scheduledEnd: s.scheduledEnd,
-        status: 'scheduled'
+        status: 'scheduled',
+        openf1SessionKey: null
       })
     }
   }

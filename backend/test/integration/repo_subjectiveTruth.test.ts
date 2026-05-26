@@ -6,10 +6,10 @@ import * as truth from '../../src/repo/subjectiveTruth.js'
 
 async function seed() {
   await seasons.upsertSeason({ year: 2026, isCurrent: true })
-  await constructors.upsertConstructor({ id: 'red_bull', name: 'Red Bull', nationality: null, wikipediaUrl: null, imageUrl: null, imageUrlOverride: null })
-  await constructors.upsertConstructor({ id: 'mercedes', name: 'Mercedes', nationality: null, wikipediaUrl: null, imageUrl: null, imageUrlOverride: null })
-  await drivers.upsertDriver({ code: 'VER', givenName: 'M', familyName: 'V', nationality: null, permanentNumber: null, wikipediaUrl: null, imageUrl: null, imageUrlOverride: null })
-  await drivers.upsertDriver({ code: 'HAM', givenName: 'L', familyName: 'H', nationality: null, permanentNumber: null, wikipediaUrl: null, imageUrl: null, imageUrlOverride: null })
+  await constructors.upsertConstructor({ id: 'red_bull', name: 'Red Bull', nationality: null, wikipediaUrl: null, imageUrl: null, imageUrlOverride: null, teamColour: null })
+  await constructors.upsertConstructor({ id: 'mercedes', name: 'Mercedes', nationality: null, wikipediaUrl: null, imageUrl: null, imageUrlOverride: null, teamColour: null })
+  await drivers.upsertDriver({ code: 'VER', givenName: 'M', familyName: 'V', nationality: null, permanentNumber: null, wikipediaUrl: null, imageUrl: null, imageUrlOverride: null, headshotUrl: null })
+  await drivers.upsertDriver({ code: 'HAM', givenName: 'L', familyName: 'H', nationality: null, permanentNumber: null, wikipediaUrl: null, imageUrl: null, imageUrlOverride: null, headshotUrl: null })
 }
 
 describe('subjectiveTruth repo', () => {

@@ -16,10 +16,11 @@ async function seed() {
     eventId: ev.id, type: 'race',
     scheduledStart: new Date(Date.now() + 60_000),
     scheduledEnd: new Date(Date.now() + 60_000 + 2 * 60 * 60 * 1000),
-    status: 'scheduled'
+    status: 'scheduled',
+  openf1SessionKey: null
   })
-  await drivers.upsertDriver({ code: 'VER', givenName: 'Max', familyName: 'Verstappen', nationality: 'NL', permanentNumber: 33, wikipediaUrl: null, imageUrl: null, imageUrlOverride: null })
-  await drivers.upsertDriver({ code: 'HAM', givenName: 'Lewis', familyName: 'Hamilton', nationality: 'GB', permanentNumber: 44, wikipediaUrl: null, imageUrl: null, imageUrlOverride: null })
+  await drivers.upsertDriver({ code: 'VER', givenName: 'Max', familyName: 'Verstappen', nationality: 'NL', permanentNumber: 33, wikipediaUrl: null, imageUrl: null, imageUrlOverride: null, headshotUrl: null })
+  await drivers.upsertDriver({ code: 'HAM', givenName: 'Lewis', familyName: 'Hamilton', nationality: 'GB', permanentNumber: 44, wikipediaUrl: null, imageUrl: null, imageUrlOverride: null, headshotUrl: null })
   const user = await users.insertUser({ email: 't@x.com', passwordHash: 'h', displayName: 'T' })
   return { user, ses }
 }

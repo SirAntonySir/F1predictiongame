@@ -19,14 +19,15 @@ async function seedScene() {
   const ses = await sessions.upsertSession({
     eventId: ev.id, type: 'race',
     scheduledStart: new Date(2026, 2, 8, 15),
-    scheduledEnd: new Date(2026, 2, 8, 17), status: 'scheduled'
+    scheduledEnd: new Date(2026, 2, 8, 17), status: 'scheduled',
+  openf1SessionKey: null
   })
   for (const c of [
     { id: 'red_bull', name: 'Red Bull' },
     { id: 'mercedes', name: 'Mercedes' },
     { id: 'mclaren',  name: 'McLaren' }
   ]) {
-    await constructors.upsertConstructor({ ...c, nationality: null, wikipediaUrl: null, imageUrl: null, imageUrlOverride: null })
+    await constructors.upsertConstructor({ ...c, nationality: null, wikipediaUrl: null, imageUrl: null, imageUrlOverride: null, teamColour: null })
   }
   for (const d of [
     { code: 'VER', team: 'red_bull' }, { code: 'PER', team: 'red_bull' },
@@ -35,7 +36,7 @@ async function seedScene() {
   ]) {
     await drivers.upsertDriver({
       code: d.code, givenName: d.code, familyName: 'X', nationality: null, permanentNumber: null,
-      wikipediaUrl: null, imageUrl: null, imageUrlOverride: null
+      wikipediaUrl: null, imageUrl: null, imageUrlOverride: null, headshotUrl: null
     })
   }
   await standings.replaceDriverStandings(2026, [
@@ -147,7 +148,8 @@ describe('rescoreSession', () => {
     })
     const fp = await sessions.upsertSession({
       eventId: ev.id, type: 'fp1',
-      scheduledStart: new Date(2026, 0, 1), scheduledEnd: new Date(2026, 0, 1, 1), status: 'scheduled'
+      scheduledStart: new Date(2026, 0, 1), scheduledEnd: new Date(2026, 0, 1, 1), status: 'scheduled',
+    openf1SessionKey: null
     })
     const summary = await rescoreSession(fp.id)
     expect(summary).toEqual({ users: 0, totalPoints: 0 })

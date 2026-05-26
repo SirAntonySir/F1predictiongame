@@ -36,7 +36,8 @@ export const session = pgTable('session', {
   type: sessionType('type').notNull(),
   scheduledStart: timestamp('scheduled_start', { withTimezone: true }).notNull(),
   scheduledEnd: timestamp('scheduled_end', { withTimezone: true }).notNull(),
-  status: sessionStatus('status').notNull().default('scheduled')
+  status: sessionStatus('status').notNull().default('scheduled'),
+  openf1SessionKey: integer('openf1_session_key')
 }, (t) => ({
   uqEventType: uniqueIndex('session_event_type_uq').on(t.eventId, t.type),
   idxStatusStart: index('session_status_start_idx').on(t.status, t.scheduledStart),
@@ -51,7 +52,8 @@ export const driver = pgTable('driver', {
   permanentNumber: integer('permanent_number'),
   wikipediaUrl: text('wikipedia_url'),
   imageUrl: text('image_url'),
-  imageUrlOverride: text('image_url_override')
+  imageUrlOverride: text('image_url_override'),
+  headshotUrl: text('headshot_url')
 })
 
 export const constructor = pgTable('constructor', {
@@ -60,7 +62,8 @@ export const constructor = pgTable('constructor', {
   nationality: text('nationality'),
   wikipediaUrl: text('wikipedia_url'),
   imageUrl: text('image_url'),
-  imageUrlOverride: text('image_url_override')
+  imageUrlOverride: text('image_url_override'),
+  teamColour: text('team_colour')
 })
 
 export const sessionResult = pgTable('session_result', {

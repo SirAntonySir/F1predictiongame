@@ -16,19 +16,21 @@ import { rescorePreseasonForSeason } from '../../src/preseason/rescorer.js'
 async function seedSeason() {
   await seasons.upsertSeason({ year: 2026, isCurrent: true })
   for (const c of ['red_bull', 'mercedes', 'mclaren']) {
-    await constructors.upsertConstructor({ id: c, name: c, nationality: null, wikipediaUrl: null, imageUrl: null, imageUrlOverride: null })
+    await constructors.upsertConstructor({ id: c, name: c, nationality: null, wikipediaUrl: null, imageUrl: null, imageUrlOverride: null, teamColour: null })
   }
   for (const code of ['VER', 'PER', 'HAM', 'RUS', 'NOR', 'PIA']) {
-    await drivers.upsertDriver({ code, givenName: code, familyName: 'X', nationality: null, permanentNumber: null, wikipediaUrl: null, imageUrl: null, imageUrlOverride: null })
+    await drivers.upsertDriver({ code, givenName: code, familyName: 'X', nationality: null, permanentNumber: null, wikipediaUrl: null, imageUrl: null, imageUrlOverride: null, headshotUrl: null })
   }
   const ev = await events.upsertEvent({ seasonYear: 2026, round: 1, name: 'B', circuitName: 'C', country: 'X', hasSprint: false })
   const race = await sessions.upsertSession({
     eventId: ev.id, type: 'race',
-    scheduledStart: new Date(2026, 2, 8, 15), scheduledEnd: new Date(2026, 2, 8, 17), status: 'scheduled'
+    scheduledStart: new Date(2026, 2, 8, 15), scheduledEnd: new Date(2026, 2, 8, 17), status: 'scheduled',
+  openf1SessionKey: null
   })
   const quali = await sessions.upsertSession({
     eventId: ev.id, type: 'qualifying',
-    scheduledStart: new Date(2026, 2, 7, 14), scheduledEnd: new Date(2026, 2, 7, 15), status: 'scheduled'
+    scheduledStart: new Date(2026, 2, 7, 14), scheduledEnd: new Date(2026, 2, 7, 15), status: 'scheduled',
+  openf1SessionKey: null
   })
   await standings.replaceDriverStandings(2026, [
     { seasonYear: 2026, driverCode: 'VER', position: 1, points: 400, wins: 10, constructorId: 'red_bull' },

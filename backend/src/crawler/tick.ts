@@ -73,7 +73,7 @@ async function enrichImage(wiki: WikipediaClient, wikipediaUrl: string | null): 
 async function upsertNewDrivers(drivers: DriverLookup[], wiki: WikipediaClient): Promise<void> {
   for (const d of drivers) {
     if (await driversRepo.exists(d.code)) continue
-    await driversRepo.upsertDriver({ ...d, imageUrl: null, imageUrlOverride: null })
+    await driversRepo.upsertDriver({ ...d, imageUrl: null, imageUrlOverride: null, headshotUrl: null })
     const img = await enrichImage(wiki, d.wikipediaUrl)
     if (img) await driversRepo.setImageUrl(d.code, img)
   }
@@ -82,7 +82,7 @@ async function upsertNewDrivers(drivers: DriverLookup[], wiki: WikipediaClient):
 async function upsertNewConstructors(constructors: ConstructorLookup[], wiki: WikipediaClient): Promise<void> {
   for (const c of constructors) {
     if (await constructorsRepo.exists(c.id)) continue
-    await constructorsRepo.upsertConstructor({ ...c, imageUrl: null, imageUrlOverride: null })
+    await constructorsRepo.upsertConstructor({ ...c, imageUrl: null, imageUrlOverride: null, teamColour: null })
     const img = await enrichImage(wiki, c.wikipediaUrl)
     if (img) await constructorsRepo.setImageUrl(c.id, img)
   }

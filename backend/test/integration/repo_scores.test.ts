@@ -19,7 +19,8 @@ async function seedSessions(count = 2) {
       eventId: ev.id, type: types[i % 2]!,
       scheduledStart: new Date(2026, 0, 1 + i),
       scheduledEnd: new Date(2026, 0, 1 + i, 2),
-      status: 'scheduled'
+      status: 'scheduled',
+    openf1SessionKey: null
     })
     out.push(s)
   }
@@ -80,7 +81,8 @@ describe('scores repo', () => {
     })
     const old = await sessions.upsertSession({
       eventId: ev2024.id, type: 'race',
-      scheduledStart: new Date(2024, 0, 1), scheduledEnd: new Date(2024, 0, 1, 2), status: 'scheduled'
+      scheduledStart: new Date(2024, 0, 1), scheduledEnd: new Date(2024, 0, 1, 2), status: 'scheduled',
+    openf1SessionKey: null
     })
     const { sessions: ss } = await seedSessions(1)
     const owner = await users.insertUser({ email: 'o2@x.com', passwordHash: 'h', displayName: 'O' })

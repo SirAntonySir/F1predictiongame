@@ -32,10 +32,12 @@ async function seed2024Round1Past() {
   })
   const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000)
   await sessions.upsertSession({
-    eventId: ev.id, type: 'race', scheduledStart: yesterday, scheduledEnd: yesterday, status: 'scheduled'
+    eventId: ev.id, type: 'race', scheduledStart: yesterday, scheduledEnd: yesterday, status: 'scheduled',
+  openf1SessionKey: null
   })
   await sessions.upsertSession({
-    eventId: ev.id, type: 'qualifying', scheduledStart: yesterday, scheduledEnd: yesterday, status: 'scheduled'
+    eventId: ev.id, type: 'qualifying', scheduledStart: yesterday, scheduledEnd: yesterday, status: 'scheduled',
+  openf1SessionKey: null
   })
   return ev
 }
@@ -70,7 +72,8 @@ describe('runTick', () => {
     })
     const past = new Date(Date.now() - 2 * 60 * 60 * 1000)
     await sessions.upsertSession({
-      eventId: ev.id, type: 'sprint_quali', scheduledStart: past, scheduledEnd: past, status: 'scheduled'
+      eventId: ev.id, type: 'sprint_quali', scheduledStart: past, scheduledEnd: past, status: 'scheduled',
+    openf1SessionKey: null
     })
 
     const jolpica = new JolpicaClient('https://x', jolpicaFetch({

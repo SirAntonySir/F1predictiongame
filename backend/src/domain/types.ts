@@ -19,6 +19,7 @@ export type Session = {
   scheduledStart: Date
   scheduledEnd: Date
   status: SessionStatus
+  openf1SessionKey: number | null
 }
 
 export type Driver = {
@@ -30,6 +31,7 @@ export type Driver = {
   wikipediaUrl: string | null
   imageUrl: string | null
   imageUrlOverride: string | null
+  headshotUrl: string | null
 }
 
 export type Constructor = {
@@ -39,6 +41,7 @@ export type Constructor = {
   wikipediaUrl: string | null
   imageUrl: string | null
   imageUrlOverride: string | null
+  teamColour: string | null
 }
 
 export type SessionResultRow = {
