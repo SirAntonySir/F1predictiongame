@@ -166,6 +166,23 @@ class _HomeScreenState extends State<HomeScreen> {
                       scope.auth.currentUserId,
                       t),
                 ),
+                _section('My Season'),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
+                  child: InkWell(
+                    onTap: () => context.go('/scores'),
+                    borderRadius: const BorderRadius.all(Radius.circular(14)),
+                    child: const AppCard(
+                      child: ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: Icon(Icons.scoreboard_outlined),
+                        title: Text('My Scores'),
+                        subtitle: Text('Per-session breakdown'),
+                        trailing: Icon(Icons.chevron_right),
+                      ),
+                    ),
+                  ),
+                ),
                 const SizedBox(height: Spacing.xxl),
               ],
             );
