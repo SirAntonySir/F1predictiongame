@@ -3,7 +3,9 @@ import { mapDriverCode, mapEventName, EVENTS_TO_SKIP, mapConstructorId, mapPrese
 import type { RacePicks, ParsedSeason, ParsedPlayer } from './types.js'
 import type { PreseasonCategory } from '../../domain/types.js'
 
-export const RACE_HEADER_ROW           = 4
+// Per-race tipping block has its own header row at 68 (not the summary at row 4).
+// The summary at row 4 lays each race in its own column; the per-race data uses 6 columns per race.
+export const RACE_HEADER_ROW           = 68
 export const RACE_START_COL            = 3
 export const RACE_COLS_EACH            = 6
 export const STANDINGS_HEADER_ROW      = 30

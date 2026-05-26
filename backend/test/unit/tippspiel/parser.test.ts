@@ -81,10 +81,10 @@ import { parsePlayerRaceBlock } from '../../../src/scripts/tippspiel/parser.js'
 
 function buildSheetWithRaceHeaders() {
   const ws: Record<string, XLSX.CellObject> = {}
-  // Race headers row 4, cols 3 (Australia), 9 (China), 15 (Japan)
-  ws[XLSX.utils.encode_cell({ r: 3, c: 2 })] = { v: 'Australia', t: 's' } as XLSX.CellObject
-  ws[XLSX.utils.encode_cell({ r: 3, c: 8 })] = { v: 'China',     t: 's' } as XLSX.CellObject
-  ws[XLSX.utils.encode_cell({ r: 3, c: 14 })] = { v: 'Japan',    t: 's' } as XLSX.CellObject
+  // Race headers row 68 (sheet index 67), cols 3 (Australia), 9 (China), 15 (Japan)
+  ws[XLSX.utils.encode_cell({ r: 67, c: 2 })] = { v: 'Australia', t: 's' } as XLSX.CellObject
+  ws[XLSX.utils.encode_cell({ r: 67, c: 8 })] = { v: 'China',     t: 's' } as XLSX.CellObject
+  ws[XLSX.utils.encode_cell({ r: 67, c: 14 })] = { v: 'Japan',    t: 's' } as XLSX.CellObject
   return ws
 }
 
@@ -144,7 +144,7 @@ describe('parsePlayerRaceBlock', () => {
 
   it('skips events present in EVENTS_TO_SKIP (e.g. Bahrain)', () => {
     const ws = buildSheetWithRaceHeaders()
-    ws[XLSX.utils.encode_cell({ r: 3, c: 20 })] = { v: 'Bahrain', t: 's' } as XLSX.CellObject
+    ws[XLSX.utils.encode_cell({ r: 67, c: 20 })] = { v: 'Bahrain', t: 's' } as XLSX.CellObject
     // Bahrain quali col 21 (idx 20) — should be ignored
     ws[XLSX.utils.encode_cell({ r: 71, c: 20 })] = { v: 'Ver', t: 's' } as XLSX.CellObject
     const result = parsePlayerRaceBlock(ws as any, { qualiRow: 72, sprintRow: 73, raceRow: 74 })
@@ -244,8 +244,8 @@ function buildMinimalWorkbook(): XLSX.WorkBook {
   // Build a workbook with one sheet that has just enough cells for parseWorkbook
   // not to throw and to produce empty pick blocks for all 11 players.
   const ws: Record<string, XLSX.CellObject> = {}
-  // Race header row 4 — Australia at col 3
-  ws[XLSX.utils.encode_cell({ r: 3, c: 2 })] = { v: 'Australia', t: 's' } as XLSX.CellObject
+  // Race header row 68 (sheet idx 67) — Australia at col 3
+  ws[XLSX.utils.encode_cell({ r: 67, c: 2 })] = { v: 'Australia', t: 's' } as XLSX.CellObject
   // Preseason single-category label row 4 cols 35,38,41,44,47,50,53 (indices 34..52)
   const labels: Record<number, string> = {
     34: 'größte Enttäuschung',

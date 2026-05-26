@@ -1,7 +1,9 @@
-import * as XLSX from 'xlsx'
+import xlsxPkg from 'xlsx'
 import os from 'node:os'
 import path from 'node:path'
 import fs from 'node:fs'
+
+const XLSX = xlsxPkg as typeof xlsxPkg & { readFile: (path: string) => xlsxPkg.WorkBook }
 import * as sessionsRepo from '../repo/sessions.js'
 import * as resultsRepo from '../repo/results.js'
 import * as eventsRepo from '../repo/events.js'
