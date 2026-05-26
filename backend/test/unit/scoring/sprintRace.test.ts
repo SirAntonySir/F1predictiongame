@@ -34,8 +34,8 @@ describe('scoreSprintRace', () => {
     const finishers = [f(1, NOR), f(2, HAM), f(3, VER)]
     const b = scoreSprintRace(picks, finishers)
     expect(b.perPosition[0].points).toBe(0)
-    expect(b.perPosition[1]).toEqual({ position: 2, exact: true, wrongPos: false, points: 2 })
-    expect(b.perPosition[2]).toEqual({ position: 3, exact: true, wrongPos: false, points: 2 })
+    expect(b.perPosition[1]).toEqual({ position: 2, driverCode: HAM.code, exact: true, wrongPos: false, points: 2 })
+    expect(b.perPosition[2]).toEqual({ position: 3, driverCode: VER.code, exact: true, wrongPos: false, points: 2 })
     expect(b.teamBonus).toEqual({ applied: false, points: 0 })
   })
 

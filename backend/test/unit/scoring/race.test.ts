@@ -39,9 +39,9 @@ describe('scoreRace', () => {
     ]
     const finishers = [f(1, HAM), f(2, VER), f(3, NOR), f(4, PIA), f(5, RUS)]
     const b = scoreRace(picks, finishers)
-    expect(b.perPosition[0]).toEqual({ position: 1, exact: false, wrongPos: true, points: 1 })
-    expect(b.perPosition[1]).toEqual({ position: 2, exact: false, wrongPos: true, points: 1 })
-    expect(b.perPosition[2]).toEqual({ position: 3, exact: true, wrongPos: false, points: 3 })
+    expect(b.perPosition[0]).toEqual({ position: 1, driverCode: VER.code, exact: false, wrongPos: true, points: 1 })
+    expect(b.perPosition[1]).toEqual({ position: 2, driverCode: HAM.code, exact: false, wrongPos: true, points: 1 })
+    expect(b.perPosition[2]).toEqual({ position: 3, driverCode: NOR.code, exact: true, wrongPos: false, points: 3 })
     // VER picked for P1, HAM (mercedes) won. VER is red_bull -> no team bonus
     expect(b.teamBonus).toEqual({ applied: false, points: 0 })
   })

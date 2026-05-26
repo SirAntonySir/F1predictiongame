@@ -9,13 +9,13 @@ export function scoreRace(picks: Pick[], finishers: Finisher[]): ScoreBreakdown 
   const perPosition: ScoreBreakdownPerPosition[] = picks.map((p) => {
     const exactFinisher = finishers.find((f) => f.position === p.position)
     if (exactFinisher && exactFinisher.driverCode === p.driverCode) {
-      return { position: p.position, exact: true, wrongPos: false, points: EXACT }
+      return { position: p.position, driverCode: p.driverCode, exact: true, wrongPos: false, points: EXACT }
     }
     const driverFinishedSomewhere = finishers.some((f) => f.driverCode === p.driverCode)
     if (driverFinishedSomewhere) {
-      return { position: p.position, exact: false, wrongPos: true, points: WRONG_POS }
+      return { position: p.position, driverCode: p.driverCode, exact: false, wrongPos: true, points: WRONG_POS }
     }
-    return { position: p.position, exact: false, wrongPos: false, points: 0 }
+    return { position: p.position, driverCode: p.driverCode, exact: false, wrongPos: false, points: 0 }
   })
 
   const p1Pick = picks.find((p) => p.position === 1)

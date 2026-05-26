@@ -3,6 +3,7 @@ export type Finisher = { position: number; driverCode: string; constructorId: st
 
 export type ScoreBreakdownPerPosition = {
   position: number
+  driverCode: string
   exact: boolean
   wrongPos: boolean
   points: number
