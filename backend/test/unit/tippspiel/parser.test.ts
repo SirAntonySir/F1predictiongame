@@ -153,3 +153,68 @@ describe('parsePlayerRaceBlock', () => {
     expect(Object.keys(result)).toContain('Australia')
   })
 })
+
+import { parsePlayerStandings, parsePlayerPreseasonSingle } from '../../../src/scripts/tippspiel/parser.js'
+
+describe('parsePlayerStandings', () => {
+  it('reads 11 constructor and 22 driver positions for a given player column', () => {
+    const ws: Record<string, XLSX.CellObject> = {}
+    // For player index 0 (Jan): teams col = 3, drivers col = 5
+    const teams = ['McLaren','Merc','Ferrari','RedBull','Alpine','Haas','Vcarb','Audi','Williams','Cadillac','Aston']
+    teams.forEach((t, i) => {
+      ws[XLSX.utils.encode_cell({ r: 33 - 1 + i, c: 2 })] = { v: t, t: 's' } as XLSX.CellObject
+    })
+    const drivers = ['Ver','Nor','Rus','Pia','Lec','Had','Ant','Ham','Gas','Bea','Oco','Lin','Alb','Bor','Col','Law','Hul','Sai','Bot','Per','Alo','Str']
+    drivers.forEach((d, i) => {
+      ws[XLSX.utils.encode_cell({ r: 33 - 1 + i, c: 4 })] = { v: d, t: 's' } as XLSX.CellObject
+    })
+    const result = parsePlayerStandings(ws as any, 0)
+    expect(result.constructors).toHaveLength(11)
+    expect(result.constructors[0]).toEqual({ position: 1, constructorId: 'mclaren' })
+    expect(result.constructors[10]).toEqual({ position: 11, constructorId: 'aston_martin' })
+    expect(result.drivers).toHaveLength(22)
+    expect(result.drivers[0]).toEqual({ position: 1, driverCode: 'VER' })
+    expect(result.drivers[21]).toEqual({ position: 22, driverCode: 'STR' })
+  })
+
+  it('throws if any standings cell is missing', () => {
+    const ws: Record<string, XLSX.CellObject> = {}
+    // teams 1..10 only, missing pos 11
+    const teams = ['McLaren','Merc','Ferrari','RedBull','Alpine','Haas','Vcarb','Audi','Williams','Cadillac']
+    teams.forEach((t, i) => {
+      ws[XLSX.utils.encode_cell({ r: 33 - 1 + i, c: 2 })] = { v: t, t: 's' } as XLSX.CellObject
+    })
+    expect(() => parsePlayerStandings(ws as any, 0)).toThrow(/missing constructor standings/i)
+  })
+})
+
+describe('parsePlayerPreseasonSingle', () => {
+  it('reads the 6 supported categories for the given player row', () => {
+    const ws: Record<string, XLSX.CellObject> = {}
+    // Player row for Jan = PRESEASON_SINGLE_ROW_START + 0 = 7 (sheet idx 6)
+    // Need category labels in row 4 (sheet idx 3) at the respective cols
+    ws[XLSX.utils.encode_cell({ r: 3, c: 34 })] = { v: 'größte Enttäuschung',  t: 's' } as XLSX.CellObject
+    ws[XLSX.utils.encode_cell({ r: 3, c: 37 })] = { v: 'größte Überraschung',  t: 's' } as XLSX.CellObject
+    ws[XLSX.utils.encode_cell({ r: 3, c: 40 })] = { v: 'meiste DNFs',          t: 's' } as XLSX.CellObject
+    ws[XLSX.utils.encode_cell({ r: 3, c: 43 })] = { v: 'meiste Poles',         t: 's' } as XLSX.CellObject
+    ws[XLSX.utils.encode_cell({ r: 3, c: 46 })] = { v: 'meiste fastest laps',  t: 's' } as XLSX.CellObject
+    ws[XLSX.utils.encode_cell({ r: 3, c: 49 })] = { v: 'meiste Rennsiege',     t: 's' } as XLSX.CellObject
+    ws[XLSX.utils.encode_cell({ r: 3, c: 52 })] = { v: 'Champions',            t: 's' } as XLSX.CellObject
+
+    // Disappointment team col 35 (idx 34), driver col 36 (idx 35)
+    ws[XLSX.utils.encode_cell({ r: 6, c: 34 })] = { v: 'Williams', t: 's' } as XLSX.CellObject
+    ws[XLSX.utils.encode_cell({ r: 6, c: 35 })] = { v: 'Sai',      t: 's' } as XLSX.CellObject
+    // Surprise team col 38 (idx 37), driver col 39 (idx 38)
+    ws[XLSX.utils.encode_cell({ r: 6, c: 37 })] = { v: 'Alpine', t: 's' } as XLSX.CellObject
+    ws[XLSX.utils.encode_cell({ r: 6, c: 38 })] = { v: 'Bea',    t: 's' } as XLSX.CellObject
+    // Champions WCC col 53 (idx 52), WDC col 54 (idx 53)
+    ws[XLSX.utils.encode_cell({ r: 6, c: 52 })] = { v: 'McLaren', t: 's' } as XLSX.CellObject
+    ws[XLSX.utils.encode_cell({ r: 6, c: 53 })] = { v: 'Ver',     t: 's' } as XLSX.CellObject
+
+    const result = parsePlayerPreseasonSingle(ws as any, 0)
+    expect(result.disappointment).toEqual({ constructorId: 'williams', driverCode: 'SAI' })
+    expect(result.surprise).toEqual({ constructorId: 'alpine', driverCode: 'BEA' })
+    expect(result.wdc_wcc).toEqual({ constructorId: 'mclaren', driverCode: 'VER' })
+    expect(result.dnf).toBeUndefined()
+  })
+})

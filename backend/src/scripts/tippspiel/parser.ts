@@ -1,6 +1,7 @@
 import * as XLSX from 'xlsx'
-import { mapDriverCode, mapEventName, EVENTS_TO_SKIP } from './mappings.js'
+import { mapDriverCode, mapEventName, EVENTS_TO_SKIP, mapConstructorId, mapPreseasonCategory } from './mappings.js'
 import type { RacePicks } from './types.js'
+import type { PreseasonCategory } from '../../domain/types.js'
 
 export const RACE_HEADER_ROW           = 4
 export const RACE_START_COL            = 3
@@ -111,6 +112,61 @@ export function parsePlayerRaceBlock(ws: Sheet, rows: PlayerBlockRows): Record<s
       race:   readNumber(ws, rows.raceRow,   col + 5) ?? 0
     }
     out[header] = { quali, sprintQuali, sprint, race, excelPoints }
+  }
+  return out
+}
+
+const PRESEASON_SINGLE_COLS: { excelCol: number }[] = [
+  { excelCol: 35 }, // größte Enttäuschung
+  { excelCol: 38 }, // größte Überraschung
+  { excelCol: 41 }, // meiste DNFs
+  { excelCol: 44 }, // meiste Poles
+  { excelCol: 47 }, // meiste fastest laps
+  { excelCol: 50 }, // meiste Rennsiege  (skipped via category map)
+  { excelCol: 53 }  // Champions
+]
+
+export function parsePlayerStandings(ws: Sheet, playerIndex: number): {
+  constructors: { position: number; constructorId: string }[]
+  drivers: { position: number; driverCode: string }[]
+} {
+  const teamsCol   = STANDINGS_FIRST_TEAMS_COL + playerIndex * STANDINGS_COLS_PER_PLAYER
+  const driversCol = teamsCol + 2
+  const constructors: { position: number; constructorId: string }[] = []
+  for (let i = 0; i < 11; i++) {
+    const cell = readCell(ws, STANDINGS_FIRST_DATA_ROW + i, teamsCol)
+    if (cell === null) throw new Error(`missing constructor standings at position ${i + 1} (player index ${playerIndex})`)
+    constructors.push({ position: i + 1, constructorId: mapConstructorId(cell) })
+  }
+  const drivers: { position: number; driverCode: string }[] = []
+  for (let i = 0; i < 22; i++) {
+    const cell = readCell(ws, STANDINGS_FIRST_DATA_ROW + i, driversCol)
+    if (cell === null) throw new Error(`missing driver standings at position ${i + 1} (player index ${playerIndex})`)
+    drivers.push({ position: i + 1, driverCode: mapDriverCode(cell) })
+  }
+  return { constructors, drivers }
+}
+
+export function parsePlayerPreseasonSingle(ws: Sheet, playerIndex: number): Partial<Record<PreseasonCategory, {
+  driverCode: string | null
+  constructorId: string | null
+}>> {
+  const row = PRESEASON_SINGLE_ROW_START + playerIndex
+  const out: Partial<Record<PreseasonCategory, { driverCode: string | null; constructorId: string | null }>> = {}
+  for (const { excelCol } of PRESEASON_SINGLE_COLS) {
+    // Category label sits in row 4 at this column. Use it for category mapping.
+    const label = readCell(ws, 4, excelCol)
+    if (label === null) continue
+    const category = mapPreseasonCategory(label)
+    if (category === null) continue  // e.g. "meiste Rennsiege"
+
+    const teamRaw   = readCell(ws, row, excelCol)
+    const driverRaw = readCell(ws, row, excelCol + 1)
+    if (teamRaw === null && driverRaw === null) continue
+    out[category] = {
+      constructorId: teamRaw   ? mapConstructorId(teamRaw)   : null,
+      driverCode:    driverRaw ? mapDriverCode(driverRaw)    : null
+    }
   }
   return out
 }
