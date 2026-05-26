@@ -61,7 +61,7 @@ export async function registerPublicRoutes(app: FastifyInstance): Promise<void> 
     const standings = await standingsRepo.listDriverStandings(cur.year)
     return Promise.all(standings.map(async (s) => {
       const d = await driversRepo.getByCode(s.driverCode)
-      return { ...s, driver: d ? { ...d, image: d.imageUrlOverride ?? d.imageUrl } : null }
+      return { ...s, driver: d ? { ...d, image: d.imageUrlOverride ?? d.headshotUrl ?? d.imageUrl } : null }
     }))
   })
 
@@ -78,7 +78,7 @@ export async function registerPublicRoutes(app: FastifyInstance): Promise<void> 
   app.get<{ Params: { code: string } }>('/api/drivers/:code', async (req) => {
     const d = await driversRepo.getByCode(req.params.code.toUpperCase())
     if (!d) throw new ApiError('NOT_FOUND', `Driver ${req.params.code} not found`)
-    return { ...d, image: d.imageUrlOverride ?? d.imageUrl }
+    return { ...d, image: d.imageUrlOverride ?? d.headshotUrl ?? d.imageUrl }
   })
 
   app.get<{ Params: { id: string } }>('/api/constructors/:id', async (req) => {
