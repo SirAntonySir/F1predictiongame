@@ -12,6 +12,7 @@ import 'models/preseason_mine.dart';
 import '../domain/preseason.dart';
 import 'models/season.dart';
 import 'models/session.dart';
+import 'models/session_leaderboard_row.dart';
 import 'models/session_result.dart';
 import 'models/standing.dart';
 import 'models/upcoming_prediction.dart';
@@ -49,6 +50,7 @@ abstract class ApiClient {
   // scores
   Future<List<MyScore>>            myScores({int? season});
   Future<List<LeaderboardRow>>     leagueLeaderboard(String leagueId, {int? season});
+  Future<List<SessionLeaderboardRow>> leagueSessionBreakdown(String leagueId, {int? season});
 
   // preseason
   Future<PreseasonMine>            getPreseasonMine();

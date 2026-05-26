@@ -15,6 +15,7 @@ import 'models/preseason_mine.dart';
 import '../domain/preseason.dart';
 import 'models/season.dart';
 import 'models/session.dart';
+import 'models/session_leaderboard_row.dart';
 import 'models/session_result.dart';
 import 'models/standing.dart';
 import 'models/upcoming_prediction.dart';
@@ -228,6 +229,13 @@ class HttpApiClient implements ApiClient {
     final q = season == null ? '' : '?season=$season';
     final j = await _request('GET', '/api/leagues/$leagueId/leaderboard$q') as Map<String, dynamic>;
     return (j['leaderboard'] as List).cast<Map<String, dynamic>>().map(LeaderboardRow.fromJson).toList();
+  }
+
+  @override
+  Future<List<SessionLeaderboardRow>> leagueSessionBreakdown(String leagueId, {int? season}) async {
+    final q = season == null ? '' : '?season=$season';
+    final j = await _request('GET', '/api/leagues/$leagueId/leaderboard/sessions$q') as Map<String, dynamic>;
+    return (j['sessions'] as List).cast<Map<String, dynamic>>().map(SessionLeaderboardRow.fromJson).toList();
   }
 
   @override
