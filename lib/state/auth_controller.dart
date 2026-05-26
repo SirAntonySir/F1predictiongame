@@ -1,30 +1,118 @@
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../api/api_client.dart';
+import '../api/models/me_result.dart';
+import '../api/models/user.dart';
+import '../api/models/user_league.dart';
+import 'token_storage.dart';
 
 class AuthController extends ChangeNotifier {
-  static const _key = 'current_user_id';
-  String? _currentUserId;
-  AuthController(this._currentUserId);
+  AuthController({required this.storage});
 
-  String? get currentUserId => _currentUserId;
-  bool get isLoggedIn => _currentUserId != null;
+  /// Assigned exactly once in main.dart after HttpApiClient is constructed.
+  late ApiClient api;
+  final TokenStorage storage;
 
-  static Future<AuthController> load() async {
-    final prefs = await SharedPreferences.getInstance();
-    return AuthController(prefs.getString(_key));
+  String? _token;
+  User? _user;
+  List<UserLeague> _leagues = const [];
+  bool _sessionExpiredFlag = false;
+
+  String? get token => _token;
+  String? get currentUserId => _user?.id;
+  User? get user => _user;
+  List<UserLeague> get leagues => _leagues;
+
+  bool get isLoggedIn => _token != null && _user != null;
+  bool get hasLeague  => _leagues.isNotEmpty;
+
+  bool consumeSessionExpiredFlag() {
+    if (!_sessionExpiredFlag) return false;
+    _sessionExpiredFlag = false;
+    return true;
   }
 
-  Future<void> login(String userId) async {
-    _currentUserId = userId;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_key, userId);
+  Future<void> bootstrap() async {
+    final t = await storage.read();
+    if (t == null) {
+      notifyListeners();
+      return;
+    }
+    _token = t;
+    try {
+      final me = await api.me();
+      _user = me.user;
+      _leagues = me.leagues;
+    } on UnauthorizedException {
+      await _wipe();
+    }
+    notifyListeners();
+  }
+
+  Future<void> signup(String email, String password, String displayName) async {
+    final r = await api.signup(email: email, password: password, displayName: displayName);
+    _token = r.token;
+    await storage.write(r.token);
+    _user = r.user;
+    _leagues = const [];
+    await _wipeLegacyStores();
+    notifyListeners();
+  }
+
+  Future<void> login(String email, String password) async {
+    final r = await api.login(email: email, password: password);
+    _token = r.token;
+    await storage.write(r.token);
+    _user = r.user;
+    final me = await api.me();
+    _leagues = me.leagues;
+    await _wipeLegacyStores();
+    notifyListeners();
+  }
+
+  Future<void> refreshMe() async {
+    final me = await api.me();
+    _user = me.user;
+    _leagues = me.leagues;
     notifyListeners();
   }
 
   Future<void> logout() async {
-    _currentUserId = null;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_key);
+    try { await api.logout(); } catch (_) {/* ignore network errors on logout */}
+    await _wipe();
     notifyListeners();
+  }
+
+  void invalidate() {
+    if (_token == null && _user == null) return;
+    // ignore: discarded_futures
+    _wipe();
+    _sessionExpiredFlag = true;
+    notifyListeners();
+  }
+
+  Future<void> _wipe() async {
+    _token = null;
+    _user = null;
+    _leagues = const [];
+    await storage.clear();
+  }
+
+  /// Per the auth wiring spec D5: drop demo-era SharedPreferences keys on
+  /// first successful auth so they can never collide with the real backend
+  /// user ids.
+  Future<void> _wipeLegacyStores() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('predictions_v1');
+    await prefs.remove('preseason_v1');
+    await prefs.remove('current_user_id'); // old AuthController.load() key
+  }
+
+  // Test helper — sets state without going through the API.
+  @visibleForTesting
+  void applyTestState({required User user, required String token, required List<UserLeague> leagues}) {
+    _user = user;
+    _token = token;
+    _leagues = leagues;
   }
 }
