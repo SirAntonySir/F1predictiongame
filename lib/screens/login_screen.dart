@@ -67,7 +67,7 @@ class _LoginScreenState extends State<LoginScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const SizedBox(height: 40),
-                Text('Sign in', style: Theme.of(context).textTheme.headlineMedium),
+                Text('Log in', style: Theme.of(context).textTheme.headlineMedium),
                 const SizedBox(height: 24),
                 TextFormField(
                   key: const Key('login.email'),
@@ -91,6 +91,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
                   ),
                 FilledButton(
+                  key: const Key('login.submit'),
                   onPressed: _busy ? null : _submit,
                   child: Text(_busy ? 'Logging in...' : 'Log in'),
                 ),

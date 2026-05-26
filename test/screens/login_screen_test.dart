@@ -31,7 +31,7 @@ void main() {
   testWidgets('empty submit shows validation errors', (tester) async {
     final auth = AuthController(storage: InMemoryTokenStorage())..api = _FakeApi();
     await tester.pumpWidget(MaterialApp(home: LoginScreen(auth: auth)));
-    await tester.tap(find.text('Log in'));
+    await tester.tap(find.byKey(const Key('login.submit')));
     await tester.pump();
     expect(find.text('Required'), findsAtLeastNWidgets(1));
   });
@@ -44,7 +44,7 @@ void main() {
     await tester.pumpWidget(MaterialApp(home: LoginScreen(auth: auth)));
     await tester.enterText(find.byKey(const Key('login.email')), 'a@b.com');
     await tester.enterText(find.byKey(const Key('login.password')), 'hunter22x');
-    await tester.tap(find.text('Log in'));
+    await tester.tap(find.byKey(const Key('login.submit')));
     await tester.pump();
     await tester.pumpAndSettle();
     expect(api.lastEmail, 'a@b.com');
@@ -58,7 +58,7 @@ void main() {
     await tester.pumpWidget(MaterialApp(home: LoginScreen(auth: auth)));
     await tester.enterText(find.byKey(const Key('login.email')), 'a@b.com');
     await tester.enterText(find.byKey(const Key('login.password')), 'bad');
-    await tester.tap(find.text('Log in'));
+    await tester.tap(find.byKey(const Key('login.submit')));
     await tester.pumpAndSettle();
     expect(find.text('Invalid email or password'), findsOneWidget);
   });
