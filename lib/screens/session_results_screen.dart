@@ -18,16 +18,19 @@ import '../theme/team_colors.dart';
 import '../theme/tokens.dart';
 import '../theme/typography.dart';
 
+// Sprint Quali is disabled — see predict_screen.dart. The session still exists
+// in the calendar but we don't surface a results sub-tab for it because there
+// were no picks to compare. Re-enable by uncommenting the sprint_quali entries.
 const _pickableTypes = {
   SessionType.qualifying,
-  SessionType.sprint_quali,
+  // SessionType.sprint_quali,
   SessionType.sprint,
   SessionType.race,
 };
 
 const _typeLabels = {
   SessionType.qualifying: 'QUALI',
-  SessionType.sprint_quali: 'SPRINT QUALI',
+  // SessionType.sprint_quali: 'SPRINT QUALI',
   SessionType.sprint: 'SPRINT',
   SessionType.race: 'RACE',
 };
@@ -253,8 +256,9 @@ class _Body extends StatelessWidget {
     switch (session.type) {
       case SessionType.qualifying:
         return scoreQualifying(payload.picks, payload.result);
-      case SessionType.sprint_quali:
-        return scoreSprintQualifying(payload.picks, payload.result);
+      // Sprint Quali disabled — see top of file.
+      // case SessionType.sprint_quali:
+      //   return scoreSprintQualifying(payload.picks, payload.result);
       case SessionType.sprint:
         return scoreSprint(payload.picks, payload.result);
       case SessionType.race:
