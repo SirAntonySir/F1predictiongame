@@ -9,6 +9,7 @@ import '../components/app_card.dart';
 import '../components/error_view.dart';
 import '../components/score_banner.dart';
 import '../domain/prediction.dart';
+import '../domain/result_display.dart';
 import '../domain/scoring.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
@@ -428,7 +429,7 @@ class _Body extends StatelessWidget {
                           _OutcomeTag(outcome: outcome),
                           const SizedBox(width: Spacing.sm),
                         ],
-                        Text(r.raceTime ?? '',
+                        Text(displayTime(r, session.type),
                             style: AppText.display(11,
                                 color:
                                     t.colorScheme.onSurface.withOpacity(0.6))),
