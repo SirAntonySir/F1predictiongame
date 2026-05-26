@@ -69,14 +69,14 @@ describe('sessions repo', () => {
     expect(types).toEqual(['qualifying', 'race', 'sprint'])
   })
 
-  it('excludes sprint_quali sessions whose end is more than 7 days in the past', async () => {
+  it('includes sprint_quali sessions whose end is more than 7 days in the past', async () => {
     const ev = await seed()
-    const longAgo = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000)
+    const longAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
     await sessions.upsertSession({
       eventId: ev.id, type: 'sprint_quali', scheduledStart: longAgo, scheduledEnd: longAgo, status: 'scheduled',
     openf1SessionKey: null
     })
-    expect(await sessions.listCandidates()).toEqual([])
+    expect((await sessions.listCandidates()).map((c) => c.type)).toEqual(['sprint_quali'])
   })
 
   it('includes sprint_quali sessions whose end is within the last 7 days', async () => {

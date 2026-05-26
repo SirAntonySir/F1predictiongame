@@ -43,10 +43,9 @@ export async function markFinished(id: number): Promise<void> {
 export async function listCandidates(): Promise<StoredSession[]> {
   const db = getDb()
   // Eligible: status=scheduled AND end + 30 min < now AND not practice.
-  // Only sprint_quali keeps the 7-day floor — its Jolpica endpoint never
-  // returns data, and the floor stops us retrying it forever. race /
-  // qualifying / sprint stay eligible until they're finished so historical
-  // past sessions are picked up after a bootstrap or outage.
+  // sprint_quali now has a real source (OpenF1) so it follows the same
+  // unbounded-lookback rule as race/qualifying/sprint — past sessions are
+  // picked up after a bootstrap or outage.
   const rows = await db
     .select()
     .from(session)
@@ -54,8 +53,7 @@ export async function listCandidates(): Promise<StoredSession[]> {
       and(
         eq(session.status, 'scheduled'),
         sql`${session.type} NOT IN ('fp1','fp2','fp3')`,
-        lt(session.scheduledEnd, sql`now() - interval '30 minutes'`),
-        sql`(${session.type} <> 'sprint_quali' OR ${session.scheduledEnd} > now() - interval '7 days')`
+        lt(session.scheduledEnd, sql`now() - interval '30 minutes'`)
       )
     )
   return rows as StoredSession[]

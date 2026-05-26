@@ -76,7 +76,16 @@ class _LeagueOnboardingScreenState extends State<LeagueOnboardingScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Join or create a league')),
+      appBar: AppBar(
+        title: const Text('Join or create a league'),
+        actions: [
+          TextButton(
+            key: const Key('onboarding.signOut'),
+            onPressed: _busy ? null : () => widget.auth.logout(),
+            child: const Text('Sign out'),
+          ),
+        ],
+      ),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(24),

@@ -35,9 +35,17 @@ class _PredictScreenState extends State<PredictScreen> {
     }
     Event? upcoming;
     Session? session;
+    final now = DateTime.now();
+    bool isScorable(SessionType t) =>
+        t == SessionType.race ||
+        t == SessionType.qualifying ||
+        t == SessionType.sprint ||
+        t == SessionType.sprint_quali;
     for (final e in events) {
       for (final s in e.sessions) {
         if (s.status == SessionStatus.scheduled &&
+            isScorable(s.type) &&
+            s.scheduledStart.isAfter(now) &&
             (session == null ||
                 s.scheduledStart.isBefore(session.scheduledStart))) {
           upcoming = e;
