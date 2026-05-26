@@ -2,6 +2,7 @@ import { z } from 'zod'
 
 const Env = z.object({
   DATABASE_URL: z.string().url(),
+  TEST_DATABASE_URL: z.string().url().optional(),
   ADMIN_TOKEN: z.string().min(1),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   PORT: z.coerce.number().int().positive().default(3000),
@@ -22,8 +23,14 @@ export type Config = {
 
 export function parseConfig(env: Record<string, string | undefined>): Config {
   const parsed = Env.parse(env)
+  // When running under vitest (or any NODE_ENV=test invocation), prefer the
+  // dedicated test DB if configured. This keeps the dev DB from being wiped
+  // by integration tests that truncate every table between cases.
+  const databaseUrl = parsed.NODE_ENV === 'test' && parsed.TEST_DATABASE_URL
+    ? parsed.TEST_DATABASE_URL
+    : parsed.DATABASE_URL
   return {
-    databaseUrl: parsed.DATABASE_URL,
+    databaseUrl,
     adminToken: parsed.ADMIN_TOKEN,
     nodeEnv: parsed.NODE_ENV,
     port: parsed.PORT,
