@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import '../../api/models/leaderboard_row.dart';
 import '../../api/models/my_score.dart';
+import '../../api/models/session_leaderboard_row.dart';
 import '../../components/app_card.dart';
 import '../../components/error_view.dart';
 import '../../components/fact_card.dart';
@@ -32,10 +33,15 @@ class _InsightsTabState extends State<InsightsTab> {
     final myUserId = scope.auth.currentUserId;
     final leagues = scope.auth.leagues;
     final scores = await scope.api.myScores();
-    final leaderboard = leagues.isEmpty
+    final leagueId = leagues.isEmpty ? null : leagues.first.id;
+    final leaderboard = leagueId == null
         ? const <LeaderboardRow>[]
-        : await scope.api.leagueLeaderboard(leagues.first.id);
-    return _InsightsData(myUserId: myUserId, scores: scores, leaderboard: leaderboard);
+        : await scope.api.leagueLeaderboard(leagueId);
+    final sessions = leagueId == null
+        ? const <SessionLeaderboardRow>[]
+        : await scope.api.leagueSessionBreakdown(leagueId);
+    return _InsightsData(
+        myUserId: myUserId, scores: scores, leaderboard: leaderboard, sessions: sessions);
   }
 
   @override
@@ -57,7 +63,8 @@ class _InsightsTabState extends State<InsightsTab> {
         }
         final d = snap.data!;
         final stats = _computeStats(d);
-        final trajectory = _buildTrajectory(d);
+        final trajectorySeries = _buildTrajectorySeries(d);
+        final trajectoryLabels = _trajectoryXLabels(d);
         final facts = _buildFacts(d, stats);
 
         return ListView(
@@ -90,7 +97,7 @@ class _InsightsTabState extends State<InsightsTab> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
               child: AppCard(
-                child: trajectory == null
+                child: trajectorySeries.isEmpty
                     ? Padding(
                         padding: const EdgeInsets.all(Spacing.lg),
                         child: Text(
@@ -99,14 +106,8 @@ class _InsightsTabState extends State<InsightsTab> {
                         ),
                       )
                     : TrajectoryChart(
-                        series: [
-                          ChartSeries(
-                            label: 'You',
-                            color: BrandColors.accent,
-                            points: [for (final p in trajectory.points) p.toDouble()],
-                          ),
-                        ],
-                        xLabels: trajectory.labels,
+                        series: trajectorySeries,
+                        xLabels: trajectoryLabels,
                       ),
               ),
             ),
@@ -207,20 +208,86 @@ class _InsightsTabState extends State<InsightsTab> {
     );
   }
 
-  _Trajectory? _buildTrajectory(_InsightsData d) {
-    if (d.scores.isEmpty) return null;
-    // Group by event round (chronological from data), accumulate cumulative.
-    final byRound = <int, MyScore>{};
-    final eventTotals = <int, int>{};
-    for (final s in d.scores) {
-      eventTotals.update(s.eventRound, (v) => v + s.pointsTotal, ifAbsent: () => s.pointsTotal);
-      byRound.putIfAbsent(s.eventRound, () => s);
+  List<ChartSeries> _buildTrajectorySeries(_InsightsData d) {
+    // Backend returns desc by scheduledStart; flip to ascending for chronological plotting.
+    final sessions = [...d.sessions]..sort((a, b) => a.scheduledStart.compareTo(b.scheduledStart));
+    if (sessions.isEmpty) return const [];
+
+    final pointsByMemberPerSession = <Map<String, int>>[
+      for (final s in sessions) { for (final m in s.members) m.userId: m.pointsTotal },
+    ];
+    final names = <String, String>{};
+    for (final s in sessions) {
+      for (final m in s.members) {
+        names.putIfAbsent(m.userId, () => m.displayName);
+      }
     }
-    final rounds = byRound.keys.toList()..sort();
-    final labels = [for (final r in rounds) 'R$r'];
-    var cum = 0;
-    final points = [for (final r in rounds) cum += eventTotals[r]!];
-    return _Trajectory(labels: labels, points: points);
+
+    // Selection: top 3 of current leaderboard + me + (if I'm not in the top 3)
+    // my immediate neighbors above & below me in the standings.
+    final leaderboard = [...d.leaderboard]..sort((a, b) => b.pointsTotal.compareTo(a.pointsTotal));
+    final selected = <String>{};
+    for (var i = 0; i < leaderboard.length && i < 3; i++) {
+      selected.add(leaderboard[i].userId);
+    }
+    if (d.myUserId != null) {
+      selected.add(d.myUserId!);
+      final myIdx = leaderboard.indexWhere((r) => r.userId == d.myUserId);
+      if (myIdx >= 3) {
+        if (myIdx - 1 >= 0) selected.add(leaderboard[myIdx - 1].userId);
+        if (myIdx + 1 < leaderboard.length) selected.add(leaderboard[myIdx + 1].userId);
+      }
+    }
+
+    // Plot order: caller first (accent), then everyone else in leaderboard rank order.
+    final ordered = [
+      if (d.myUserId != null && selected.contains(d.myUserId)) d.myUserId!,
+      ...leaderboard
+          .map((r) => r.userId)
+          .where((id) => selected.contains(id) && id != d.myUserId),
+    ];
+
+    const palette = [
+      BrandColors.accent,
+      Color(0xFF6B6F76),
+      Color(0xFFB58A3A),
+      Color(0xFF4A7B8C),
+      Color(0xFF8E5A7B),
+      Color(0xFF5C8C4A),
+      Color(0xFF8C5A4A),
+    ];
+    return [
+      for (var i = 0; i < ordered.length; i++)
+        ChartSeries(
+          label: ordered[i] == d.myUserId ? 'You' : (names[ordered[i]] ?? '—'),
+          color: palette[i % palette.length],
+          points: _cumulativePoints(pointsByMemberPerSession, ordered[i]),
+        ),
+    ];
+  }
+
+  List<double> _cumulativePoints(List<Map<String, int>> perSession, String userId) {
+    var cum = 0.0;
+    return [
+      for (final m in perSession) cum += (m[userId] ?? 0).toDouble(),
+    ];
+  }
+
+  List<String> _trajectoryXLabels(_InsightsData d) {
+    final sessions = [...d.sessions]..sort((a, b) => a.scheduledStart.compareTo(b.scheduledStart));
+    return [
+      for (final s in sessions) 'R${s.eventRound}·${_typeAbbrev(s.sessionType)}',
+    ];
+  }
+
+  String _typeAbbrev(String t) {
+    switch (t) {
+      case 'race':         return 'R';
+      case 'qualifying':   return 'Q';
+      case 'sprint':       return 'S';
+      case 'sprint_quali': return 'SQ';
+      default:             return t.toUpperCase().substring(0, t.length < 2 ? 1 : 2);
+    }
   }
 
   List<_Fact> _buildFacts(_InsightsData d, _Stats stats) {
@@ -308,7 +375,13 @@ class _InsightsData {
   final String? myUserId;
   final List<MyScore> scores;
   final List<LeaderboardRow> leaderboard;
-  _InsightsData({required this.myUserId, required this.scores, required this.leaderboard});
+  final List<SessionLeaderboardRow> sessions;
+  _InsightsData({
+    required this.myUserId,
+    required this.scores,
+    required this.leaderboard,
+    required this.sessions,
+  });
 }
 
 class _Stats {
@@ -330,12 +403,6 @@ class _Stats {
     required this.bestLabel,
     required this.bestSub,
   });
-}
-
-class _Trajectory {
-  final List<String> labels;
-  final List<int> points;
-  const _Trajectory({required this.labels, required this.points});
 }
 
 class _Fact {

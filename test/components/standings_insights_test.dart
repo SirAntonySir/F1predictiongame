@@ -40,6 +40,20 @@ void main() {
     expect(find.text('Lukas won 4'), findsOneWidget);
   });
 
+  testWidgets('TrajectoryChart renders multiple series with distinct legend labels', (tester) async {
+    await tester.pumpWidget(_frame(const TrajectoryChart(
+      series: [
+        ChartSeries(label: 'You',   color: Color(0xFFE10600), points: [4, 9, 18]),
+        ChartSeries(label: 'Lukas', color: Color(0xFF6B6F76), points: [2, 5, 11]),
+        ChartSeries(label: 'Simon', color: Color(0xFFB58A3A), points: [1, 8, 14]),
+      ],
+      xLabels: ['R1', 'R2', 'R3'],
+    )));
+    expect(find.text('You'),   findsOneWidget);
+    expect(find.text('Lukas'), findsOneWidget);
+    expect(find.text('Simon'), findsOneWidget);
+  });
+
   testWidgets('TrajectoryChart paints without throwing', (tester) async {
     await tester.pumpWidget(_frame(const TrajectoryChart(
       series: [
