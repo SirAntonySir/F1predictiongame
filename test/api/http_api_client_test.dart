@@ -16,11 +16,16 @@ void main() {
 
   setUp(() {
     http_ = _MockHttp();
-    client = HttpApiClient(baseUrl: 'https://api.example.com', client: http_);
+    client = HttpApiClient(
+      baseUrl: 'https://api.example.com',
+      client: http_,
+      tokenProvider: () => null,
+      onUnauthorized: () {},
+    );
   });
 
   test('currentSeason maps a 200 response', () async {
-    when(() => http_.get(any())).thenAnswer(
+    when(() => http_.get(any(), headers: any(named: 'headers'))).thenAnswer(
       (_) async => http.Response('{"year": 2026, "isCurrent": true}', 200),
     );
     final s = await client.currentSeason();
@@ -28,14 +33,14 @@ void main() {
   });
 
   test('throws NotFoundException on 404', () async {
-    when(() => http_.get(any())).thenAnswer(
+    when(() => http_.get(any(), headers: any(named: 'headers'))).thenAnswer(
       (_) async => http.Response('{"error":{"code":"NOT_FOUND"}}', 404),
     );
     expect(client.session(99), throwsA(isA<NotFoundException>()));
   });
 
   test('throws UpstreamException on 500', () async {
-    when(() => http_.get(any())).thenAnswer(
+    when(() => http_.get(any(), headers: any(named: 'headers'))).thenAnswer(
       (_) async => http.Response('boom', 500),
     );
     expect(client.events(), throwsA(isA<UpstreamException>()));
