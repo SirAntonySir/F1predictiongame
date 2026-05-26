@@ -1,5 +1,6 @@
 import type { JolpicaClient } from '../jolpica/client.js'
 import type { WikipediaClient } from '../wikipedia/client.js'
+import type { OpenF1Client } from '../openf1/client.js'
 import {
   parseRaceResults, parseQualifyingResults, parseSprintResults,
   parseDriverStandings, parseConstructorStandings,
@@ -7,6 +8,7 @@ import {
   extractDriversFromStandings, extractConstructorsFromStandings,
   type DriverLookup, type ConstructorLookup
 } from '../jolpica/parsers.js'
+import { parseSessionResult as parseOpenF1SessionResult, parseDrivers as parseOpenF1Drivers, type OpenF1DriverLookup } from '../openf1/parsers.js'
 import * as sessionsRepo from '../repo/sessions.js'
 import * as eventsRepo from '../repo/events.js'
 import * as resultsRepo from '../repo/results.js'
@@ -27,7 +29,12 @@ type FetchOutput = {
 }
 
 async function fetchByType(
-  client: JolpicaClient, type: SessionType, year: number, round: number
+  client: JolpicaClient,
+  openf1: OpenF1Client,
+  type: SessionType,
+  year: number,
+  round: number,
+  openf1SessionKey: number | null
 ): Promise<FetchOutput> {
   const empty: FetchOutput = { rows: [], drivers: [], constructors: [] }
   let raw: unknown | null = null
@@ -48,11 +55,23 @@ async function fetchByType(
       if (!raw) return empty
       rows = parseSprintResults(raw)
       break
-    case 'sprint_quali':
-      raw = await client.getSprintQualifyingResults(year, round)
-      if (!raw) return empty
-      rows = parseQualifyingResults(raw)
-      break
+    case 'sprint_quali': {
+      if (openf1SessionKey == null) return empty
+      const sr = await openf1.getSessionResult(openf1SessionKey)
+      if (!sr) return empty
+      const drv = await openf1.getDrivers(openf1SessionKey)
+      if (!drv) return empty
+      const openF1Drivers = parseOpenF1Drivers(drv)
+      rows = parseOpenF1SessionResult(sr, openF1Drivers)
+      return {
+        rows,
+        drivers: openF1Drivers.map((d) => ({
+          code: d.code, givenName: d.givenName, familyName: d.familyName,
+          nationality: null, permanentNumber: d.driverNumber, wikipediaUrl: null
+        })),
+        constructors: dedupeConstructorsFromOpenF1(openF1Drivers)
+      }
+    }
     default:
       return empty  // FPx — never fetched
   }
@@ -61,6 +80,15 @@ async function fetchByType(
     drivers: extractDriversFromResults(raw),
     constructors: extractConstructorsFromResults(raw)
   }
+}
+
+function dedupeConstructorsFromOpenF1(drivers: OpenF1DriverLookup[]) {
+  const seen = new Map<string, { id: string; name: string; nationality: null; wikipediaUrl: null }>()
+  for (const d of drivers) {
+    const id = d.teamName.toLowerCase().replace(/\s+/g, '_')
+    if (!seen.has(id)) seen.set(id, { id, name: d.teamName, nationality: null, wikipediaUrl: null })
+  }
+  return [...seen.values()]
 }
 
 async function enrichImage(wiki: WikipediaClient, wikipediaUrl: string | null): Promise<string | null> {
@@ -88,7 +116,7 @@ async function upsertNewConstructors(constructors: ConstructorLookup[], wiki: Wi
   }
 }
 
-export async function runTick(jolpica: JolpicaClient, wiki: WikipediaClient): Promise<TickSummary> {
+export async function runTick(jolpica: JolpicaClient, wiki: WikipediaClient, openf1: OpenF1Client): Promise<TickSummary> {
   const summary: TickSummary = { sessionsFinished: 0, sessionsSkipped: 0, errors: 0 }
   const candidates = await sessionsRepo.listCandidates()
   if (candidates.length === 0) return summary
@@ -108,7 +136,7 @@ export async function runTick(jolpica: JolpicaClient, wiki: WikipediaClient): Pr
     try {
       const ev = await getEvent(ses.eventId)
       if (!ev) { summary.errors++; continue }
-      const { rows, drivers, constructors } = await fetchByType(jolpica, ses.type, ev.seasonYear, ev.round)
+      const { rows, drivers, constructors } = await fetchByType(jolpica, openf1, ses.type, ev.seasonYear, ev.round, ses.openf1SessionKey)
       if (rows.length === 0) { summary.sessionsSkipped++; continue }
 
       // Drivers/constructors must exist before session_result rows reference them via FK.

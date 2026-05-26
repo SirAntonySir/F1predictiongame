@@ -4,6 +4,7 @@ import { resolve } from 'node:path'
 import { runTick } from '../../src/crawler/tick.js'
 import { JolpicaClient } from '../../src/jolpica/client.js'
 import { WikipediaClient } from '../../src/wikipedia/client.js'
+import { OpenF1Client } from '../../src/openf1/client.js'
 import * as seasons from '../../src/repo/seasons.js'
 import * as events from '../../src/repo/events.js'
 import * as sessions from '../../src/repo/sessions.js'
@@ -24,6 +25,8 @@ function jolpicaFetch(routeMap: Record<string, string | number>) {
     return new Response('not in routeMap: ' + url, { status: 404 })
   }
 }
+
+const noopOpenF1 = new OpenF1Client('https://example.invalid', async () => new Response(JSON.stringify([]), { status: 200 }))
 
 async function seed2024Round1Past() {
   await seasons.upsertSeason({ year: 2024, isCurrent: true })
@@ -55,7 +58,7 @@ describe('runTick', () => {
       query: { pages: { '1': { thumbnail: { source: 'https://img.test/x.png' } } } }
     }), { status: 200 }))
 
-    const summary = await runTick(jolpica, wiki)
+    const summary = await runTick(jolpica, wiki, noopOpenF1)
     expect(summary.sessionsFinished).toBeGreaterThanOrEqual(2)
 
     const candidates = await sessions.listCandidates()
@@ -81,7 +84,7 @@ describe('runTick', () => {
     }))
     const wiki = new WikipediaClient('https://x', async () => new Response('{}', { status: 200 }))
 
-    const summary = await runTick(jolpica, wiki)
+    const summary = await runTick(jolpica, wiki, noopOpenF1)
     expect(summary.sessionsFinished).toBe(0)
     expect((await sessions.listCandidates()).length).toBeGreaterThan(0)
   })
@@ -100,12 +103,12 @@ describe('runTick', () => {
       '/constructorStandings.json': 'constructor-standings-2024.json'
     }))
 
-    await runTick(jolpica, wiki)
+    await runTick(jolpica, wiki, noopOpenF1)
     const callsAfterFirst = calls
     expect(callsAfterFirst).toBeGreaterThan(0)
     // Second tick: no candidates (all sessions finished) -> no further wiki calls.
     // This indirectly verifies that already-known entities are not re-enriched.
-    await runTick(jolpica, wiki)
+    await runTick(jolpica, wiki, noopOpenF1)
     expect(calls).toBe(callsAfterFirst)
   })
 
@@ -119,7 +122,7 @@ describe('runTick', () => {
     }))
     const wiki = new WikipediaClient('https://x', async () => new Response('{}', { status: 200 }))
 
-    await runTick(jolpica, wiki)
+    await runTick(jolpica, wiki, noopOpenF1)
     const ver = await drivers.getByCode('VER')
     expect(ver).toBeTruthy()
     expect(ver?.wikipediaUrl).toContain('wikipedia.org')

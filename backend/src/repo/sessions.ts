@@ -14,13 +14,15 @@ export async function upsertSession(s: Session): Promise<StoredSession> {
       type: s.type,
       scheduledStart: s.scheduledStart,
       scheduledEnd: s.scheduledEnd,
-      status: s.status
+      status: s.status,
+      openf1SessionKey: s.openf1SessionKey ?? null
     })
     .onConflictDoUpdate({
       target: [session.eventId, session.type],
       set: {
         scheduledStart: s.scheduledStart,
-        scheduledEnd: s.scheduledEnd
+        scheduledEnd: s.scheduledEnd,
+        openf1SessionKey: s.openf1SessionKey ?? null
       }
     })
     .returning()

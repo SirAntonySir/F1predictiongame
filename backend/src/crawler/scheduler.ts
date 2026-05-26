@@ -47,7 +47,7 @@ export class Scheduler {
     }
     this.isRunningTick = true
     try {
-      const summary = await runTick(this.jolpica, this.wiki)
+      const summary = await runTick(this.jolpica, this.wiki, this.openf1)
       this.lastTickAt = new Date()
       this.lastTickStatus = 'ok'
       console.log('Tick complete', summary)

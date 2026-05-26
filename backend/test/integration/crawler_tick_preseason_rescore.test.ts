@@ -9,6 +9,7 @@ import * as users from '../../src/repo/users.js'
 import * as picks from '../../src/repo/preseasonPicks.js'
 import * as scores from '../../src/repo/scores.js'
 import { runTick } from '../../src/crawler/tick.js'
+import { OpenF1Client } from '../../src/openf1/client.js'
 
 class FakeJolpica {
   async getRaceResults() {
@@ -70,7 +71,8 @@ describe('tick triggers preseason rescore', () => {
     const u = await users.insertUser({ email: 't@x.com', passwordHash: 'h', displayName: 'T' })
     await picks.upsertPick(u.id, 2026, 'wdc_wcc', { driverCode: 'VER', constructorId: 'red_bull' })
 
-    const summary = await runTick(new FakeJolpica() as any, new FakeWiki() as any)
+    const noopOpenF1 = new OpenF1Client('https://example.invalid', async () => new Response(JSON.stringify([]), { status: 200 }))
+    const summary = await runTick(new FakeJolpica() as any, new FakeWiki() as any, noopOpenF1)
     expect(summary.errors).toBe(0)
 
     const list = await scores.listPreseasonForUser(u.id, 2026)
