@@ -1,79 +1,106 @@
 import 'package:flutter/material.dart';
-import '../state/app_state.dart';
-import '../theme/app_theme.dart';
-import '../theme/colors.dart';
-import '../theme/tokens.dart';
-import '../theme/typography.dart';
+import '../api/api_client.dart';
+import '../state/auth_controller.dart';
 
-class LoginScreen extends StatelessWidget {
-  const LoginScreen({super.key});
+class LoginScreen extends StatefulWidget {
+  final AuthController auth;
+  const LoginScreen({super.key, required this.auth});
+
+  @override
+  State<LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends State<LoginScreen> {
+  final _formKey = GlobalKey<FormState>();
+  final _email = TextEditingController();
+  final _password = TextEditingController();
+  String? _error;
+  bool _busy = false;
+  bool _sessionExpiredShown = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_sessionExpiredShown && widget.auth.consumeSessionExpiredFlag()) {
+      _sessionExpiredShown = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Session expired, please log in again.')),
+        );
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _email.dispose();
+    _password.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() { _busy = true; _error = null; });
+    try {
+      await widget.auth.login(_email.text.trim(), _password.text);
+    } on UnauthorizedException {
+      setState(() => _error = 'Invalid email or password');
+    } on ValidationException catch (e) {
+      setState(() => _error = e.message);
+    } catch (_) {
+      setState(() => _error = "Couldn't reach the server");
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final scope = AppState.of(context);
-    final league = scope.league.league;
-    final t = Theme.of(context);
     return Scaffold(
-      backgroundColor: t.colorScheme.surface,
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(Spacing.xl, Spacing.xxl, Spacing.xl, Spacing.xl),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                    color: Colors.black,
-                    child: Text('F1', style: AppText.display(14, color: Colors.white)),
-                  ),
-                  const SizedBox(width: 4),
-                  Text('PG', style: AppText.display(14)),
-                ],
-              ),
-              const SizedBox(height: Spacing.xxl),
-              Text('Who are you?', style: AppText.display(28)),
-              const SizedBox(height: Spacing.sm),
-              Text(
-                'Pick yourself to enter ${league.name}',
-                // ignore: deprecated_member_use
-                style: AppText.body(13, color: t.colorScheme.onSurface.withOpacity(0.6)),
-              ),
-              const SizedBox(height: Spacing.xl),
-              Expanded(
-                child: ListView.separated(
-                  itemCount: league.players.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: Spacing.sm),
-                  itemBuilder: (_, i) {
-                    final p = league.players[i];
-                    return InkWell(
-                      onTap: () => scope.auth.login(p.id),
-                      borderRadius: const BorderRadius.all(Radius.circular(14)),
-                      child: Container(
-                        padding: const EdgeInsets.all(Spacing.lg),
-                        decoration: BoxDecoration(
-                          border: Border.all(color: t.strokeColor, width: Strokes.card),
-                          borderRadius: const BorderRadius.all(Radius.circular(14)),
-                        ),
-                        child: Row(
-                          children: [
-                            CircleAvatar(
-                              backgroundColor: const Color(0xFFEEEEEE),
-                              child: Text(p.initials, style: AppText.display(14)),
-                            ),
-                            const SizedBox(width: Spacing.md),
-                            Expanded(child: Text(p.displayName, style: AppText.body(15, weight: FontWeight.w700))),
-                            const Text('›', style: TextStyle(fontSize: 22)),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
+          padding: const EdgeInsets.all(24),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const SizedBox(height: 40),
+                Text('Sign in', style: Theme.of(context).textTheme.headlineMedium),
+                const SizedBox(height: 24),
+                TextFormField(
+                  key: const Key('login.email'),
+                  controller: _email,
+                  keyboardType: TextInputType.emailAddress,
+                  decoration: const InputDecoration(labelText: 'Email'),
+                  validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
                 ),
-              ),
-              Center(child: Text(league.name, style: AppText.label(10, color: BrandColors.accent))),
-            ],
+                const SizedBox(height: 12),
+                TextFormField(
+                  key: const Key('login.password'),
+                  controller: _password,
+                  obscureText: true,
+                  decoration: const InputDecoration(labelText: 'Password'),
+                  validator: (v) => (v == null || v.isEmpty) ? 'Required' : null,
+                ),
+                const SizedBox(height: 16),
+                if (_error != null)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                  ),
+                FilledButton(
+                  onPressed: _busy ? null : _submit,
+                  child: Text(_busy ? 'Logging in...' : 'Log in'),
+                ),
+                const SizedBox(height: 12),
+                TextButton(
+                  onPressed: _busy ? null : () => Navigator.of(context).pushReplacementNamed('/signup'),
+                  child: const Text('No account? Sign up'),
+                ),
+              ],
+            ),
           ),
         ),
       ),
