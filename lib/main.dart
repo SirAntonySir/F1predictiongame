@@ -6,7 +6,7 @@ import 'screens/splash_screen.dart';
 import 'state/auth_controller.dart';
 import 'state/league_controller.dart';
 import 'state/predictions_controller.dart';
-import 'state/preseason_store.dart';
+import 'state/preseason_controller.dart';
 import 'state/theme_controller.dart';
 import 'state/token_storage.dart';
 
@@ -98,7 +98,11 @@ class _AfterBootState extends State<_AfterBoot> {
     if (widget.auth.leagues.isNotEmpty) {
       await league.load(widget.auth.leagues.first.id);
     }
-    final preseason = await PreseasonStore.load();
+    final preseason = PreseasonController(api: widget.api);
+    if (widget.auth.isLoggedIn) {
+      // Best-effort prefetch; screen calls refresh() on demand if it fails.
+      try { await preseason.refresh(); } catch (_) {}
+    }
     return _LateState(theme: theme, predictions: preds, preseason: preseason, league: league);
   }
 
@@ -127,7 +131,7 @@ class _AfterBootState extends State<_AfterBoot> {
 class _LateState {
   final ThemeController theme;
   final PredictionsController predictions;
-  final PreseasonStore preseason;
+  final PreseasonController preseason;
   final LeagueController league;
   _LateState({required this.theme, required this.predictions, required this.preseason, required this.league});
 }

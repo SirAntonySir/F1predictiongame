@@ -3,7 +3,7 @@ import '../api/api_client.dart';
 import 'auth_controller.dart';
 import 'league_controller.dart';
 import 'predictions_controller.dart';
-import 'preseason_store.dart';
+import 'preseason_controller.dart';
 import 'theme_controller.dart';
 
 class AppState extends StatefulWidget {
@@ -12,7 +12,7 @@ class AppState extends StatefulWidget {
   final LeagueController league;
   final ThemeController theme;
   final PredictionsController predictions;
-  final PreseasonStore preseason;
+  final PreseasonController preseason;
   final Widget child;
 
   const AppState({
@@ -57,7 +57,7 @@ class _AppStateScope extends InheritedWidget {
   final LeagueController league;
   final ThemeController theme;
   final PredictionsController predictions;
-  final PreseasonStore preseason;
+  final PreseasonController preseason;
 
   const _AppStateScope({
     required this.api,

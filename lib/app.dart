@@ -5,7 +5,7 @@ import 'state/app_state.dart';
 import 'state/auth_controller.dart';
 import 'state/league_controller.dart';
 import 'state/predictions_controller.dart';
-import 'state/preseason_store.dart';
+import 'state/preseason_controller.dart';
 import 'state/theme_controller.dart';
 import 'theme/app_theme.dart';
 
@@ -15,7 +15,7 @@ class F1PgApp extends StatefulWidget {
   final LeagueController league;
   final ThemeController theme;
   final PredictionsController predictions;
-  final PreseasonStore preseason;
+  final PreseasonController preseason;
 
   const F1PgApp({
     super.key,

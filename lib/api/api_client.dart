@@ -8,6 +8,8 @@ import 'models/me_result.dart';
 import 'models/my_score.dart';
 import 'models/pick.dart';
 import 'models/prediction_view.dart';
+import 'models/preseason_mine.dart';
+import '../domain/preseason.dart';
 import 'models/season.dart';
 import 'models/session.dart';
 import 'models/session_result.dart';
@@ -47,6 +49,17 @@ abstract class ApiClient {
   // scores
   Future<List<MyScore>>            myScores({int? season});
   Future<List<LeaderboardRow>>     leagueLeaderboard(String leagueId, {int? season});
+
+  // preseason
+  Future<PreseasonMine>            getPreseasonMine();
+  Future<PreseasonSinglePick>      putPreseasonSinglePick(
+    PreseasonCategory category, {
+    String? driverCode,
+    String? constructorId,
+  });
+  Future<void>                     deletePreseasonSinglePick(PreseasonCategory category);
+  Future<List<PreseasonStandingsDriverPick>> putPreseasonDriverStandings(List<PreseasonStandingsDriverPick> picks);
+  Future<List<PreseasonStandingsConstructorPick>> putPreseasonConstructorStandings(List<PreseasonStandingsConstructorPick> picks);
 }
 
 // Exceptions

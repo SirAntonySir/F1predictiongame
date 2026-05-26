@@ -1,7 +1,6 @@
 // ignore_for_file: deprecated_member_use
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import '../api/models/event.dart';
 import '../api/models/standing.dart';
 import '../components/app_card.dart';
 import '../components/countdown.dart';
@@ -31,35 +30,23 @@ class _PreseasonScreenState extends State<PreseasonScreen> {
   }
 
   Future<_PreData> _load() async {
-    final api = AppState.of(context).api;
+    final scope = AppState.of(context);
+    // Refresh server-side state first so locks/picks reflect the latest backend.
+    await scope.preseason.refresh();
     final results = await Future.wait([
-      api.events(),
-      api.driverStandings(),
-      api.constructorStandings(),
+      scope.api.driverStandings(),
+      scope.api.constructorStandings(),
     ]);
-    final events = results[0] as List<Event>;
-    final drivers = results[1] as List<DriverStanding>;
-    final constructors = results[2] as List<ConstructorStanding>;
-    DateTime? locksAt;
-    int? seasonYear;
-    if (events.isNotEmpty) {
-      events.sort((a, b) => a.round.compareTo(b.round));
-      final first = events.first;
-      if (first.sessions.isNotEmpty) {
-        final sorted = [...first.sessions]
-          ..sort((a, b) => a.scheduledStart.compareTo(b.scheduledStart));
-        locksAt = sorted.first.scheduledStart;
-        seasonYear = sorted.first.scheduledStart.year;
-      }
-    }
-    seasonYear ??= DateTime.now().year;
+    final drivers = results[0] as List<DriverStanding>;
+    final constructors = results[1] as List<ConstructorStanding>;
     drivers.sort((a, b) => a.position.compareTo(b.position));
     constructors.sort((a, b) => a.position.compareTo(b.position));
+    final mine = scope.preseason.mine;
     return _PreData(
       drivers: drivers,
       constructors: constructors,
-      locksAt: locksAt,
-      seasonYear: seasonYear,
+      locksAt: mine?.locksAt,
+      seasonYear: mine?.seasonYear ?? DateTime.now().year,
     );
   }
 
@@ -89,8 +76,7 @@ class _PreseasonScreenState extends State<PreseasonScreen> {
               );
             }
             final d = snap.data!;
-            final locked =
-                d.locksAt != null && d.locksAt!.isBefore(DateTime.now());
+            final locked = scope.preseason.isLocked;
             return ListenableBuilder(
               listenable: scope.preseason,
               builder: (_, __) => CustomScrollView(
@@ -184,20 +170,13 @@ class _PreseasonScreenState extends State<PreseasonScreen> {
 
   Widget _filledSummary(
       _PreData d, scope, bool locked, ThemeData t) {
-    final userId = scope.auth.currentUserId ?? '';
     int filled = 0;
     for (final cat in PreseasonCategory.values) {
-      final pick = scope.preseason.pickFor(
-        userId: userId,
-        seasonYear: d.seasonYear,
-        category: cat,
-      ) as PreseasonPick;
+      final pick = scope.preseason.pickFor(cat);
       if (!pick.isEmpty) filled++;
     }
-    final orderedDrivers = scope.preseason
-        .driverOrdering(userId: userId, seasonYear: d.seasonYear) as List;
-    final orderedTeams = scope.preseason
-        .constructorOrdering(userId: userId, seasonYear: d.seasonYear) as List;
+    final orderedDrivers = scope.preseason.driverOrdering();
+    final orderedTeams = scope.preseason.constructorOrdering();
     final hasOrdering =
         orderedDrivers.isNotEmpty || orderedTeams.isNotEmpty;
     final progressTotal = PreseasonCategory.values.length + 1; // 6 + 1 ordering
@@ -248,12 +227,7 @@ class _PreseasonScreenState extends State<PreseasonScreen> {
   Widget _categoryCard(
       PreseasonCategory cat, _PreData d, scope, bool locked, ThemeData t) {
     final meta = preseasonMeta[cat]!;
-    final userId = scope.auth.currentUserId ?? '';
-    final pick = scope.preseason.pickFor(
-      userId: userId,
-      seasonYear: d.seasonYear,
-      category: cat,
-    ) as PreseasonPick;
+    final pick = scope.preseason.pickFor(cat);
     final driver = pick.driverCode == null
         ? null
         : d.drivers.firstWhere(
@@ -330,28 +304,28 @@ class _PreseasonScreenState extends State<PreseasonScreen> {
                             secondary: driver.driverName,
                             stripeColor: teamColor(driver.constructorId),
                           ),
-                    enabled: true,
+                    enabled: !locked,
                     onTap: () async {
                       final pickedCode = await _pickDriver(d.drivers);
                       if (pickedCode == null) return;
                       await scope.preseason.setSinglePick(
-                        userId: userId,
-                        seasonYear: d.seasonYear,
-                        category: cat,
+                        cat,
                         driverCode: pickedCode,
                         constructorId: pick.constructorId,
                       );
                     },
-                    onClear: pick.driverCode == null
+                    onClear: pick.driverCode == null || locked
                         ? null
                         : () async {
-                            await scope.preseason.setSinglePick(
-                              userId: userId,
-                              seasonYear: d.seasonYear,
-                              category: cat,
-                              driverCode: null,
-                              constructorId: pick.constructorId,
-                            );
+                            if (pick.constructorId != null) {
+                              await scope.preseason.setSinglePick(
+                                cat,
+                                driverCode: null,
+                                constructorId: pick.constructorId,
+                              );
+                            } else {
+                              await scope.preseason.deleteSinglePick(cat);
+                            }
                           },
                     t: t,
                   ),
@@ -367,28 +341,28 @@ class _PreseasonScreenState extends State<PreseasonScreen> {
                             secondary: null,
                             stripeColor: teamColor(team.constructorId),
                           ),
-                    enabled: true,
+                    enabled: !locked,
                     onTap: () async {
                       final pickedId = await _pickConstructor(d.constructors);
                       if (pickedId == null) return;
                       await scope.preseason.setSinglePick(
-                        userId: userId,
-                        seasonYear: d.seasonYear,
-                        category: cat,
+                        cat,
                         driverCode: pick.driverCode,
                         constructorId: pickedId,
                       );
                     },
-                    onClear: pick.constructorId == null
+                    onClear: pick.constructorId == null || locked
                         ? null
                         : () async {
-                            await scope.preseason.setSinglePick(
-                              userId: userId,
-                              seasonYear: d.seasonYear,
-                              category: cat,
-                              driverCode: pick.driverCode,
-                              constructorId: null,
-                            );
+                            if (pick.driverCode != null) {
+                              await scope.preseason.setSinglePick(
+                                cat,
+                                driverCode: pick.driverCode,
+                                constructorId: null,
+                              );
+                            } else {
+                              await scope.preseason.deleteSinglePick(cat);
+                            }
                           },
                     t: t,
                   ),
@@ -472,13 +446,8 @@ class _PreseasonScreenState extends State<PreseasonScreen> {
 
   Widget _standingsCard(_PreData d, scope, bool locked, ThemeData t,
       BuildContext context) {
-    final userId = scope.auth.currentUserId ?? '';
-    final driverCount = (scope.preseason
-            .driverOrdering(userId: userId, seasonYear: d.seasonYear) as List)
-        .length;
-    final teamCount = (scope.preseason.constructorOrdering(
-            userId: userId, seasonYear: d.seasonYear) as List)
-        .length;
+    final driverCount = scope.preseason.driverOrdering().length;
+    final teamCount = scope.preseason.constructorOrdering().length;
     return Padding(
       padding: const EdgeInsets.fromLTRB(
           Spacing.lg, Spacing.xs, Spacing.lg, Spacing.xs),

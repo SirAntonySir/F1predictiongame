@@ -23,7 +23,6 @@ class PreseasonStandingsScreen extends StatefulWidget {
 class _PreseasonStandingsScreenState extends State<PreseasonStandingsScreen> {
   Future<_LoadedData>? _data;
   List<String> _ordering = [];
-  int _seasonYear = DateTime.now().year;
 
   @override
   void didChangeDependencies() {
@@ -35,14 +34,11 @@ class _PreseasonStandingsScreenState extends State<PreseasonStandingsScreen> {
 
   Future<_LoadedData> _load() async {
     final scope = AppState.of(context);
+    await scope.preseason.refresh();
     if (_isDrivers) {
       final drivers = await scope.api.driverStandings();
       drivers.sort((a, b) => a.position.compareTo(b.position));
-      _seasonYear = DateTime.now().year;
-      final existing = scope.preseason.driverOrdering(
-        userId: scope.auth.currentUserId ?? '',
-        seasonYear: _seasonYear,
-      );
+      final existing = scope.preseason.driverOrdering();
       _ordering = existing.isNotEmpty
           ? List<String>.from(existing)
           : drivers.map((d) => d.driverCode).toList();
@@ -50,11 +46,7 @@ class _PreseasonStandingsScreenState extends State<PreseasonStandingsScreen> {
     } else {
       final constructors = await scope.api.constructorStandings();
       constructors.sort((a, b) => a.position.compareTo(b.position));
-      _seasonYear = DateTime.now().year;
-      final existing = scope.preseason.constructorOrdering(
-        userId: scope.auth.currentUserId ?? '',
-        seasonYear: _seasonYear,
-      );
+      final existing = scope.preseason.constructorOrdering();
       _ordering = existing.isNotEmpty
           ? List<String>.from(existing)
           : constructors.map((c) => c.constructorId).toList();
@@ -64,19 +56,19 @@ class _PreseasonStandingsScreenState extends State<PreseasonStandingsScreen> {
 
   Future<void> _save() async {
     final scope = AppState.of(context);
-    final userId = scope.auth.currentUserId ?? '';
-    if (_isDrivers) {
-      await scope.preseason.setDriverOrdering(
-        userId: userId,
-        seasonYear: _seasonYear,
-        ordering: _ordering,
-      );
-    } else {
-      await scope.preseason.setConstructorOrdering(
-        userId: userId,
-        seasonYear: _seasonYear,
-        ordering: _ordering,
-      );
+    try {
+      if (_isDrivers) {
+        await scope.preseason.setDriverOrdering(_ordering);
+      } else {
+        await scope.preseason.setConstructorOrdering(_ordering);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Couldn't save: $e")),
+        );
+      }
+      return;
     }
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(

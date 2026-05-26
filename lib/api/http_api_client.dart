@@ -11,6 +11,8 @@ import 'models/me_result.dart';
 import 'models/my_score.dart';
 import 'models/pick.dart';
 import 'models/prediction_view.dart';
+import 'models/preseason_mine.dart';
+import '../domain/preseason.dart';
 import 'models/season.dart';
 import 'models/session.dart';
 import 'models/session_result.dart';
@@ -226,5 +228,46 @@ class HttpApiClient implements ApiClient {
     final q = season == null ? '' : '?season=$season';
     final j = await _request('GET', '/api/leagues/$leagueId/leaderboard$q') as Map<String, dynamic>;
     return (j['leaderboard'] as List).cast<Map<String, dynamic>>().map(LeaderboardRow.fromJson).toList();
+  }
+
+  @override
+  Future<PreseasonMine> getPreseasonMine() async {
+    final j = await _request('GET', '/api/preseason/my') as Map<String, dynamic>;
+    return PreseasonMine.fromJson(j);
+  }
+
+  @override
+  Future<PreseasonSinglePick> putPreseasonSinglePick(
+    PreseasonCategory category, {
+    String? driverCode,
+    String? constructorId,
+  }) async {
+    final body = <String, dynamic>{
+      if (driverCode != null) 'driverCode': driverCode,
+      if (constructorId != null) 'constructorId': constructorId,
+    };
+    final j = await _request('PUT', '/api/preseason/${category.name}', body: body) as Map<String, dynamic>;
+    return PreseasonSinglePick.fromJson(j['pick'] as Map<String, dynamic>);
+  }
+
+  @override
+  Future<void> deletePreseasonSinglePick(PreseasonCategory category) async {
+    await _request('DELETE', '/api/preseason/${category.name}');
+  }
+
+  @override
+  Future<List<PreseasonStandingsDriverPick>> putPreseasonDriverStandings(
+      List<PreseasonStandingsDriverPick> picks) async {
+    final j = await _request('PUT', '/api/preseason/standings/drivers',
+        body: {'picks': picks.map((p) => p.toJson()).toList()}) as Map<String, dynamic>;
+    return (j['picks'] as List).cast<Map<String, dynamic>>().map(PreseasonStandingsDriverPick.fromJson).toList();
+  }
+
+  @override
+  Future<List<PreseasonStandingsConstructorPick>> putPreseasonConstructorStandings(
+      List<PreseasonStandingsConstructorPick> picks) async {
+    final j = await _request('PUT', '/api/preseason/standings/constructors',
+        body: {'picks': picks.map((p) => p.toJson()).toList()}) as Map<String, dynamic>;
+    return (j['picks'] as List).cast<Map<String, dynamic>>().map(PreseasonStandingsConstructorPick.fromJson).toList();
   }
 }
