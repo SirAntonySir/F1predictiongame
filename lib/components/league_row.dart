@@ -82,8 +82,10 @@ class LeagueRow extends StatelessWidget {
   }
 
   Widget _pointsCell(ThemeData t, String value, String label, {bool emphasis = false}) {
+    // Width 50 lets the longest label ("season") render on a single line at
+    // AppText.label(8) — the previous 38 caused it to wrap into "seaso\nn".
     return SizedBox(
-      width: 38,
+      width: 50,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
@@ -92,9 +94,13 @@ class LeagueRow extends StatelessWidget {
                   color: emphasis
                       ? t.colorScheme.onSurface
                       : t.colorScheme.onSurface.withOpacity(0.65))),
-          Text(label,
-              style: AppText.label(8,
-                  color: t.colorScheme.onSurface.withOpacity(0.6))),
+          Text(
+            label,
+            softWrap: false,
+            overflow: TextOverflow.visible,
+            style: AppText.label(8,
+                color: t.colorScheme.onSurface.withOpacity(0.6)),
+          ),
         ],
       ),
     );

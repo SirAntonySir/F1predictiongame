@@ -64,16 +64,20 @@ class _StandingsScreenState extends State<StandingsScreen> {
                 ],
               ),
             ),
-            Padding(
+            // Horizontally scrollable so the four pills stay readable on
+            // narrow phones (iPhone SE, small Androids). On wider screens the
+            // pills hug the left and the user just doesn't notice the scroll.
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.fromLTRB(Spacing.xl, Spacing.md, Spacing.xl, Spacing.xs),
               child: Row(children: [
-                Expanded(child: _tab('league', 'LEAGUE')),
-                const SizedBox(width: 4),
-                Expanded(child: _tab('f1', 'F1')),
-                const SizedBox(width: 4),
-                Expanded(child: _tab('insights', 'INSIGHTS')),
-                const SizedBox(width: 4),
-                Expanded(child: _tab('preseason', 'PRESEASON')),
+                _tab('league', 'LEAGUE'),
+                const SizedBox(width: 6),
+                _tab('f1', 'F1'),
+                const SizedBox(width: 6),
+                _tab('insights', 'INSIGHTS'),
+                const SizedBox(width: 6),
+                _tab('preseason', 'PRESEASON'),
               ]),
             ),
             Expanded(child: switch (_subTab) {
@@ -94,7 +98,9 @@ class _StandingsScreenState extends State<StandingsScreen> {
     return GestureDetector(
       onTap: () => setState(() => _subTab = id),
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 7),
+        // Horizontal padding gives each pill consistent thickness now that
+        // they're no longer Expanded-stretched to even widths.
+        padding: const EdgeInsets.symmetric(horizontal: Spacing.lg, vertical: 7),
         decoration: BoxDecoration(
           color: on ? t.colorScheme.onSurface : Colors.transparent,
           border: Border.all(color: t.strokeColor, width: 1.5),
