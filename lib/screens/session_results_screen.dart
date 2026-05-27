@@ -56,13 +56,20 @@ class SessionResultsScreen extends StatefulWidget {
 
 class _SessionResultsScreenState extends State<SessionResultsScreen> {
   Future<Event>? _eventFuture;
+  Future<int?>? _overallNextSessionIdFuture;
   int? _activeSessionId;
   final Map<int, Future<_SessionPayload>> _payloads = {};
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _eventFuture ??= AppState.of(context).api.event(widget.round);
+    final api = AppState.of(context).api;
+    _eventFuture ??= api.event(widget.round);
+    // The /predict screen always loads whichever session is *globally* next,
+    // not the one the user is looking at on this page. We use this id to gate
+    // the PICK/EDIT CTA so the button only appears when /predict will actually
+    // open the same session the user is viewing.
+    _overallNextSessionIdFuture ??= api.nextSession().then<int?>((s) => s.id).catchError((_) => null);
     _activeSessionId ??= widget.sessionId;
   }
 
@@ -89,7 +96,13 @@ class _SessionResultsScreenState extends State<SessionResultsScreen> {
               ?.picks.map((p) => p.driverCode).toList() ??
           const <String>[];
       final backendScore = scope.predictions.score(sessionId)?.pointsTotal;
-      return _SessionPayload(result: result, picks: picks, backendScore: backendScore);
+      final overallNextId = await (_overallNextSessionIdFuture ?? Future.value(null));
+      return _SessionPayload(
+        result: result,
+        picks: picks,
+        backendScore: backendScore,
+        overallNextSessionId: overallNextId,
+      );
     });
   }
 
@@ -306,6 +319,7 @@ class _Body extends StatelessWidget {
               event: event,
               session: session,
               picks: payload.picks,
+              isGloballyNext: payload.overallNextSessionId == session.id,
             ),
           ),
         ] else ...[
@@ -462,7 +476,13 @@ class _SessionPayload {
   final List<SessionResult> result;
   final List<String> picks;
   final int? backendScore;
-  _SessionPayload({required this.result, required this.picks, this.backendScore});
+  final int? overallNextSessionId;
+  _SessionPayload({
+    required this.result,
+    required this.picks,
+    this.backendScore,
+    this.overallNextSessionId,
+  });
 }
 
 /// Rich placeholder shown when a session has no results yet. Replaces the old
@@ -474,10 +494,16 @@ class _FutureSessionHero extends StatelessWidget {
   final Event event;
   final Session session;
   final List<String> picks;
+  /// True when this session is the *globally* next-upcoming pickable session.
+  /// The /predict screen always loads the global-next session, so we only show
+  /// the PICK/EDIT button when those match — otherwise the button would take
+  /// the user to a different session than the one they're looking at.
+  final bool isGloballyNext;
   const _FutureSessionHero({
     required this.event,
     required this.session,
     required this.picks,
+    required this.isGloballyNext,
   });
 
   bool get _isPickable => _pickableTypes.contains(session.type);
@@ -558,19 +584,14 @@ class _FutureSessionHero extends StatelessWidget {
   }
 
   List<Widget> _scheduleChips(int? nextId) {
+    // Practice sessions aren't scorable, so they don't earn a chip in this hero.
     final order = [
-      SessionType.fp1,
-      SessionType.fp2,
-      SessionType.fp3,
       SessionType.qualifying,
       SessionType.sprint_quali,
       SessionType.sprint,
       SessionType.race,
     ];
     final labels = {
-      SessionType.fp1: 'FP1',
-      SessionType.fp2: 'FP2',
-      SessionType.fp3: 'FP3',
       SessionType.qualifying: 'QUALI',
       SessionType.sprint_quali: 'SQ',
       SessionType.sprint: 'SPRINT',
@@ -651,7 +672,7 @@ class _FutureSessionHero extends StatelessWidget {
               ],
             ),
           ),
-          if (_isPickable) ...[
+          if (_isPickable && isGloballyNext) ...[
             const SizedBox(width: Spacing.sm),
             FilledButton(
               onPressed: () => context.go('/predict'),
