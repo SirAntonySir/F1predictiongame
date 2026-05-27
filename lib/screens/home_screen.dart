@@ -47,13 +47,17 @@ class _HomeScreenState extends State<HomeScreen> {
         leaderboard = const [];
       }
     }
+    // The hero shows the chronologically next session (any type — FP1 counts).
+    // The pick card needs the next *pickable* session (quali / SQ / sprint /
+    // race) so it doesn't say "Make your pick · FP1". We resolve both here.
     Session? next;
     try {
       next = await api.nextSession();
     } on NotFoundException {
       next = null;
     }
-    next ??= _computeNextSession(events);
+    next ??= _computeNextSession(events, pickableOnly: false);
+    final nextPickable = _computeNextSession(events, pickableOnly: true);
     Event? nextEvent;
     if (next != null) {
       final resolvedNext = next;
@@ -61,11 +65,13 @@ class _HomeScreenState extends State<HomeScreen> {
         (e) => e.sessions.any((s) => s.id == resolvedNext.id),
         orElse: () => events.first,
       );
-      // Prime the predictions cache so _pickCard can render the caller's
-      // existing pick (the cache is shared with PredictScreen which is the
-      // only other place that hydrates it).
+    }
+    if (nextPickable != null) {
+      // Prime the predictions cache for the pickable session that _pickCard
+      // actually renders, not the chronologically-next one (which is often FP1
+      // and has no prediction).
       try {
-        await scope.predictions.fetchPrediction(resolvedNext.id);
+        await scope.predictions.fetchPrediction(nextPickable.id);
       } catch (_) {
         // Non-fatal — the card just falls back to "No picks yet".
       }
@@ -100,6 +106,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return _HomeData(
       events: events,
       next: next,
+      nextPickable: nextPickable,
       nextEvent: nextEvent,
       lastEvent: lastEvent,
       lastRaceSession: lastRaceSession,
@@ -108,13 +115,19 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Session? _computeNextSession(List<Event> events) {
+  Session? _computeNextSession(List<Event> events, {required bool pickableOnly}) {
+    bool isPickable(SessionType t) =>
+        t == SessionType.qualifying ||
+        t == SessionType.sprint_quali ||
+        t == SessionType.sprint ||
+        t == SessionType.race;
     final now = DateTime.now();
     Session? best;
     for (final e in events) {
       for (final s in e.sessions) {
         if (s.status != SessionStatus.scheduled) continue;
         if (!s.scheduledStart.isAfter(now)) continue;
+        if (pickableOnly && !isPickable(s.type)) continue;
         if (best == null || s.scheduledStart.isBefore(best.scheduledStart)) {
           best = s;
         }
@@ -375,7 +388,11 @@ class _HomeScreenState extends State<HomeScreen> {
       );
 
   Widget _pickCard(_HomeData d, scope, ThemeData t) {
-    final sessionId = d.next!.id;
+    // Use the next *pickable* session — d.next can be FP1 which has no
+    // prediction. Falls back to d.next for the rare case where there's no
+    // upcoming scorable session at all (shouldn't normally happen).
+    final pickSession = d.nextPickable ?? d.next!;
+    final sessionId = pickSession.id;
     final picks = scope.predictions.prediction(sessionId)
             ?.picks.map((p) => p.driverCode).toList() ??
         const <String>[];
@@ -384,7 +401,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
       child: InkWell(
-        onTap: () => context.go('/predict'),
+        onTap: () => context.go('/predict?session=$sessionId'),
         borderRadius: const BorderRadius.all(Radius.circular(14)),
         child: AppCard(
         child: Row(
@@ -398,8 +415,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 children: [
                   Text(
                     empty
-                        ? 'Make your pick · ${d.next!.type.name.toUpperCase()}'
-                        : '${d.next!.type.name.toUpperCase()} · ${locked ? 'locked' : 'draft'}',
+                        ? 'Make your pick · ${pickSession.type.name.toUpperCase()}'
+                        : '${pickSession.type.name.toUpperCase()} · ${locked ? 'locked' : 'draft'}',
                     style: AppText.label(11, color: t.colorScheme.onSurface.withOpacity(0.6)),
                   ),
                   const SizedBox(height: 6),
@@ -567,6 +584,10 @@ class _HomeScreenState extends State<HomeScreen> {
 class _HomeData {
   final List<Event> events;
   final Session? next;
+  /// The next session that the caller can predict (qualifying / SQ / sprint /
+  /// race). Differs from [next] during practice days. Used by the pick card so
+  /// it doesn't render "Make your pick · FP1".
+  final Session? nextPickable;
   final Event? nextEvent;
   final Event? lastEvent;
   final Session? lastRaceSession;
@@ -575,6 +596,7 @@ class _HomeData {
   _HomeData({
     required this.events,
     required this.next,
+    required this.nextPickable,
     required this.nextEvent,
     required this.lastEvent,
     required this.lastRaceSession,

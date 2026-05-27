@@ -39,7 +39,14 @@ GoRouter buildRouter(AuthController auth) {
         routes: [
           GoRoute(path: '/home',     builder: (_, __) => const HomeScreen()),
           GoRoute(path: '/calendar', builder: (_, __) => const CalendarScreen()),
-          GoRoute(path: '/predict',  builder: (_, __) => const PredictScreen()),
+          GoRoute(
+            path: '/predict',
+            builder: (_, s) {
+              final raw = s.uri.queryParameters['session'];
+              final sid = raw == null ? null : int.tryParse(raw);
+              return PredictScreen(sessionId: sid);
+            },
+          ),
           GoRoute(
             path: '/standings',
             builder: (_, __) => const StandingsScreen(subTab: 'league'),

@@ -17,7 +17,12 @@ import '../theme/tokens.dart';
 import '../theme/typography.dart';
 
 class PredictScreen extends StatefulWidget {
-  const PredictScreen({super.key});
+  /// When non-null the screen targets this specific session (used by the
+  /// "PICK / EDIT" CTA on future-race heroes — lets the user pre-pick any
+  /// upcoming weekend, not just the global next). Without it the screen
+  /// auto-finds the next upcoming pickable session.
+  final int? sessionId;
+  const PredictScreen({super.key, this.sessionId});
   @override
   State<PredictScreen> createState() => _PredictScreenState();
 }
@@ -26,6 +31,12 @@ class _PredictScreenState extends State<PredictScreen> {
   Future<_PredictData>? _data;
   List<String> _picks = [];
   bool _saving = false;
+
+  bool _isScorable(SessionType t) =>
+      t == SessionType.race ||
+      t == SessionType.qualifying ||
+      t == SessionType.sprint ||
+      t == SessionType.sprint_quali;
 
   Future<_PredictData> _load() async {
     final scope = AppState.of(context);
@@ -36,23 +47,42 @@ class _PredictScreenState extends State<PredictScreen> {
     Event? upcoming;
     Session? session;
     final now = DateTime.now();
-    bool isScorable(SessionType t) =>
-        t == SessionType.race ||
-        t == SessionType.qualifying ||
-        t == SessionType.sprint ||
-        t == SessionType.sprint_quali;
-    for (final e in events) {
-      for (final s in e.sessions) {
-        if (s.status == SessionStatus.scheduled &&
-            isScorable(s.type) &&
-            s.scheduledStart.isAfter(now) &&
-            (session == null ||
-                s.scheduledStart.isBefore(session.scheduledStart))) {
-          upcoming = e;
-          session = s;
+
+    if (widget.sessionId != null) {
+      // Targeted mode: find the requested session across all events. We allow
+      // any future session regardless of status — pre-picking ahead is the
+      // whole point. If the requested session has already started, fall back
+      // to auto-find so the screen doesn't sit broken.
+      for (final e in events) {
+        for (final s in e.sessions) {
+          if (s.id == widget.sessionId &&
+              _isScorable(s.type) &&
+              s.scheduledStart.isAfter(now)) {
+            upcoming = e;
+            session = s;
+            break;
+          }
+        }
+        if (session != null) break;
+      }
+    }
+
+    if (session == null) {
+      // Auto-find the next upcoming pickable session.
+      for (final e in events) {
+        for (final s in e.sessions) {
+          if (s.status == SessionStatus.scheduled &&
+              _isScorable(s.type) &&
+              s.scheduledStart.isAfter(now) &&
+              (session == null ||
+                  s.scheduledStart.isBefore(session.scheduledStart))) {
+            upcoming = e;
+            session = s;
+          }
         }
       }
     }
+
     if (upcoming == null || session == null) {
       return _PredictData(event: null, session: null, drivers: const []);
     }
