@@ -12,6 +12,7 @@ import '../components/countdown.dart';
 import '../components/error_view.dart';
 import '../components/pod_tile.dart';
 import '../components/session_chip.dart';
+import '../components/ticket_card.dart';
 import '../domain/scoring.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
@@ -401,71 +402,59 @@ class _HomeScreenState extends State<HomeScreen> {
     final sessionLabel = _sessionTypeLabel(pickSession.type);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
-      child: InkWell(
+      child: TicketCard(
         onTap: () => context.go('/predict?session=$sessionId'),
-        borderRadius: const BorderRadius.all(Radius.circular(14)),
-        child: AppCard(
-          padding: const EdgeInsets.fromLTRB(Spacing.lg, Spacing.md, Spacing.md, Spacing.md),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(sessionLabel,
-                            style: AppText.label(10,
-                                color: t.colorScheme.onSurface.withOpacity(0.55))),
-                        const SizedBox(width: 6),
-                        _statusDot(t, empty: empty, locked: locked),
-                        const SizedBox(width: 4),
-                        Text(empty ? 'no picks' : (locked ? 'locked' : 'draft'),
-                            style: AppText.label(10,
-                                color: t.colorScheme.onSurface.withOpacity(0.55))),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    if (empty)
-                      Text('Tap to make your pick',
-                          style: AppText.body(13,
-                              color: t.colorScheme.onSurface.withOpacity(0.5))
-                              .copyWith(fontStyle: FontStyle.italic))
-                    else
-                      Wrap(
-                        spacing: 10,
-                        runSpacing: 6,
-                        children: [
-                          for (var i = 0; i < picks.length; i++)
-                            _pickChip(t, i + 1, picks[i]),
-                        ],
-                      ),
-                  ],
-                ),
+        stubWidth: 80,
+        body: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                Text(sessionLabel,
+                    style: AppText.label(10,
+                        color: t.colorScheme.onSurface.withOpacity(0.6))),
+                const SizedBox(width: 6),
+                _statusDot(t, empty: empty, locked: locked),
+                const SizedBox(width: 4),
+                Text(empty ? 'no picks' : (locked ? 'locked' : 'draft'),
+                    style: AppText.label(10,
+                        color: t.colorScheme.onSurface.withOpacity(0.6))),
+                const Spacer(),
+                Text('YOUR PICK',
+                    style: AppText.label(9,
+                        color: t.colorScheme.onSurface.withOpacity(0.45))),
+              ],
+            ),
+            const SizedBox(height: 10),
+            if (empty)
+              Text('Tap to make your pick',
+                  style: AppText.body(13,
+                      color: t.colorScheme.onSurface.withOpacity(0.5))
+                      .copyWith(fontStyle: FontStyle.italic))
+            else
+              Wrap(
+                spacing: 12,
+                runSpacing: 6,
+                children: [
+                  for (var i = 0; i < picks.length; i++)
+                    _pickChip(t, i + 1, picks[i]),
+                ],
               ),
-              const SizedBox(width: Spacing.sm),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: Spacing.md, vertical: 8),
-                decoration: BoxDecoration(
-                  color: empty
-                      ? BrandColors.accent
-                      : (locked ? Colors.black : Colors.transparent),
-                  border: Border.all(color: Colors.black, width: 1.5),
-                  borderRadius: const BorderRadius.all(Radius.circular(8)),
-                ),
-                child: Text(
-                  empty ? 'PICK' : (locked ? 'LOCKED' : 'EDIT'),
-                  style: AppText.label(
-                    10,
-                    color: empty || locked ? Colors.white : Colors.black,
-                  ),
-                ),
-              ),
-            ],
-          ),
+          ],
+        ),
+        stub: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(empty ? 'PICK' : (locked ? 'LOCKED' : 'EDIT'),
+                style: AppText.display(15,
+                    color: empty ? BrandColors.accent : Colors.black)),
+            const SizedBox(height: 4),
+            Text(empty ? 'tap →' : (locked ? '✦' : 'tap →'),
+                style: AppText.label(9,
+                    color: Colors.black.withOpacity(0.55))),
+          ],
         ),
       ),
     );

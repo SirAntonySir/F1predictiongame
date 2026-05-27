@@ -10,6 +10,7 @@ import '../components/app_card.dart';
 import '../components/countdown.dart';
 import '../components/error_view.dart';
 import '../components/score_banner.dart';
+import '../components/ticket_card.dart';
 import '../domain/prediction.dart';
 import '../domain/result_display.dart';
 import '../domain/scoring.dart';
@@ -491,138 +492,160 @@ class _FutureSessionHero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = Theme.of(context);
     final flag = flagFor(event.country);
     final dateLabel = DateFormat('EEE d MMM').format(session.scheduledStart);
     final timeLabel = DateFormat('HH:mm').format(session.scheduledStart);
     final typeLabel = _typeLabels[session.type] ?? session.type.name.toUpperCase();
     final inFuture = session.scheduledStart.isAfter(DateTime.now());
+    final empty = picks.isEmpty;
 
-    return AppCard(
-      background: t.mutedSurface,
-      padding: const EdgeInsets.fromLTRB(Spacing.lg, Spacing.lg, Spacing.lg, Spacing.lg),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Text(
-                  '${flag != null ? '$flag  ' : ''}${event.country.toUpperCase()} · ROUND ${event.round}',
-                  style: AppText.label(10, color: t.colorScheme.onSurface.withOpacity(0.6)),
-                ),
+    final body = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(
+              child: Text(
+                '${flag != null ? '$flag  ' : ''}${event.country.toUpperCase()} · ROUND ${event.round}',
+                style: AppText.label(10, color: Colors.black.withOpacity(0.65)),
               ),
-              const SizedBox(width: Spacing.sm),
-              Text(typeLabel,
-                  style: AppText.label(10, color: t.colorScheme.onSurface.withOpacity(0.6))),
+            ),
+            const SizedBox(width: Spacing.sm),
+            Text(typeLabel,
+                style: AppText.label(10, color: Colors.black.withOpacity(0.65))),
+          ],
+        ),
+        const SizedBox(height: Spacing.sm),
+        Text(event.name.toUpperCase(), style: AppText.display(22, color: Colors.black)),
+        const SizedBox(height: Spacing.xs),
+        Text(
+          '$dateLabel · $timeLabel · ${event.circuitName}',
+          style: AppText.body(12, color: Colors.black.withOpacity(0.7)),
+        ),
+        if (inFuture) ...[
+          const SizedBox(height: Spacing.md),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text('STARTS IN',
+                  style: AppText.label(10, color: Colors.black.withOpacity(0.55))),
+              const SizedBox(width: 8),
+              Countdown(target: session.scheduledStart, size: 22),
             ],
           ),
-          const SizedBox(height: Spacing.sm),
-          Text(event.name.toUpperCase(), style: AppText.display(22)),
-          const SizedBox(height: Spacing.xs),
-          Text(
-            '$dateLabel · $timeLabel · ${event.circuitName}',
-            style: AppText.body(12, color: t.colorScheme.onSurface.withOpacity(0.7)),
-          ),
-          if (inFuture) ...[
-            const SizedBox(height: Spacing.md),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text('STARTS IN',
-                    style: AppText.label(10, color: t.colorScheme.onSurface.withOpacity(0.55))),
-                const SizedBox(width: 8),
-                Countdown(target: session.scheduledStart, size: 22),
-              ],
-            ),
-          ],
-          const SizedBox(height: Spacing.lg),
-          _pickPanel(context, t),
         ],
+        const SizedBox(height: Spacing.md),
+        // Inner horizontal perforation separating the event info from the picks.
+        CustomPaint(
+          size: const Size.fromHeight(1),
+          painter: _HorizontalDashedLinePainter(color: Colors.black.withOpacity(0.4)),
+        ),
+        const SizedBox(height: Spacing.md),
+        Text(empty ? 'YOUR PICKS · DRAFT' : 'YOUR PICKS',
+            style: AppText.label(10, color: Colors.black.withOpacity(0.55))),
+        const SizedBox(height: 8),
+        if (empty)
+          Text(
+            _isPickable
+                ? 'No picks yet — tap → to start'
+                : 'No predictions for this session',
+            style: AppText.body(12,
+                color: Colors.black.withOpacity(0.55)).copyWith(fontStyle: FontStyle.italic),
+          )
+        else
+          Wrap(
+            spacing: 14,
+            runSpacing: 6,
+            children: [
+              for (var i = 0; i < picks.length; i++)
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.1),
+                        borderRadius: const BorderRadius.all(Radius.circular(4)),
+                      ),
+                      child: Text('P${i + 1}',
+                          style: AppText.label(9, color: Colors.black.withOpacity(0.7))),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(picks[i],
+                        style: AppText.body(14,
+                            weight: FontWeight.w800, color: Colors.black)),
+                  ],
+                ),
+            ],
+          ),
+      ],
+    );
+
+    return TicketCard(
+      stubWidth: 76,
+      bodyPadding: const EdgeInsets.fromLTRB(Spacing.lg, Spacing.lg, Spacing.lg, Spacing.lg),
+      stubPadding: const EdgeInsets.symmetric(horizontal: Spacing.sm, vertical: Spacing.md),
+      body: body,
+      stub: _isPickable ? _stub(context, empty: empty) : _viewOnlyStub(),
+    );
+  }
+
+  Widget _stub(BuildContext context, {required bool empty}) {
+    return InkWell(
+      onTap: () => context.go('/predict?session=${session.id}'),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(empty ? 'PICK' : 'EDIT',
+                style: AppText.display(18, color: Colors.black)),
+            const SizedBox(height: 4),
+            Text('tap →',
+                style: AppText.label(9, color: Colors.black.withOpacity(0.55))),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _pickPanel(BuildContext context, ThemeData t) {
-    final hasPicks = picks.isNotEmpty;
-    final empty = !hasPicks;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: Spacing.md, vertical: Spacing.md),
-      decoration: BoxDecoration(
-        color: t.colorScheme.surface,
-        border: Border.all(color: t.strokeColor, width: 1.5),
-        borderRadius: const BorderRadius.all(Radius.circular(10)),
-      ),
-      child: Row(
+  Widget _viewOnlyStub() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  empty
-                      ? (_isPickable ? 'YOUR PICK · DRAFT' : 'YOUR PICK')
-                      : 'YOUR PICK',
-                  style: AppText.label(10, color: t.colorScheme.onSurface.withOpacity(0.6)),
-                ),
-                const SizedBox(height: 6),
-                if (empty)
-                  Text(
-                    _isPickable
-                        ? 'No picks yet'
-                        : 'No predictions for this session',
-                    style: AppText.body(12, color: t.colorScheme.onSurface.withOpacity(0.55)),
-                  )
-                else
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 4,
-                    children: [
-                      for (var i = 0; i < picks.length; i++)
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text('P${i + 1}',
-                                style: AppText.label(9,
-                                    color: t.colorScheme.onSurface.withOpacity(0.5))),
-                            const SizedBox(width: 4),
-                            Text(picks[i],
-                                style: AppText.body(13, weight: FontWeight.w800)),
-                            if (i < picks.length - 1)
-                              Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 4),
-                                child: Text('·',
-                                    style: AppText.body(13,
-                                        color: t.colorScheme.onSurface.withOpacity(0.4))),
-                              ),
-                          ],
-                        ),
-                    ],
-                  ),
-              ],
-            ),
-          ),
-          if (_isPickable) ...[
-            const SizedBox(width: Spacing.sm),
-            FilledButton(
-              onPressed: () => context.go('/predict?session=${session.id}'),
-              style: FilledButton.styleFrom(
-                backgroundColor: empty ? BrandColors.accent : Colors.black,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: Spacing.md, vertical: 10),
-                shape: const RoundedRectangleBorder(
-                  borderRadius: BorderRadius.all(Radius.circular(8)),
-                ),
-              ),
-              child: Text(empty ? 'PICK' : 'EDIT',
-                  style: AppText.label(10, color: Colors.white)),
-            ),
-          ],
+          Text('VIEW', style: AppText.display(14, color: Colors.black)),
+          const SizedBox(height: 4),
+          Text('only', style: AppText.label(9, color: Colors.black.withOpacity(0.55))),
         ],
       ),
     );
   }
+}
+
+class _HorizontalDashedLinePainter extends CustomPainter {
+  final Color color;
+  _HorizontalDashedLinePainter({required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 1;
+    const dashLen = 4.0;
+    const gapLen = 4.0;
+    var x = 0.0;
+    while (x < size.width) {
+      canvas.drawLine(Offset(x, 0), Offset(x + dashLen, 0), paint);
+      x += dashLen + gapLen;
+    }
+  }
+
+  @override
+  bool shouldRepaint(_HorizontalDashedLinePainter old) => old.color != color;
 }

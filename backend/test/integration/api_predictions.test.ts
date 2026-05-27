@@ -9,8 +9,14 @@ import * as constructors from '../../src/repo/constructors.js'
 
 async function seedScene() {
   await seasons.upsertSeason({ year: 2026, isCurrent: true })
+  // Two separate events so the future-session's event has no sessions in the
+  // past (and vice versa). With per-event locking, mixing past + future
+  // sessions in one event would mark the future session locked too.
   const ev = await events.upsertEvent({
     seasonYear: 2026, round: 1, name: 'Bahrain', circuitName: 'BIC', country: 'B', hasSprint: false
+  })
+  const pastEv = await events.upsertEvent({
+    seasonYear: 2026, round: 99, name: 'Past', circuitName: 'X', country: 'X', hasSprint: false
   })
   for (const c of ['red_bull', 'mercedes', 'mclaren']) {
     await constructors.upsertConstructor({ id: c, name: c, nationality: null, wikipediaUrl: null, imageUrl: null, imageUrlOverride: null, teamColour: null })
@@ -33,7 +39,7 @@ async function seedScene() {
   openf1SessionKey: null
   })
   const pastSession = await sessions.upsertSession({
-    eventId: ev.id, type: 'qualifying',
+    eventId: pastEv.id, type: 'qualifying',
     scheduledStart: new Date(Date.now() - 60 * 60 * 1000),
     scheduledEnd: new Date(Date.now() - 30 * 60 * 1000),
     status: 'scheduled',
