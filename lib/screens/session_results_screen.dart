@@ -243,12 +243,6 @@ class _SessionResultsScreenState extends State<SessionResultsScreen> {
                 context.canPop() ? context.pop() : context.go('/calendar'),
             icon: const Icon(Icons.arrow_back_ios_new, size: 16),
           ),
-          IconButton(
-            onPressed: prev == null ? null : () => _navigateTo(prev),
-            icon: const Icon(Icons.chevron_left, size: 22),
-            tooltip: 'Previous session',
-            visualDensity: VisualDensity.compact,
-          ),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -263,6 +257,14 @@ class _SessionResultsScreenState extends State<SessionResultsScreen> {
                 ),
               ],
             ),
+          ),
+          // Prev / next session nav grouped on the right so the back arrow
+          // on the left doesn't end up next to a near-identical chevron.
+          IconButton(
+            onPressed: prev == null ? null : () => _navigateTo(prev),
+            icon: const Icon(Icons.chevron_left, size: 22),
+            tooltip: 'Previous session',
+            visualDensity: VisualDensity.compact,
           ),
           IconButton(
             onPressed: next == null ? null : () => _navigateTo(next),

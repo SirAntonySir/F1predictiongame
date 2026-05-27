@@ -259,18 +259,18 @@ class _PredictScreenState extends State<PredictScreen> {
                 padding: const EdgeInsets.only(bottom: Spacing.xxl + Spacing.xxl),
                 children: [
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(Spacing.lg, Spacing.lg, Spacing.lg, Spacing.sm),
+                  padding: const EdgeInsets.fromLTRB(Spacing.xl, Spacing.lg, Spacing.lg, Spacing.sm),
                   child: Row(
                     children: [
+                      Expanded(
+                        child: Text(event.name, style: AppText.display(22)),
+                      ),
+                      // Prev / next session nav grouped together on the right.
                       IconButton(
                         onPressed: d.prev == null ? null : () => _navigateTo(d.prev!),
                         icon: const Icon(Icons.chevron_left, size: 22),
                         tooltip: 'Previous session',
                         visualDensity: VisualDensity.compact,
-                      ),
-                      Expanded(
-                        child: Text(event.name,
-                            textAlign: TextAlign.center, style: AppText.display(22)),
                       ),
                       IconButton(
                         onPressed: d.next == null ? null : () => _navigateTo(d.next!),
