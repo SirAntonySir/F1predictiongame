@@ -31,6 +31,10 @@ class _PredictScreenState extends State<PredictScreen> {
   Future<_PredictData>? _data;
   List<String> _picks = [];
   bool _saving = false;
+  /// Internal override for which session is being predicted. Lets the user
+  /// flick between sessions via swipe / prev-next arrows without bouncing
+  /// through the URL on every nudge.
+  int? _overrideSessionId;
 
   bool _isScorable(SessionType t) =>
       t == SessionType.race ||
@@ -42,20 +46,21 @@ class _PredictScreenState extends State<PredictScreen> {
     final scope = AppState.of(context);
     final events = await scope.api.events();
     if (events.isEmpty) {
-      return _PredictData(event: null, session: null, drivers: const []);
+      return _PredictData(event: null, session: null, drivers: const [], prev: null, next: null);
     }
     Event? upcoming;
     Session? session;
     final now = DateTime.now();
+    final targetId = _overrideSessionId ?? widget.sessionId;
 
-    if (widget.sessionId != null) {
+    if (targetId != null) {
       // Targeted mode: find the requested session across all events. We allow
       // any future session regardless of status — pre-picking ahead is the
       // whole point. If the requested session has already started, fall back
       // to auto-find so the screen doesn't sit broken.
       for (final e in events) {
         for (final s in e.sessions) {
-          if (s.id == widget.sessionId &&
+          if (s.id == targetId &&
               _isScorable(s.type) &&
               s.scheduledStart.isAfter(now)) {
             upcoming = e;
@@ -84,7 +89,7 @@ class _PredictScreenState extends State<PredictScreen> {
     }
 
     if (upcoming == null || session == null) {
-      return _PredictData(event: null, session: null, drivers: const []);
+      return _PredictData(event: null, session: null, drivers: const [], prev: null, next: null);
     }
     final existing = await scope.predictions.fetchPrediction(session.id);
     _picks = existing?.picks.map((p) => p.driverCode).toList() ?? <String>[];
@@ -103,13 +108,43 @@ class _PredictScreenState extends State<PredictScreen> {
     }
     final sorted = [...lineup]
       ..sort((a, b) => a.position.compareTo(b.position));
-    return _PredictData(event: upcoming, session: session, drivers: sorted);
+    // Build the chronological nav list of all upcoming pickable sessions in
+    // events whose lock hasn't passed (event lock = earliest session start).
+    final chronological = <_NavRef>[];
+    for (final e in events) {
+      DateTime? earliest;
+      for (final s in e.sessions) {
+        if (earliest == null || s.scheduledStart.isBefore(earliest)) {
+          earliest = s.scheduledStart;
+        }
+      }
+      if (earliest == null || !earliest.isAfter(now)) continue;
+      for (final s in e.sessions) {
+        if (!_isScorable(s.type)) continue;
+        chronological.add(_NavRef(sessionId: s.id, scheduledStart: s.scheduledStart));
+      }
+    }
+    chronological.sort((a, b) => a.scheduledStart.compareTo(b.scheduledStart));
+    final activeId = session.id;
+    final idx = chronological.indexWhere((r) => r.sessionId == activeId);
+    final prev = idx > 0 ? chronological[idx - 1] : null;
+    final next = idx >= 0 && idx < chronological.length - 1 ? chronological[idx + 1] : null;
+    return _PredictData(
+      event: upcoming, session: session, drivers: sorted, prev: prev, next: next,
+    );
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     _data ??= _load();
+  }
+
+  void _navigateTo(_NavRef target) {
+    setState(() {
+      _overrideSessionId = target.sessionId;
+      _data = _load();
+    });
   }
 
   void _toggleDriver(String code) {
@@ -212,13 +247,43 @@ class _PredictScreenState extends State<PredictScreen> {
             final req = requiredPicks(session.type);
             final scope = AppState.of(context);
             final locked = scope.predictions.prediction(session.id)?.isLocked ?? false;
-            return ListView(
-              padding: const EdgeInsets.only(bottom: Spacing.xxl + Spacing.xxl),
-              children: [
+            return GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onHorizontalDragEnd: (details) {
+                final v = details.primaryVelocity ?? 0;
+                if (v.abs() < 250) return;
+                final target = v < 0 ? d.next : d.prev;
+                if (target != null) _navigateTo(target);
+              },
+              child: ListView(
+                padding: const EdgeInsets.only(bottom: Spacing.xxl + Spacing.xxl),
+                children: [
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(Spacing.xl, Spacing.lg, Spacing.xl, Spacing.sm),
-                  child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                    Text(event.name, style: AppText.display(22)),
+                  padding: const EdgeInsets.fromLTRB(Spacing.lg, Spacing.lg, Spacing.lg, Spacing.sm),
+                  child: Row(
+                    children: [
+                      IconButton(
+                        onPressed: d.prev == null ? null : () => _navigateTo(d.prev!),
+                        icon: const Icon(Icons.chevron_left, size: 22),
+                        tooltip: 'Previous session',
+                        visualDensity: VisualDensity.compact,
+                      ),
+                      Expanded(
+                        child: Text(event.name,
+                            textAlign: TextAlign.center, style: AppText.display(22)),
+                      ),
+                      IconButton(
+                        onPressed: d.next == null ? null : () => _navigateTo(d.next!),
+                        icon: const Icon(Icons.chevron_right, size: 22),
+                        tooltip: 'Next session',
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    ],
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(Spacing.xl, 0, Spacing.xl, Spacing.sm),
+                  child: Row(mainAxisAlignment: MainAxisAlignment.end, children: [
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: Spacing.md, vertical: 4),
                       decoration: BoxDecoration(border: Border.all(color: BrandColors.accent, width: 1.5), borderRadius: const BorderRadius.all(Radius.circular(999))),
@@ -298,6 +363,7 @@ class _PredictScreenState extends State<PredictScreen> {
                   ),
                 ),
               ],
+              ),
             );
           },
         ),
@@ -312,9 +378,23 @@ class _PredictScreenState extends State<PredictScreen> {
   }
 }
 
+class _NavRef {
+  final int sessionId;
+  final DateTime scheduledStart;
+  const _NavRef({required this.sessionId, required this.scheduledStart});
+}
+
 class _PredictData {
   final Event? event;
   final Session? session;
   final List<SessionResult> drivers;
-  _PredictData({required this.event, required this.session, required this.drivers});
+  final _NavRef? prev;
+  final _NavRef? next;
+  _PredictData({
+    required this.event,
+    required this.session,
+    required this.drivers,
+    required this.prev,
+    required this.next,
+  });
 }

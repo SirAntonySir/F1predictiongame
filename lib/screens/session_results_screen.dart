@@ -55,14 +55,17 @@ class SessionResultsScreen extends StatefulWidget {
 }
 
 class _SessionResultsScreenState extends State<SessionResultsScreen> {
-  Future<Event>? _eventFuture;
+  /// All events for the season — fed by `api.events()` once. We need the full
+  /// list (not just the active round) so prev/next nav can cross event
+  /// boundaries when the user reaches the first/last session of the weekend.
+  Future<List<Event>>? _eventsFuture;
   int? _activeSessionId;
   final Map<int, Future<_SessionPayload>> _payloads = {};
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _eventFuture ??= AppState.of(context).api.event(widget.round);
+    _eventsFuture ??= AppState.of(context).api.events();
     _activeSessionId ??= widget.sessionId;
   }
 
@@ -103,8 +106,8 @@ class _SessionResultsScreenState extends State<SessionResultsScreen> {
     return Scaffold(
       backgroundColor: t.colorScheme.surface,
       body: SafeArea(
-        child: FutureBuilder<Event>(
-          future: _eventFuture,
+        child: FutureBuilder<List<Event>>(
+          future: _eventsFuture,
           builder: (_, snap) {
             if (snap.connectionState != ConnectionState.done) {
               return const SizedBox.shrink();
@@ -115,68 +118,94 @@ class _SessionResultsScreenState extends State<SessionResultsScreen> {
                 stack: snap.stackTrace,
                 where: 'Race ${widget.round}',
                 onRetry: () => setState(() {
-                  _eventFuture = AppState.of(context).api.event(widget.round);
+                  _eventsFuture = AppState.of(context).api.events();
                   _payloads.clear();
                 }),
               );
             }
-            final event = snap.data!;
+            final allEvents = snap.data!;
+            final event = allEvents.firstWhere(
+              (e) => e.round == widget.round,
+              orElse: () => allEvents.first,
+            );
             final sessions = event.sessions
                 .where((s) => _pickableTypes.contains(s.type))
                 .toList()
               ..sort((a, b) => a.scheduledStart.compareTo(b.scheduledStart));
             if (sessions.isEmpty) {
-              return _header(event, null, t);
+              return _header(event, null, t, prev: null, next: null);
             }
             final active = sessions.firstWhere(
               (s) => s.id == _activeSessionId,
               orElse: () => sessions.last,
             );
-            return SingleChildScrollView(
-              padding: const EdgeInsets.only(bottom: Spacing.xxl),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _header(event, active, t),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(
-                        Spacing.lg, Spacing.sm, Spacing.lg, Spacing.xs),
-                    child: Wrap(
-                      spacing: 6,
-                      runSpacing: 6,
-                      children: sessions
-                          .map((s) => _SessionTab(
-                                label: _typeLabels[s.type] ?? s.type.name,
-                                active: s.id == active.id,
-                                onTap: () =>
-                                    setState(() => _activeSessionId = s.id),
-                              ))
-                          .toList(),
+            // Chronological list of *all* pickable sessions across the season,
+            // used to advance past the last sub-tab of one event into the
+            // first sub-tab of the next.
+            final chronological = _allPickableSessions(allEvents);
+            final currentIdx = chronological.indexWhere((e) => e.sessionId == active.id);
+            final prev = currentIdx > 0 ? chronological[currentIdx - 1] : null;
+            final next = currentIdx >= 0 && currentIdx < chronological.length - 1
+                ? chronological[currentIdx + 1]
+                : null;
+
+            return GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onHorizontalDragEnd: (details) {
+                // Velocity unit: logical pixels per second. 250 ≈ a deliberate
+                // flick; below that we ignore so vertical scroll isn't hijacked.
+                final v = details.primaryVelocity ?? 0;
+                if (v.abs() < 250) return;
+                final target = v < 0 ? next : prev;
+                if (target == null) return;
+                _navigateTo(target);
+              },
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.only(bottom: Spacing.xxl),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _header(event, active, t, prev: prev, next: next),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                          Spacing.lg, Spacing.sm, Spacing.lg, Spacing.xs),
+                      child: Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: sessions
+                            .map((s) => _SessionTab(
+                                  label: _typeLabels[s.type] ?? s.type.name,
+                                  active: s.id == active.id,
+                                  onTap: () =>
+                                      setState(() => _activeSessionId = s.id),
+                                ))
+                            .toList(),
+                      ),
                     ),
-                  ),
-                  FutureBuilder<_SessionPayload>(
-                    future: _payloadFor(active.id),
-                    builder: (_, payloadSnap) {
-                      if (payloadSnap.connectionState != ConnectionState.done) {
-                        return const Padding(
-                          padding: EdgeInsets.all(Spacing.lg),
-                          child: SizedBox.shrink(),
+                    FutureBuilder<_SessionPayload>(
+                      future: _payloadFor(active.id),
+                      builder: (_, payloadSnap) {
+                        if (payloadSnap.connectionState != ConnectionState.done) {
+                          return const Padding(
+                            padding: EdgeInsets.all(Spacing.lg),
+                            child: SizedBox.shrink(),
+                          );
+                        }
+                        if (payloadSnap.hasError) {
+                          return Padding(
+                            padding: const EdgeInsets.all(Spacing.lg),
+                            child: Text('${payloadSnap.error}'),
+                          );
+                        }
+                        return _Body(
+                          event: event,
+                          session: active,
+                          payload: payloadSnap.data!,
                         );
-                      }
-                      if (payloadSnap.hasError) {
-                        return Padding(
-                          padding: const EdgeInsets.all(Spacing.lg),
-                          child: Text('${payloadSnap.error}'),
-                        );
-                      }
-                      return _Body(
-                        event: event,
-                        session: active,
-                        payload: payloadSnap.data!,
-                      );
-                    },
-                  ),
-                ],
+                      },
+                    ),
+                  ],
+                ),
               ),
             );
           },
@@ -185,7 +214,25 @@ class _SessionResultsScreenState extends State<SessionResultsScreen> {
     );
   }
 
-  Widget _header(Event event, Session? active, ThemeData t) {
+  void _navigateTo(_PickableSessionRef target) {
+    if (target.eventRound == widget.round) {
+      setState(() => _activeSessionId = target.sessionId);
+    } else {
+      // Different event → URL changes. Use replace so the back button
+      // returns to wherever the user originally entered the race detail
+      // from (calendar / home / etc.) instead of breadcrumbing every
+      // swipe in between.
+      context.replace('/race/${target.eventRound}/${target.sessionId}');
+    }
+  }
+
+  Widget _header(
+    Event event,
+    Session? active,
+    ThemeData t, {
+    required _PickableSessionRef? prev,
+    required _PickableSessionRef? next,
+  }) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(
           Spacing.lg, Spacing.lg, Spacing.lg, Spacing.sm),
@@ -195,6 +242,12 @@ class _SessionResultsScreenState extends State<SessionResultsScreen> {
             onPressed: () =>
                 context.canPop() ? context.pop() : context.go('/calendar'),
             icon: const Icon(Icons.arrow_back_ios_new, size: 16),
+          ),
+          IconButton(
+            onPressed: prev == null ? null : () => _navigateTo(prev),
+            icon: const Icon(Icons.chevron_left, size: 22),
+            tooltip: 'Previous session',
+            visualDensity: VisualDensity.compact,
           ),
           Expanded(
             child: Column(
@@ -211,10 +264,49 @@ class _SessionResultsScreenState extends State<SessionResultsScreen> {
               ],
             ),
           ),
+          IconButton(
+            onPressed: next == null ? null : () => _navigateTo(next),
+            icon: const Icon(Icons.chevron_right, size: 22),
+            tooltip: 'Next session',
+            visualDensity: VisualDensity.compact,
+          ),
         ],
       ),
     );
   }
+}
+
+/// Minimal reference into the chronological session list; lets nav decide
+/// whether to update internal state (same event) or change the URL (cross
+/// event) without dragging the entire Session/Event payload around.
+class _PickableSessionRef {
+  final int sessionId;
+  final int eventRound;
+  final SessionType type;
+  final DateTime scheduledStart;
+  const _PickableSessionRef({
+    required this.sessionId,
+    required this.eventRound,
+    required this.type,
+    required this.scheduledStart,
+  });
+}
+
+List<_PickableSessionRef> _allPickableSessions(List<Event> events) {
+  final out = <_PickableSessionRef>[];
+  for (final e in events) {
+    for (final s in e.sessions) {
+      if (!_pickableTypes.contains(s.type)) continue;
+      out.add(_PickableSessionRef(
+        sessionId: s.id,
+        eventRound: e.round,
+        type: s.type,
+        scheduledStart: s.scheduledStart,
+      ));
+    }
+  }
+  out.sort((a, b) => a.scheduledStart.compareTo(b.scheduledStart));
+  return out;
 }
 
 class _SessionTab extends StatelessWidget {
