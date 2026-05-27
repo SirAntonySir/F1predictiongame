@@ -398,64 +398,107 @@ class _HomeScreenState extends State<HomeScreen> {
         const <String>[];
     final locked = scope.predictions.prediction(sessionId)?.isLocked ?? false;
     final empty = picks.isEmpty;
+    final sessionLabel = _sessionTypeLabel(pickSession.type);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
       child: InkWell(
         onTap: () => context.go('/predict?session=$sessionId'),
         borderRadius: const BorderRadius.all(Radius.circular(14)),
         child: AppCard(
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    empty
-                        ? 'Make your pick · ${pickSession.type.name.toUpperCase()}'
-                        : '${pickSession.type.name.toUpperCase()} · ${locked ? 'locked' : 'draft'}',
-                    style: AppText.label(11, color: t.colorScheme.onSurface.withOpacity(0.6)),
-                  ),
-                  const SizedBox(height: 6),
-                  if (empty)
-                    Text('No picks yet', style: AppText.body(13, color: t.colorScheme.onSurface.withOpacity(0.5)))
-                  else
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 4,
+          padding: const EdgeInsets.fromLTRB(Spacing.lg, Spacing.md, Spacing.md, Spacing.md),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        for (final code in picks)
-                          Text(code, style: AppText.body(13, weight: FontWeight.w800)),
+                        Text(sessionLabel,
+                            style: AppText.label(10,
+                                color: t.colorScheme.onSurface.withOpacity(0.55))),
+                        const SizedBox(width: 6),
+                        _statusDot(t, empty: empty, locked: locked),
+                        const SizedBox(width: 4),
+                        Text(empty ? 'no picks' : (locked ? 'locked' : 'draft'),
+                            style: AppText.label(10,
+                                color: t.colorScheme.onSurface.withOpacity(0.55))),
                       ],
                     ),
-                ],
-              ),
-            ),
-            const SizedBox(width: Spacing.sm),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-              decoration: BoxDecoration(
-                color: empty
-                    ? BrandColors.accent
-                    : (locked ? Colors.black : Colors.transparent),
-                border: Border.all(color: Colors.black, width: 1.5),
-                borderRadius: const BorderRadius.all(Radius.circular(6)),
-              ),
-              child: Text(
-                empty ? 'PICK' : (locked ? 'LOCKED' : 'EDIT'),
-                style: AppText.label(
-                  10,
-                  color: empty || locked ? Colors.white : Colors.black,
+                    const SizedBox(height: 8),
+                    if (empty)
+                      Text('Tap to make your pick',
+                          style: AppText.body(13,
+                              color: t.colorScheme.onSurface.withOpacity(0.5))
+                              .copyWith(fontStyle: FontStyle.italic))
+                    else
+                      Wrap(
+                        spacing: 10,
+                        runSpacing: 6,
+                        children: [
+                          for (var i = 0; i < picks.length; i++)
+                            _pickChip(t, i + 1, picks[i]),
+                        ],
+                      ),
+                  ],
                 ),
               ),
-            ),
-          ],
+              const SizedBox(width: Spacing.sm),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: Spacing.md, vertical: 8),
+                decoration: BoxDecoration(
+                  color: empty
+                      ? BrandColors.accent
+                      : (locked ? Colors.black : Colors.transparent),
+                  border: Border.all(color: Colors.black, width: 1.5),
+                  borderRadius: const BorderRadius.all(Radius.circular(8)),
+                ),
+                child: Text(
+                  empty ? 'PICK' : (locked ? 'LOCKED' : 'EDIT'),
+                  style: AppText.label(
+                    10,
+                    color: empty || locked ? Colors.white : Colors.black,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
-      ),
+    );
+  }
+
+  Widget _statusDot(ThemeData t, {required bool empty, required bool locked}) {
+    final color = empty
+        ? BrandColors.accent
+        : (locked ? Colors.black : t.colorScheme.onSurface.withOpacity(0.4));
+    return Container(
+      width: 6,
+      height: 6,
+      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+    );
+  }
+
+  Widget _pickChip(ThemeData t, int position, String driverCode) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+          decoration: BoxDecoration(
+            color: Colors.black.withOpacity(0.08),
+            borderRadius: const BorderRadius.all(Radius.circular(4)),
+          ),
+          child: Text('P$position',
+              style: AppText.label(9, color: t.colorScheme.onSurface.withOpacity(0.7))),
+        ),
+        const SizedBox(width: 6),
+        Text(driverCode, style: AppText.body(14, weight: FontWeight.w800)),
+      ],
     );
   }
 
