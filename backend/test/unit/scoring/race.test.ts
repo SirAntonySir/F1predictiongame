@@ -13,7 +13,7 @@ function f(position: number, d: { code: string; team: string }) {
 }
 
 describe('scoreRace', () => {
-  it('all 5 exact + team bonus (3*5 + 1) = 16', () => {
+  it('all 5 exact + team bonus (3*5 + 2) = 17', () => {
     const picks = [
       { position: 1, driverCode: VER.code },
       { position: 2, driverCode: HAM.code },
@@ -24,7 +24,7 @@ describe('scoreRace', () => {
     const finishers = [f(1, VER), f(2, HAM), f(3, NOR), f(4, PIA), f(5, RUS)]
     const b = scoreRace(picks, finishers)
     expect(b.perPosition.reduce((s, p) => s + p.points, 0)).toBe(15)
-    expect(b.teamBonus).toEqual({ applied: true, points: 1 })
+    expect(b.teamBonus).toEqual({ applied: true, points: 2 })
   })
 
   it('mixed exact + wrong-pos, no team bonus', () => {
@@ -77,6 +77,6 @@ describe('scoreRace', () => {
     expect(b.perPosition[2].points).toBe(3)
     expect(b.perPosition[3].points).toBe(0)
     expect(b.perPosition[4].points).toBe(0)
-    expect(b.teamBonus).toEqual({ applied: true, points: 1 })
+    expect(b.teamBonus).toEqual({ applied: true, points: 2 })
   })
 })

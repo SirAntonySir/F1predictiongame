@@ -2,7 +2,7 @@ import type { Pick, Finisher, ScoreBreakdown, ScoreBreakdownPerPosition } from '
 
 const EXACT = 3
 const WRONG_POS = 1
-const TEAM_BONUS = 1
+const TEAM_BONUS = 2
 const RULE = 'race-v1'
 
 export function scoreRace(picks: Pick[], finishers: Finisher[]): ScoreBreakdown {

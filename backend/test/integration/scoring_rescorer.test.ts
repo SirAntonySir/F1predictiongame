@@ -93,7 +93,7 @@ describe('rescoreSession', () => {
     expect(summary.users).toBe(2)
 
     const u1Scores = await scores.listForUser(u1.id, 2026)
-    expect(u1Scores[0]!.pointsTotal).toBe(16)  // all 5 exact + team bonus 1
+    expect(u1Scores[0]!.pointsTotal).toBe(17)  // all 5 exact + team bonus 2
     const u2Scores = await scores.listForUser(u2.id, 2026)
     // u2 swapped P1/P2 -> wrongPos+wrongPos (1+1) + 3+3+3 exact P3-5 + no team bonus (HAM is mercedes, winner VER is red_bull) = 11
     expect(u2Scores[0]!.pointsTotal).toBe(11)
@@ -176,8 +176,8 @@ describe('rescoreSession', () => {
     ])
     await rescoreSession(ses.id)
     const sc = (await scores.listForUser(u.id, 2026))[0]!
-    // P1 PER no points (DNF, no exact, no wrongPos because not in finishers); P2-P5 all exact = 3*4 = 12; team bonus 1
-    expect(sc.pointsTotal).toBe(13)
-    expect(sc.breakdown.teamBonus).toEqual({ applied: true, points: 1 })
+    // P1 PER no points (DNF, no exact, no wrongPos because not in finishers); P2-P5 all exact = 3*4 = 12; team bonus 2
+    expect(sc.pointsTotal).toBe(14)
+    expect(sc.breakdown.teamBonus).toEqual({ applied: true, points: 2 })
   })
 })

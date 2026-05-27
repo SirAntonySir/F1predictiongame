@@ -36,16 +36,11 @@ class _PredictScreenState extends State<PredictScreen> {
     Event? upcoming;
     Session? session;
     final now = DateTime.now();
-    // Sprint Quali is disabled — users can't pick a single SQ pole. Calendar still
-    // shows the session; the predict flow just skips over it when finding the next
-    // upcoming pickable session. To re-enable, uncomment the sprint_quali branch
-    // here and the corresponding case in session_results_screen._pickableTypes.
     bool isScorable(SessionType t) =>
         t == SessionType.race ||
         t == SessionType.qualifying ||
-        t == SessionType.sprint;
-    // ||
-    // t == SessionType.sprint_quali;
+        t == SessionType.sprint ||
+        t == SessionType.sprint_quali;
     for (final e in events) {
       for (final s in e.sessions) {
         if (s.status == SessionStatus.scheduled &&

@@ -28,10 +28,6 @@ describe('scoreSession dispatcher', () => {
     expect(() => scoreSession('fp1' as SessionType, [], [])).toThrow(/not scorable/i)
   })
 
-  it('refuses sprint_quali (disabled)', () => {
-    expect(() => scoreSession('sprint_quali' as SessionType, [], [])).toThrow(/not scorable/i)
-  })
-
   it('throws on wrong pick count for type', () => {
     const tooFew = [{ position: 1, driverCode: VER.code }]  // race needs 5
     expect(() => scoreSession('race', tooFew, [])).toThrow(/expected 5 picks/i)
