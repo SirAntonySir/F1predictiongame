@@ -1,19 +1,23 @@
 // ignore_for_file: deprecated_member_use
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import '../api/api_client.dart';
 import '../api/models/event.dart';
 import '../api/models/session.dart';
 import '../api/models/session_result.dart';
 import '../components/app_card.dart';
+import '../components/countdown.dart';
 import '../components/error_view.dart';
 import '../components/score_banner.dart';
+import '../components/session_chip.dart';
 import '../domain/prediction.dart';
 import '../domain/result_display.dart';
 import '../domain/scoring.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
 import '../theme/colors.dart';
+import '../theme/country_flags.dart';
 import '../theme/team_colors.dart';
 import '../theme/tokens.dart';
 import '../theme/typography.dart';
@@ -162,6 +166,7 @@ class _SessionResultsScreenState extends State<SessionResultsScreen> {
                         );
                       }
                       return _Body(
+                        event: event,
                         session: active,
                         payload: payloadSnap.data!,
                       );
@@ -243,9 +248,10 @@ class _SessionTab extends StatelessWidget {
 }
 
 class _Body extends StatelessWidget {
+  final Event event;
   final Session session;
   final _SessionPayload payload;
-  const _Body({required this.session, required this.payload});
+  const _Body({required this.event, required this.session, required this.payload});
 
   int get _topN => requiredPicks(session.type);
 
@@ -296,26 +302,10 @@ class _Body extends StatelessWidget {
         if (payload.result.isEmpty) ...[
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
-            child: AppCard(
-              background: t.mutedSurface,
-              padding: const EdgeInsets.symmetric(
-                  horizontal: Spacing.lg, vertical: Spacing.xxl),
-              child: Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text('RESULTS NOT IN YET',
-                        style: AppText.label(11,
-                            color: t.colorScheme.onSurface.withOpacity(0.6))),
-                    const SizedBox(height: Spacing.sm),
-                    Text(
-                      "Come back after the chequered flag.",
-                      style: AppText.body(13,
-                          color: t.colorScheme.onSurface.withOpacity(0.7)),
-                    ),
-                  ],
-                ),
-              ),
+            child: _FutureSessionHero(
+              event: event,
+              session: session,
+              picks: payload.picks,
             ),
           ),
         ] else ...[
@@ -473,4 +463,212 @@ class _SessionPayload {
   final List<String> picks;
   final int? backendScore;
   _SessionPayload({required this.result, required this.picks, this.backendScore});
+}
+
+/// Rich placeholder shown when a session has no results yet. Replaces the old
+/// "RESULTS NOT IN YET / come back after the chequered flag" empty state with
+/// the information we actually have: the event's location, the session's
+/// scheduled start with a live countdown, the caller's locked/draft picks (or
+/// a Predict CTA), and the full session schedule for the weekend as chips.
+class _FutureSessionHero extends StatelessWidget {
+  final Event event;
+  final Session session;
+  final List<String> picks;
+  const _FutureSessionHero({
+    required this.event,
+    required this.session,
+    required this.picks,
+  });
+
+  bool get _isPickable => _pickableTypes.contains(session.type);
+
+  Session? get _nextSession {
+    final now = DateTime.now();
+    Session? best;
+    for (final s in event.sessions) {
+      if (s.scheduledStart.isBefore(now)) continue;
+      if (best == null || s.scheduledStart.isBefore(best.scheduledStart)) {
+        best = s;
+      }
+    }
+    return best;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Theme.of(context);
+    final flag = flagFor(event.country);
+    final dateLabel = DateFormat('EEE d MMM').format(session.scheduledStart);
+    final timeLabel = DateFormat('HH:mm').format(session.scheduledStart);
+    final typeLabel = _typeLabels[session.type] ?? session.type.name.toUpperCase();
+    final inFuture = session.scheduledStart.isAfter(DateTime.now());
+    final nextSession = _nextSession;
+
+    return AppCard(
+      background: t.mutedSurface,
+      padding: const EdgeInsets.fromLTRB(Spacing.lg, Spacing.lg, Spacing.lg, Spacing.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  '${flag != null ? '$flag  ' : ''}${event.country.toUpperCase()} · ROUND ${event.round}',
+                  style: AppText.label(10, color: t.colorScheme.onSurface.withOpacity(0.6)),
+                ),
+              ),
+              const SizedBox(width: Spacing.sm),
+              Text(typeLabel,
+                  style: AppText.label(10, color: t.colorScheme.onSurface.withOpacity(0.6))),
+            ],
+          ),
+          const SizedBox(height: Spacing.sm),
+          Text(event.name.toUpperCase(), style: AppText.display(22)),
+          const SizedBox(height: Spacing.xs),
+          Text(
+            '$dateLabel · $timeLabel · ${event.circuitName}',
+            style: AppText.body(12, color: t.colorScheme.onSurface.withOpacity(0.7)),
+          ),
+          if (inFuture) ...[
+            const SizedBox(height: Spacing.md),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text('STARTS IN',
+                    style: AppText.label(10, color: t.colorScheme.onSurface.withOpacity(0.55))),
+                const SizedBox(width: 8),
+                Countdown(target: session.scheduledStart, size: 22),
+              ],
+            ),
+          ],
+          const SizedBox(height: Spacing.md),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: _scheduleChips(nextSession?.id),
+          ),
+          const SizedBox(height: Spacing.lg),
+          _pickPanel(context, t),
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _scheduleChips(int? nextId) {
+    final order = [
+      SessionType.fp1,
+      SessionType.fp2,
+      SessionType.fp3,
+      SessionType.qualifying,
+      SessionType.sprint_quali,
+      SessionType.sprint,
+      SessionType.race,
+    ];
+    final labels = {
+      SessionType.fp1: 'FP1',
+      SessionType.fp2: 'FP2',
+      SessionType.fp3: 'FP3',
+      SessionType.qualifying: 'QUALI',
+      SessionType.sprint_quali: 'SQ',
+      SessionType.sprint: 'SPRINT',
+      SessionType.race: 'RACE',
+    };
+    final out = <Widget>[];
+    for (final type in order) {
+      final s = event.sessions.firstWhere(
+        (x) => x.type == type,
+        orElse: () => session,
+      );
+      if (s.type != type) continue;
+      final state = s.status == SessionStatus.finished
+          ? ChipState.done
+          : (s.id == nextId ? ChipState.next : ChipState.idle);
+      out.add(SessionChip(label: labels[type]!, state: state));
+    }
+    return out;
+  }
+
+  Widget _pickPanel(BuildContext context, ThemeData t) {
+    final hasPicks = picks.isNotEmpty;
+    final empty = !hasPicks;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: Spacing.md, vertical: Spacing.md),
+      decoration: BoxDecoration(
+        color: t.colorScheme.surface,
+        border: Border.all(color: t.strokeColor, width: 1.5),
+        borderRadius: const BorderRadius.all(Radius.circular(10)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  empty
+                      ? (_isPickable ? 'YOUR PICK · DRAFT' : 'YOUR PICK')
+                      : 'YOUR PICK',
+                  style: AppText.label(10, color: t.colorScheme.onSurface.withOpacity(0.6)),
+                ),
+                const SizedBox(height: 6),
+                if (empty)
+                  Text(
+                    _isPickable
+                        ? 'No picks yet'
+                        : 'No predictions for this session',
+                    style: AppText.body(12, color: t.colorScheme.onSurface.withOpacity(0.55)),
+                  )
+                else
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 4,
+                    children: [
+                      for (var i = 0; i < picks.length; i++)
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text('P${i + 1}',
+                                style: AppText.label(9,
+                                    color: t.colorScheme.onSurface.withOpacity(0.5))),
+                            const SizedBox(width: 4),
+                            Text(picks[i],
+                                style: AppText.body(13, weight: FontWeight.w800)),
+                            if (i < picks.length - 1)
+                              Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 4),
+                                child: Text('·',
+                                    style: AppText.body(13,
+                                        color: t.colorScheme.onSurface.withOpacity(0.4))),
+                              ),
+                          ],
+                        ),
+                    ],
+                  ),
+              ],
+            ),
+          ),
+          if (_isPickable) ...[
+            const SizedBox(width: Spacing.sm),
+            FilledButton(
+              onPressed: () => context.go('/predict'),
+              style: FilledButton.styleFrom(
+                backgroundColor: empty ? BrandColors.accent : Colors.black,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: Spacing.md, vertical: 10),
+                shape: const RoundedRectangleBorder(
+                  borderRadius: BorderRadius.all(Radius.circular(8)),
+                ),
+              ),
+              child: Text(empty ? 'PICK' : 'EDIT',
+                  style: AppText.label(10, color: Colors.white)),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
 }

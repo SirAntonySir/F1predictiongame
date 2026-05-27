@@ -61,6 +61,14 @@ class _HomeScreenState extends State<HomeScreen> {
         (e) => e.sessions.any((s) => s.id == resolvedNext.id),
         orElse: () => events.first,
       );
+      // Prime the predictions cache so _pickCard can render the caller's
+      // existing pick (the cache is shared with PredictScreen which is the
+      // only other place that hydrates it).
+      try {
+        await scope.predictions.fetchPrediction(resolvedNext.id);
+      } catch (_) {
+        // Non-fatal — the card just falls back to "No picks yet".
+      }
     }
     final finishedRace = events.lastWhere(
       (e) => e.sessions.any((s) =>

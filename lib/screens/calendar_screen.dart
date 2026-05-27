@@ -77,6 +77,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
                   children: [
                     Text('Calendar'.toUpperCase(),
                         style: AppText.display(28)),
+                    // Static season label — only 2026 exists, so no dropdown
+                    // affordance. Bring back the chevron + tap handler if/when
+                    // a second season ships.
                     Container(
                       padding: const EdgeInsets.symmetric(
                           horizontal: Spacing.md, vertical: 5),
@@ -85,7 +88,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                         borderRadius:
                             const BorderRadius.all(Radius.circular(999)),
                       ),
-                      child: const Text('2026 ▾',
+                      child: const Text('2026',
                           style: TextStyle(
                               fontWeight: FontWeight.w800, fontSize: 11)),
                     ),
