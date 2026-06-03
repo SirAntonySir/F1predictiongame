@@ -43,6 +43,13 @@
       "when": 1779827400000,
       "tag": "0005_openf1",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1780512985085,
+      "tag": "0006_cynical_sunset_bain",
+      "breakpoints": true
     }
   ]
 }

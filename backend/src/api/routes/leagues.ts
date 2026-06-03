@@ -8,6 +8,7 @@ import * as sessionsRepo from '../../repo/sessions.js'
 import * as eventsRepo from '../../repo/events.js'
 import * as seasonsRepo from '../../repo/seasons.js'
 import * as scoresRepo from '../../repo/scores.js'
+import * as projectionSnapshotsRepo from '../../repo/preseasonProjectionSnapshots.js'
 import { generateUniqueJoinCode } from '../../auth/joinCodes.js'
 import { getCurrentUser, registerAuthHook, requireLeagueMember, requireLeagueOwner } from '../auth-context.js'
 
@@ -155,10 +156,11 @@ export async function registerLeagueRoutes(app: FastifyInstance): Promise<void> 
   app.get<{ Params: { id: string } }>(
     '/api/leagues/:id/gossip',
     async (req) => {
+      const u = getCurrentUser(req)
       await requireLeagueMember(req, req.params.id)
 
       const cur = await seasonsRepo.getCurrent()
-      if (!cur) return { lastRace: null }
+      if (!cur) return { lastRace: null, myProjection: null }
 
       // Find the most recent finished race in the current season.
       const events = await eventsRepo.listForSeason(cur.year)
@@ -174,7 +176,23 @@ export async function registerLeagueRoutes(app: FastifyInstance): Promise<void> 
           }
         }
       }
-      if (lastRace === null || lastEvent === null) return { lastRace: null }
+      if (lastRace === null || lastEvent === null) return { lastRace: null, myProjection: null }
+
+      // Caller's projection delta: compare the last two snapshots written by
+      // the preseason rescorer. If only one snapshot exists, we can show
+      // current but not the delta.
+      const recent = await projectionSnapshotsRepo.listRecentForUser(
+        u.id, cur.year, 2
+      )
+      const myProjection = recent.length === 0
+        ? null
+        : {
+            now: recent[0]!.projectedPoints,
+            previous: recent.length >= 2 ? recent[1]!.projectedPoints : null,
+            delta: recent.length >= 2
+              ? recent[0]!.projectedPoints - recent[1]!.projectedPoints
+              : null
+          }
 
       const memberList = await members.listByLeague(req.params.id)
       const memberNameById = new Map(memberList.map((m) => [m.userId, m.displayName]))
@@ -260,7 +278,8 @@ export async function registerLeagueRoutes(app: FastifyInstance): Promise<void> 
         worstPlayers,
         noShowPlayers,
         driverGained,
-        driverCost
+        driverCost,
+        myProjection
       }
     }
   )

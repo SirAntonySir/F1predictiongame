@@ -55,6 +55,28 @@ class GossipDriverMisses {
       );
 }
 
+/// Caller's preseason projection snapshots used to surface the
+/// "projection delta since last weekend" tile in YOUR SEASON.
+/// `previous` and `delta` are null when fewer than two race-keyed snapshots
+/// exist (typically right after launch or before the season's second race).
+class GossipMyProjection {
+  final int now;
+  final int? previous;
+  final int? delta;
+  const GossipMyProjection({
+    required this.now,
+    required this.previous,
+    required this.delta,
+  });
+
+  factory GossipMyProjection.fromJson(Map<String, dynamic> j) =>
+      GossipMyProjection(
+        now: (j['now'] as num).toInt(),
+        previous: j['previous'] == null ? null : (j['previous'] as num).toInt(),
+        delta: j['delta'] == null ? null : (j['delta'] as num).toInt(),
+      );
+}
+
 /// Snapshot of gossip-worthy facts from the most recent finished race.
 /// Returned by `GET /api/leagues/:id/gossip`. `lastRace == null` when no
 /// race has finished in the current season yet.
@@ -65,6 +87,7 @@ class LeagueGossip {
   final List<GossipPlayer> noShowPlayers;
   final GossipDriverPoints? driverGained;
   final GossipDriverMisses? driverCost;
+  final GossipMyProjection? myProjection;
 
   const LeagueGossip({
     required this.lastRace,
@@ -73,6 +96,7 @@ class LeagueGossip {
     required this.noShowPlayers,
     required this.driverGained,
     required this.driverCost,
+    required this.myProjection,
   });
 
   factory LeagueGossip.fromJson(Map<String, dynamic> j) => LeagueGossip(
@@ -98,5 +122,9 @@ class LeagueGossip {
             ? null
             : GossipDriverMisses.fromJson(
                 j['driverCost'] as Map<String, dynamic>),
+        myProjection: j['myProjection'] == null
+            ? null
+            : GossipMyProjection.fromJson(
+                j['myProjection'] as Map<String, dynamic>),
       );
 }

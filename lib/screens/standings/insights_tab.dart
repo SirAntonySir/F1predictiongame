@@ -108,7 +108,11 @@ class _InsightsTabState extends State<InsightsTab> {
                     children: [
                       Expanded(child: _stat(t, 'WORST ROUND', stats.worstLabel, stats.worstSub)),
                       const SizedBox(width: 6),
-                      const Expanded(child: SizedBox.shrink()),
+                      Expanded(child: _stat(
+                          t,
+                          'PRESEASON Δ',
+                          stats.projectionDeltaLabel,
+                          stats.projectionDeltaSub)),
                     ],
                   ),
                   const SizedBox(height: 6),
@@ -258,6 +262,27 @@ class _InsightsTabState extends State<InsightsTab> {
     final worstLabel = worstRound == null ? '—' : '+$worstPts';
     final worstSub = worstRound == null ? 'no scored round yet' : '$worstName · R$worstRound';
 
+    // Preseason projection delta vs after-last-race snapshot. Lives on the
+    // gossip blob (which is league-scoped but the projection is the
+    // caller's). Three states: no snapshot yet, only one snapshot (no
+    // delta possible), and two+ snapshots (real delta).
+    final proj = d.gossip?.myProjection;
+    String projLabel;
+    String projSub;
+    if (proj == null) {
+      projLabel = '—';
+      projSub = 'awaiting first race';
+    } else if (proj.delta == null) {
+      projLabel = '${proj.now}';
+      projSub = 'baseline · ${d.gossip?.lastRace?.name ?? 'last race'}';
+    } else if (proj.delta == 0) {
+      projLabel = '±0';
+      projSub = '${proj.now} pts · unchanged';
+    } else {
+      projLabel = proj.delta! > 0 ? '+${proj.delta}' : '${proj.delta}';
+      projSub = '${proj.now} pts · ${d.gossip?.lastRace?.name ?? 'last race'}';
+    }
+
     // Gained/cost drivers: aggregate per-pick points and misses across all scored sessions.
     // ScoreBreakdownPerPosition.driverCode is nullable to handle rows pre-dating the
     // backend change that recorded it; skip those entries.
@@ -295,6 +320,8 @@ class _InsightsTabState extends State<InsightsTab> {
       bestSub: bestSub,
       worstLabel: worstLabel,
       worstSub: worstSub,
+      projectionDeltaLabel: projLabel,
+      projectionDeltaSub: projSub,
       gainedDriverCode: gainedDriver,
       gainedPoints: gainedPts,
       costDriverCode: costDriver,
@@ -537,6 +564,8 @@ class _Stats {
   final String bestSub;
   final String worstLabel;
   final String worstSub;
+  final String projectionDeltaLabel;
+  final String projectionDeltaSub;
   final String? gainedDriverCode;
   final int gainedPoints;
   final String? costDriverCode;
@@ -552,6 +581,8 @@ class _Stats {
     required this.bestSub,
     required this.worstLabel,
     required this.worstSub,
+    required this.projectionDeltaLabel,
+    required this.projectionDeltaSub,
     required this.gainedDriverCode,
     required this.gainedPoints,
     required this.costDriverCode,

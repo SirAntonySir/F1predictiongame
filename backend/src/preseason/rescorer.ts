@@ -6,6 +6,7 @@ import * as picksRepo from '../repo/preseasonPicks.js'
 import * as preseasonStandingsRepo from '../repo/preseasonStandings.js'
 import * as truthRepo from '../repo/subjectiveTruth.js'
 import * as scoresRepo from '../repo/scores.js'
+import * as projectionSnapshotsRepo from '../repo/preseasonProjectionSnapshots.js'
 import { scorePreseasonCategory, scoreStandings } from './index.js'
 import {
   deriveMostDnfs, derivePolesitter, deriveMostFastestLaps, deriveWdcWcc, deriveFinalStandings
@@ -64,7 +65,10 @@ export async function rescorePreseasonForSeason(seasonYear: number): Promise<Res
   for (const id of standingsCtorUsers) usersWithPicks.add(id)
 
   let totalPoints = 0
+  // Track each user's full projected total so we can snapshot it below.
+  const perUserTotals = new Map<string, number>()
   for (const userId of usersWithPicks) {
+    let userTotal = 0
     // 6 single-pick categories
     for (const category of ALL_SINGLE_CATEGORIES) {
       const pick = await picksRepo.getPick(userId, seasonYear, category)
@@ -76,6 +80,7 @@ export async function rescorePreseasonForSeason(seasonYear: number): Promise<Res
       const breakdown = scorePreseasonCategory(category, pickInput, truth)
       await scoresRepo.upsertPreseasonScore(userId, seasonYear, category, breakdown.pointsTotal, breakdown)
       totalPoints += breakdown.pointsTotal
+      userTotal += breakdown.pointsTotal
     }
     // Standings category
     const driverPicks = await preseasonStandingsRepo.listDriverPicks(userId, seasonYear)
@@ -83,6 +88,23 @@ export async function rescorePreseasonForSeason(seasonYear: number): Promise<Res
     const standingsBreakdown = scoreStandings(driverPicks, constructorPicks, finalStandings.drivers, finalStandings.constructors)
     await scoresRepo.upsertPreseasonScore(userId, seasonYear, 'standings', standingsBreakdown.pointsTotal, standingsBreakdown)
     totalPoints += standingsBreakdown.pointsTotal
+    userTotal += standingsBreakdown.pointsTotal
+    perUserTotals.set(userId, userTotal)
+  }
+
+  // Snapshot the projection per user, keyed by the most recent finished
+  // race session. Lets the gossip endpoint compute "projection delta since
+  // last weekend" without recomputing historical standings on the fly.
+  const finishedRaces = allSessions
+    .filter((s) => s.type === 'race' && s.status === 'finished')
+    .sort((a, b) => b.scheduledStart.getTime() - a.scheduledStart.getTime())
+  if (finishedRaces.length > 0) {
+    const after = finishedRaces[0]!
+    for (const [userId, total] of perUserTotals) {
+      await projectionSnapshotsRepo.upsertSnapshot(
+        userId, seasonYear, after.id, total
+      )
+    }
   }
 
   return { users: usersWithPicks.size, totalPoints }

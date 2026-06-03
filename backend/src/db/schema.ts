@@ -228,6 +228,22 @@ export const preseasonPickStandingsConstructor = pgTable('preseason_pick_standin
   seasonIdx: index('preseason_psc_season_idx').on(t.seasonYear)
 }))
 
+/// Snapshot of each user's projected preseason points after a given race.
+/// Populated by rescorePreseasonForSeason once at the end of every preseason
+/// rescore, keyed by the most recent finished race session id. Used to
+/// compute "projection delta since last weekend" without recomputing
+/// historical standings on the fly.
+export const preseasonProjectionSnapshot = pgTable('preseason_projection_snapshot', {
+  userId: uuid('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  seasonYear: integer('season_year').notNull().references(() => season.year, { onDelete: 'cascade' }),
+  afterSessionId: integer('after_session_id').notNull().references(() => session.id, { onDelete: 'cascade' }),
+  projectedPoints: integer('projected_points').notNull(),
+  computedAt: timestamp('computed_at', { withTimezone: true }).notNull().defaultNow()
+}, (t) => ({
+  pk: primaryKey({ columns: [t.userId, t.seasonYear, t.afterSessionId] }),
+  userSeasonIdx: index('preseason_proj_snapshot_user_season_idx').on(t.userId, t.seasonYear)
+}))
+
 export const subjectiveTruth = pgTable('subjective_truth', {
   seasonYear: integer('season_year').primaryKey().references(() => season.year, { onDelete: 'cascade' }),
   surpriseDriverCode: text('surprise_driver_code').references(() => driver.code),
