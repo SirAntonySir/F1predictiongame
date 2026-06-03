@@ -9,7 +9,9 @@ services:
     runtime: node
     plan: free
     rootDir: backend
-    buildCommand: npm ci && npm run build && npm run db:migrate
+    # --include=dev so the build can see @types/node-cron + xlsx (devDeps).
+    # NODE_ENV=production would otherwise make npm skip them.
+    buildCommand: npm ci --include=dev && npm run build && npm run db:migrate
     startCommand: npm start
     healthCheckPath: /api/health
     envVars:
