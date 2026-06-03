@@ -49,7 +49,9 @@ class _LoginScreenState extends State<LoginScreen> {
       setState(() => _error = 'Invalid email or password');
     } on ValidationException catch (e) {
       setState(() => _error = e.message);
-    } catch (_) {
+    } catch (e, st) {
+      // ignore: avoid_print
+      print('LOGIN_ERR: ${e.runtimeType} :: $e\n$st');
       setState(() => _error = "Couldn't reach the server");
     } finally {
       if (mounted) setState(() => _busy = false);
