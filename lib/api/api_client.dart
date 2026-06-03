@@ -3,6 +3,7 @@ import 'models/constructor.dart';
 import 'models/driver.dart';
 import 'models/event.dart';
 import 'models/leaderboard_row.dart';
+import 'models/league_gossip.dart';
 import 'models/league_preseason_view.dart';
 import 'models/league_view.dart';
 import 'models/member_prediction.dart';
@@ -59,6 +60,7 @@ abstract class ApiClient {
   Future<List<LeaderboardRow>>     leagueLeaderboard(String leagueId, {int? season});
   Future<List<SessionLeaderboardRow>> leagueSessionBreakdown(String leagueId, {int? season});
   Future<LeagueSessionPredictions> leagueSessionPredictions(String leagueId, int sessionId);
+  Future<LeagueGossip>             leagueGossip(String leagueId);
 
   // preseason
   Future<PreseasonMine>            getPreseasonMine();

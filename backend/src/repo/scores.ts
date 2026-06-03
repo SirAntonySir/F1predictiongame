@@ -1,4 +1,4 @@
-import { and, desc, eq, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, sql } from 'drizzle-orm'
 import { getDb } from '../db/client.js'
 import { score, session, event, leagueMember, user } from '../db/schema.js'
 import type { Score, ScoreBreakdown, PreseasonScoreBreakdown } from '../domain/types.js'
@@ -33,6 +33,34 @@ export async function upsertScore(
       targetWhere: sql`kind = 'session'`,
       set: { pointsTotal, breakdown, computedAt: sql`now()` }
     })
+}
+
+/// Session scores (with breakdown) for a specific set of users on one
+/// session. Used by the league-gossip endpoint to aggregate driver-level
+/// gains/misses across the league for a single race.
+export async function listForUsersAndSession(
+  userIds: string[],
+  sessionId: number
+): Promise<{ userId: string; pointsTotal: number; breakdown: ScoreBreakdown }[]> {
+  if (userIds.length === 0) return []
+  const db = getDb()
+  const rows = await db
+    .select({
+      userId: score.userId,
+      pointsTotal: score.pointsTotal,
+      breakdown: score.breakdown
+    })
+    .from(score)
+    .where(and(
+      eq(score.sessionId, sessionId),
+      eq(score.kind, 'session'),
+      inArray(score.userId, userIds)
+    ))
+  return rows.map((r) => ({
+    userId: r.userId,
+    pointsTotal: r.pointsTotal,
+    breakdown: r.breakdown as ScoreBreakdown
+  }))
 }
 
 export async function listForUser(userId: string, seasonYear: number): Promise<UserScoreRow[]> {

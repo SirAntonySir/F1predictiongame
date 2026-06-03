@@ -5,6 +5,7 @@ import * as events from '../../src/repo/events.js'
 import * as sessions from '../../src/repo/sessions.js'
 import * as predictionsRepo from '../../src/repo/predictions.js'
 import * as drivers from '../../src/repo/drivers.js'
+import * as scoresT from '../../src/repo/scores.js'
 
 async function seedDrivers(codes: string[]) {
   for (const code of codes) {
@@ -336,5 +337,92 @@ describe('GET /api/leagues/:id/sessions/:sessionId/predictions', () => {
       headers: auth(stranger.token)
     })
     expect(res.statusCode).toBe(403)
+  })
+})
+
+describe('GET /api/leagues/:id/gossip', () => {
+  it('aggregates last-race best/worst/no-show + driver impact across the league', async () => {
+    const a = await app()
+    const owner = await signupAndToken(a, 'gg-o@x.com')
+    const m1 = await signupAndToken(a, 'gg-1@x.com')
+    const m2 = await signupAndToken(a, 'gg-2@x.com')
+    const created = await a.inject({ method: 'POST', url: '/api/leagues', headers: auth(owner.token), payload: { name: 'G' } })
+    const leagueId = created.json().league.id
+    const code = created.json().league.joinCode
+    await a.inject({ method: 'POST', url: '/api/leagues/join', headers: auth(m1.token), payload: { joinCode: code } })
+    await a.inject({ method: 'POST', url: '/api/leagues/join', headers: auth(m2.token), payload: { joinCode: code } })
+
+    // Seed a finished race in the current season.
+    await seasons.upsertSeason({ year: 2026, isCurrent: true })
+    const ev = await events.upsertEvent({
+      seasonYear: 2026, round: 1, name: 'Gossipland', circuitName: 'C', country: 'X', hasSprint: false
+    })
+    const past = new Date(Date.now() - 24 * 60 * 60 * 1000)
+    const ses = await sessions.upsertSession({
+      eventId: ev.id, type: 'race',
+      scheduledStart: past, scheduledEnd: new Date(past.getTime() + 2 * 60 * 60 * 1000),
+      status: 'scheduled', openf1SessionKey: null
+    })
+    await sessions.markFinished(ses.id)
+
+    await seedDrivers(['VER', 'NOR', 'HAM'])
+    // Owner: picked VER + NOR (both nailed), scored 10.
+    await predictionsRepo.upsertPredictionWithPicks(owner.userId, ses.id, [
+      { position: 1, driverCode: 'VER' }, { position: 2, driverCode: 'NOR' }
+    ])
+    await scoresT.upsertScore(owner.userId, ses.id, 10, {
+      perPosition: [
+        { position: 1, driverCode: 'VER', exact: true, wrongPos: false, points: 5 },
+        { position: 2, driverCode: 'NOR', exact: true, wrongPos: false, points: 5 }
+      ],
+      teamBonus: { applied: false, points: 0 },
+      rule: 't-v1'
+    })
+    // m1: picked VER + HAM, only VER scored — HAM was a miss.
+    await predictionsRepo.upsertPredictionWithPicks(m1.userId, ses.id, [
+      { position: 1, driverCode: 'VER' }, { position: 2, driverCode: 'HAM' }
+    ])
+    await scoresT.upsertScore(m1.userId, ses.id, 5, {
+      perPosition: [
+        { position: 1, driverCode: 'VER', exact: true, wrongPos: false, points: 5 },
+        { position: 2, driverCode: 'HAM', exact: false, wrongPos: false, points: 0 }
+      ],
+      teamBonus: { applied: false, points: 0 },
+      rule: 't-v1'
+    })
+    // m2: no picks → no-show.
+
+    const res = await a.inject({
+      method: 'GET',
+      url: `/api/leagues/${leagueId}/gossip`,
+      headers: auth(owner.token)
+    })
+    expect(res.statusCode).toBe(200)
+    const body = res.json()
+    expect(body.lastRace.round).toBe(1)
+    expect(body.lastRace.name).toBe('Gossipland')
+    expect(body.bestPlayer.userId).toBe(owner.userId)
+    expect(body.bestPlayer.points).toBe(10)
+    expect(body.worstPlayers).toHaveLength(1)
+    expect(body.worstPlayers[0].userId).toBe(m1.userId)
+    expect(body.noShowPlayers.map((p: any) => p.userId)).toEqual([m2.userId])
+    // VER scored 5 for owner + 5 for m1 = 10 league-wide.
+    expect(body.driverGained).toEqual({ driverCode: 'VER', points: 10 })
+    expect(body.driverCost).toEqual({ driverCode: 'HAM', count: 1 })
+  })
+
+  it('returns lastRace: null when no race has finished', async () => {
+    const a = await app()
+    const owner = await signupAndToken(a, 'gg-empty@x.com')
+    const created = await a.inject({ method: 'POST', url: '/api/leagues', headers: auth(owner.token), payload: { name: 'E' } })
+    const leagueId = created.json().league.id
+
+    const res = await a.inject({
+      method: 'GET',
+      url: `/api/leagues/${leagueId}/gossip`,
+      headers: auth(owner.token)
+    })
+    expect(res.statusCode).toBe(200)
+    expect(res.json().lastRace).toBeNull()
   })
 })

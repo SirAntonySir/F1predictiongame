@@ -5,6 +5,9 @@ import * as leaguesRepo from '../../repo/leagues.js'
 import * as members from '../../repo/leagueMembers.js'
 import * as predictionsRepo from '../../repo/predictions.js'
 import * as sessionsRepo from '../../repo/sessions.js'
+import * as eventsRepo from '../../repo/events.js'
+import * as seasonsRepo from '../../repo/seasons.js'
+import * as scoresRepo from '../../repo/scores.js'
 import { generateUniqueJoinCode } from '../../auth/joinCodes.js'
 import { getCurrentUser, registerAuthHook, requireLeagueMember, requireLeagueOwner } from '../auth-context.js'
 
@@ -144,6 +147,123 @@ export async function registerLeagueRoutes(app: FastifyInstance): Promise<void> 
     await members.remove(req.params.id, req.params.userId)
     return { ok: true }
   })
+
+  // League gossip for the most recent finished race: who topped the
+  // weekend, who bottomed out, who forgot to pick, and which drivers were
+  // the league's best/worst calls. All derived from the per-member
+  // session scores + breakdowns we already store.
+  app.get<{ Params: { id: string } }>(
+    '/api/leagues/:id/gossip',
+    async (req) => {
+      await requireLeagueMember(req, req.params.id)
+
+      const cur = await seasonsRepo.getCurrent()
+      if (!cur) return { lastRace: null }
+
+      // Find the most recent finished race in the current season.
+      const events = await eventsRepo.listForSeason(cur.year)
+      let lastRace: { id: number; scheduledStart: Date } | null = null
+      let lastEvent: { round: number; name: string } | null = null
+      for (const ev of events) {
+        const sessions = await sessionsRepo.listForEvent(ev.id)
+        for (const s of sessions) {
+          if (s.type !== 'race' || s.status !== 'finished') continue
+          if (lastRace === null || s.scheduledStart > lastRace.scheduledStart) {
+            lastRace = { id: s.id, scheduledStart: s.scheduledStart }
+            lastEvent = { round: ev.round, name: ev.name }
+          }
+        }
+      }
+      if (lastRace === null || lastEvent === null) return { lastRace: null }
+
+      const memberList = await members.listByLeague(req.params.id)
+      const memberNameById = new Map(memberList.map((m) => [m.userId, m.displayName]))
+      const memberIds = memberList.map((m) => m.userId)
+
+      const preds = await predictionsRepo.listLeagueMemberPredictions(
+        req.params.id,
+        lastRace.id
+      )
+      const scoreRows = await scoresRepo.listForUsersAndSession(
+        memberIds,
+        lastRace.id
+      )
+      const scoreByUser = new Map(scoreRows.map((s) => [s.userId, s]))
+
+      // Best / worst player: lowest+highest pointsTotal among scored members.
+      const ranked = scoreRows
+        .map((s) => ({
+          userId: s.userId,
+          displayName: memberNameById.get(s.userId) ?? '',
+          points: s.pointsTotal
+        }))
+        .sort((a, b) => b.points - a.points)
+      let bestPlayer: typeof ranked[number] | null = null
+      let worstPlayers: typeof ranked = []
+      if (ranked.length > 0) {
+        const top = ranked[0]!.points
+        const bottom = ranked[ranked.length - 1]!.points
+        // Skip when everyone tied — nothing gossip-worthy.
+        if (top > bottom) {
+          bestPlayer = ranked[0]!
+          worstPlayers = ranked.filter((r) => r.points === bottom)
+        }
+      }
+
+      // No-shows: members who didn't submit a single pick.
+      const predByUser = new Map(preds.map((p) => [p.userId, p]))
+      const noShowPlayers = memberList
+        .filter((m) => {
+          const p = predByUser.get(m.userId)
+          return !p || p.picks.length === 0
+        })
+        .map((m) => ({ userId: m.userId, displayName: m.displayName }))
+
+      // Driver impact aggregation across the league's breakdowns.
+      const gainedByDriver = new Map<string, number>()
+      const missesByDriver = new Map<string, number>()
+      for (const s of scoreRows) {
+        const bd = s.breakdown as { perPosition?: Array<{ driverCode?: string | null; points?: number }> }
+        const perPos = bd.perPosition ?? []
+        for (const p of perPos) {
+          const code = p.driverCode
+          if (code == null) continue
+          const pts = p.points ?? 0
+          gainedByDriver.set(code, (gainedByDriver.get(code) ?? 0) + pts)
+          if (pts === 0) {
+            missesByDriver.set(code, (missesByDriver.get(code) ?? 0) + 1)
+          }
+        }
+      }
+      let driverGained: { driverCode: string; points: number } | null = null
+      for (const [code, pts] of gainedByDriver) {
+        if (pts > 0 && (driverGained === null || pts > driverGained.points)) {
+          driverGained = { driverCode: code, points: pts }
+        }
+      }
+      let driverCost: { driverCode: string; count: number } | null = null
+      for (const [code, n] of missesByDriver) {
+        if (n > 0 && (driverCost === null || n > driverCost.count)) {
+          driverCost = { driverCode: code, count: n }
+        }
+      }
+      // Avoid weird mention-only entries where caller's id is unused.
+      void scoreByUser
+
+      return {
+        lastRace: {
+          sessionId: lastRace.id,
+          round: lastEvent.round,
+          name: lastEvent.name
+        },
+        bestPlayer,
+        worstPlayers,
+        noShowPlayers,
+        driverGained,
+        driverCost
+      }
+    }
+  )
 
   // Every league member's picks + session score for one session. Gated by the
   // session's scheduledStart — predictions are hidden until kickoff so we

@@ -6,6 +6,7 @@ import 'models/constructor.dart';
 import 'models/driver.dart';
 import 'models/event.dart';
 import 'models/leaderboard_row.dart';
+import 'models/league_gossip.dart';
 import 'models/league_preseason_view.dart';
 import 'models/league_view.dart';
 import 'models/member_prediction.dart';
@@ -260,6 +261,13 @@ class HttpApiClient implements ApiClient {
       '/api/leagues/$leagueId/sessions/$sessionId/predictions',
     ) as Map<String, dynamic>;
     return LeagueSessionPredictions.fromJson(j);
+  }
+
+  @override
+  Future<LeagueGossip> leagueGossip(String leagueId) async {
+    final j = await _request('GET', '/api/leagues/$leagueId/gossip')
+        as Map<String, dynamic>;
+    return LeagueGossip.fromJson(j);
   }
 
   @override

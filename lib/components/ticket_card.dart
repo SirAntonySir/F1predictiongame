@@ -2,6 +2,19 @@
 import 'package:flutter/material.dart';
 import '../theme/tokens.dart';
 
+/// How the right edge of the ticket is rendered when the stub is missing
+/// or has been "used".
+///
+/// - [none]    — normal rounded rectangle.
+/// - [cut]     — physical perforation: notches carved into the top/bottom
+///               right corners and a dashed line down what's left of the
+///               right edge. Reads as "the stub was here and got ripped off".
+/// - [ghosted] — keep the full body+stub silhouette (border outline,
+///               perforation line, top/bottom notches at the perforation)
+///               but leave the stub area transparent, so it reads as a
+///               hole punched out of the ticket. No stub widget is needed.
+enum TicketTear { none, cut, ghosted }
+
 /// A pick card styled like a paper ticket: cream background, strong border,
 /// and a perforated tear-off bottom edge. Two visual halves laid out
 /// horizontally (a slim left "stub" + the main body), with a dashed vertical
@@ -27,11 +40,9 @@ class TicketCard extends StatelessWidget {
   /// Tap handler for the stub (right) half. Takes precedence over [onTap]
   /// when set.
   final VoidCallback? onStubTap;
-  /// When true, render the ticket as if the stub has been torn off — the
-  /// right edge becomes a vertical perforation (dashed line + circular
-  /// notches top/bottom) instead of a clean rounded corner. Cannot be used
-  /// together with [stub].
-  final bool torn;
+  /// How the right edge of the ticket is rendered. See [TicketTear] for the
+  /// available variants. Cannot be used together with [stub].
+  final TicketTear tear;
   const TicketCard({
     super.key,
     required this.body,
@@ -45,8 +56,9 @@ class TicketCard extends StatelessWidget {
     this.onTap,
     this.onBodyTap,
     this.onStubTap,
-    this.torn = false,
-  }) : assert(!torn || stub == null, 'torn tickets cannot also render a stub');
+    this.tear = TicketTear.none,
+  }) : assert(tear == TicketTear.none || stub == null,
+            'cut/ghosted tickets cannot also render a stub');
 
   @override
   Widget build(BuildContext context) {
@@ -59,6 +71,10 @@ class TicketCard extends StatelessWidget {
     final stubChild = stub == null
         ? null
         : Padding(padding: stubPadding, child: Center(child: stub));
+    // Ghosted tickets need to reserve the stub's worth of horizontal space
+    // (so the perforation line ends up in the same spot as a normal ticket)
+    // but render nothing inside it — the painter shows it as a cutout.
+    final reservesStubSpace = stubChild != null || tear == TicketTear.ghosted;
 
     final row = IntrinsicHeight(
       child: Row(
@@ -68,12 +84,14 @@ class TicketCard extends StatelessWidget {
                 ? InkWell(onTap: onBodyTap, child: bodyChild)
                 : bodyChild,
           ),
-          if (stubChild != null)
+          if (reservesStubSpace)
             SizedBox(
               width: stubWidth,
-              child: hasSplitTaps
-                  ? InkWell(onTap: onStubTap, child: stubChild)
-                  : stubChild,
+              child: stubChild == null
+                  ? const SizedBox.expand()
+                  : (hasSplitTaps
+                      ? InkWell(onTap: onStubTap, child: stubChild)
+                      : stubChild),
             ),
         ],
       ),
@@ -92,9 +110,9 @@ class TicketCard extends StatelessWidget {
             background: background,
             border: borderColor,
             borderWidth: borderWidth,
-            hasStub: stub != null,
+            hasStub: stub != null || tear == TicketTear.ghosted,
             stubWidth: stubWidth,
-            torn: torn,
+            tear: tear,
           ),
           child: row,
         ),
@@ -115,7 +133,7 @@ class _TicketPainter extends CustomPainter {
   final double borderWidth;
   final bool hasStub;
   final double stubWidth;
-  final bool torn;
+  final TicketTear tear;
   static const _radius = 12.0;
   static const _notchRadius = 7.0;
   _TicketPainter({
@@ -124,7 +142,7 @@ class _TicketPainter extends CustomPainter {
     required this.borderWidth,
     required this.hasStub,
     required this.stubWidth,
-    required this.torn,
+    required this.tear,
   });
 
   @override
@@ -138,13 +156,25 @@ class _TicketPainter extends CustomPainter {
       ..strokeWidth = borderWidth;
 
     final body = _ticketPath(size);
-    canvas.drawPath(body, fill);
+    if (tear == TicketTear.ghosted) {
+      // Wash the whole ticket with a low-alpha background first so the stub
+      // area is a translucent ghost rather than fully see-through, then
+      // paint the body region opaque on top so it stays solid.
+      final ghostFill = Paint()
+        ..color = background.withOpacity(0.30)
+        ..style = PaintingStyle.fill;
+      canvas.drawPath(body, ghostFill);
+      canvas.drawPath(_bodyOnlyPath(size), fill);
+    } else {
+      canvas.drawPath(body, fill);
+    }
     canvas.drawPath(body, stroke);
 
-    if (hasStub || torn) {
+    if (hasStub || tear == TicketTear.cut) {
       // Dashed vertical perforation. For a stub it sits between body and
-      // stub; for a torn ticket it IS the right edge.
-      final perforationX = torn ? size.width : size.width - stubWidth;
+      // stub; for a cut-torn ticket it IS the right edge.
+      final perforationX =
+          tear == TicketTear.cut ? size.width : size.width - stubWidth;
       final dashPaint = Paint()
         ..color = border.withOpacity(0.5)
         ..style = PaintingStyle.stroke
@@ -165,14 +195,50 @@ class _TicketPainter extends CustomPainter {
     }
   }
 
+  /// Path covering only the body half of a ghosted ticket. Traces the body's
+  /// perimeter and uses two quarter-circle arcs at the perforation line so
+  /// the body's right edge meets the perforation cleanly — the arcs bulge
+  /// INTO the body, mirroring the half-circle notches that the full outline
+  /// carves out of the top and bottom edges.
+  Path _bodyOnlyPath(Size size) {
+    const r = _radius;
+    const n = _notchRadius;
+    final stubX = size.width - stubWidth;
+    final p = Path();
+    p.moveTo(r, 0);
+    // Top edge to the left side of the perforation notch.
+    p.lineTo(stubX - n, 0);
+    // Top quarter-circle, sharing the same circle as the full outline's
+    // top notch (centred at (stubX, 0)). clockwise: false picks the arc
+    // that bulges DOWN-LEFT, i.e. into the body — the mirror of what the
+    // outline carves out of the top edge.
+    p.arcToPoint(Offset(stubX, n),
+        radius: const Radius.circular(_notchRadius), clockwise: false);
+    // Down the perforation line.
+    p.lineTo(stubX, size.height - n);
+    // Bottom quarter-circle, same logic mirrored — bulges UP-LEFT into the
+    // body so it meets the perforation cleanly.
+    p.arcToPoint(Offset(stubX - n, size.height),
+        radius: const Radius.circular(_notchRadius), clockwise: false);
+    // Bottom edge to bottom-left corner.
+    p.lineTo(r, size.height);
+    p.arcToPoint(Offset(0, size.height - r),
+        radius: const Radius.circular(_radius));
+    p.lineTo(0, r);
+    p.arcToPoint(const Offset(r, 0), radius: const Radius.circular(_radius));
+    p.close();
+    return p;
+  }
+
   Path _ticketPath(Size size) {
     const r = _radius;
     const n = _notchRadius;
     final p = Path();
     // Rounded rectangle outline; if there's a stub, carve a circular notch
-    // at the top and bottom along the perforation line. If torn, carve the
-    // notches at the top-right and bottom-right corners so the right edge
-    // reads as "the stub was here and got ripped off".
+    // at the top and bottom along the perforation line. For TicketTear.cut
+    // the right corners get notched to read as "stub was ripped off". For
+    // TicketTear.faded the rectangle stays clean — the fade itself comes
+    // from the ShaderMask wrapped around the whole ticket.
     final stubX = hasStub ? size.width - stubWidth : null;
 
     p.moveTo(r, 0);
@@ -184,18 +250,14 @@ class _TicketPainter extends CustomPainter {
         clockwise: false,
       );
     }
-    if (torn) {
-      // Top edge runs all the way to a notch carved into the top-right corner.
+    if (tear == TicketTear.cut) {
       p.lineTo(size.width - n, 0);
-      // Semicircle bulging downward, ending at the right edge below the corner.
       p.arcToPoint(
         Offset(size.width, n),
         radius: const Radius.circular(_notchRadius),
         clockwise: false,
       );
-      // Right edge runs straight down to the bottom-right notch.
       p.lineTo(size.width, size.height - n);
-      // Bottom-right notch bulging leftward, ending on the bottom edge.
       p.arcToPoint(
         Offset(size.width - n, size.height),
         radius: const Radius.circular(_notchRadius),
@@ -230,5 +292,5 @@ class _TicketPainter extends CustomPainter {
       old.borderWidth != borderWidth ||
       old.hasStub != hasStub ||
       old.stubWidth != stubWidth ||
-      old.torn != torn;
+      old.tear != tear;
 }

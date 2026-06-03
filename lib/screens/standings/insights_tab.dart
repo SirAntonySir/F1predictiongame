@@ -1,6 +1,7 @@
 // ignore_for_file: deprecated_member_use
 import 'package:flutter/material.dart';
 import '../../api/models/leaderboard_row.dart';
+import '../../api/models/league_gossip.dart';
 import '../../api/models/my_score.dart';
 import '../../api/models/session_leaderboard_row.dart';
 import '../../components/app_card.dart';
@@ -40,8 +41,20 @@ class _InsightsTabState extends State<InsightsTab> {
     final sessions = leagueId == null
         ? const <SessionLeaderboardRow>[]
         : await scope.api.leagueSessionBreakdown(leagueId);
+    LeagueGossip? gossip;
+    if (leagueId != null) {
+      try {
+        gossip = await scope.api.leagueGossip(leagueId);
+      } catch (_) {
+        gossip = null;
+      }
+    }
     return _InsightsData(
-        myUserId: myUserId, scores: scores, leaderboard: leaderboard, sessions: sessions);
+        myUserId: myUserId,
+        scores: scores,
+        leaderboard: leaderboard,
+        sessions: sessions,
+        gossip: gossip);
   }
 
   @override
@@ -88,6 +101,14 @@ class _InsightsTabState extends State<InsightsTab> {
                       Expanded(child: _stat(t, 'HIT RATE', stats.hitRateLabel, stats.hitRateSub)),
                       const SizedBox(width: 6),
                       Expanded(child: _stat(t, 'BEST ROUND', stats.bestLabel, stats.bestSub)),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Expanded(child: _stat(t, 'WORST ROUND', stats.worstLabel, stats.worstSub)),
+                      const SizedBox(width: 6),
+                      const Expanded(child: SizedBox.shrink()),
                     ],
                   ),
                   const SizedBox(height: 6),
@@ -218,6 +239,25 @@ class _InsightsTabState extends State<InsightsTab> {
     final bestLabel = bestRound == null ? '—' : '+$bestPts';
     final bestSub = bestRound == null ? 'no scored round yet' : '$bestName · R$bestRound';
 
+    // Worst round — symmetric with bestRound. Initialise with sentinel so we
+    // can distinguish "no rounds yet" from "everyone tied at 0".
+    int? worstRound;
+    int worstPts = -1;
+    String? worstName;
+    perEvent.forEach((round, pts) {
+      if (worstRound == null || pts < worstPts) {
+        worstPts = pts;
+        worstRound = round;
+      }
+    });
+    if (worstRound != null) {
+      worstName = d.scores
+          .firstWhere((s) => s.eventRound == worstRound, orElse: () => d.scores.first)
+          .eventName;
+    }
+    final worstLabel = worstRound == null ? '—' : '+$worstPts';
+    final worstSub = worstRound == null ? 'no scored round yet' : '$worstName · R$worstRound';
+
     // Gained/cost drivers: aggregate per-pick points and misses across all scored sessions.
     // ScoreBreakdownPerPosition.driverCode is nullable to handle rows pre-dating the
     // backend change that recorded it; skip those entries.
@@ -253,6 +293,8 @@ class _InsightsTabState extends State<InsightsTab> {
       hitRateSub: hitRateSub,
       bestLabel: bestLabel,
       bestSub: bestSub,
+      worstLabel: worstLabel,
+      worstSub: worstSub,
       gainedDriverCode: gainedDriver,
       gainedPoints: gainedPts,
       costDriverCode: costDriver,
@@ -360,7 +402,51 @@ class _InsightsTabState extends State<InsightsTab> {
         }
       }
     }
-    if (d.scores.isEmpty) {
+
+    // Last-race gossip from the backend. All optional — only render the
+    // ones the endpoint actually populated.
+    final g = d.gossip;
+    if (g != null && g.lastRace != null) {
+      final race = g.lastRace!;
+      final me = d.myUserId;
+      String name(GossipPlayer p) => p.userId == me ? 'You' : p.displayName;
+
+      if (g.bestPlayer != null) {
+        final p = g.bestPlayer!;
+        facts.add(_Fact(
+            '🏆',
+            "${name(p)} topped ${race.name} with +${p.points} pts."));
+      }
+      if (g.worstPlayers.isNotEmpty) {
+        final tied = g.worstPlayers;
+        final namesList = tied.map(name).join(' & ');
+        final pts = tied.first.points ?? 0;
+        facts.add(_Fact(
+            '✗',
+            "$namesList ${tied.length == 1 ? 'finished last' : 'tied for last'} at ${race.name} with +$pts pts."));
+      }
+      if (g.noShowPlayers.isNotEmpty) {
+        final namesList = g.noShowPlayers.map(name).join(', ');
+        final verb = g.noShowPlayers.length == 1 ? 'forgot' : 'forgot';
+        facts.add(_Fact(
+            '✕',
+            "$namesList $verb to pick for ${race.name}."));
+      }
+      if (g.driverGained != null) {
+        final dg = g.driverGained!;
+        facts.add(_Fact(
+            '↑',
+            "${dg.driverCode} was the league's best call at ${race.name} — +${dg.points} pts across all picks."));
+      }
+      if (g.driverCost != null) {
+        final dc = g.driverCost!;
+        facts.add(_Fact(
+            '↓',
+            "${dc.driverCode} cost the league ${dc.count} ${dc.count == 1 ? 'pick' : 'picks'} at ${race.name}."));
+      }
+    }
+
+    if (facts.isEmpty && d.scores.isEmpty) {
       facts.add(const _Fact('?', 'No scored sessions yet — once a race finishes, stats land here.'));
     }
     return facts;
@@ -428,11 +514,15 @@ class _InsightsData {
   final List<MyScore> scores;
   final List<LeaderboardRow> leaderboard;
   final List<SessionLeaderboardRow> sessions;
+  /// Last-race gossip snapshot for the caller's league. Null until a race
+  /// has finished, or if the call failed.
+  final LeagueGossip? gossip;
   _InsightsData({
     required this.myUserId,
     required this.scores,
     required this.leaderboard,
     required this.sessions,
+    required this.gossip,
   });
 }
 
@@ -445,6 +535,8 @@ class _Stats {
   final String hitRateSub;
   final String bestLabel;
   final String bestSub;
+  final String worstLabel;
+  final String worstSub;
   final String? gainedDriverCode;
   final int gainedPoints;
   final String? costDriverCode;
@@ -458,6 +550,8 @@ class _Stats {
     required this.hitRateSub,
     required this.bestLabel,
     required this.bestSub,
+    required this.worstLabel,
+    required this.worstSub,
     required this.gainedDriverCode,
     required this.gainedPoints,
     required this.costDriverCode,

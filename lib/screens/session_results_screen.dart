@@ -10,7 +10,7 @@ import '../api/models/session_result.dart';
 import '../components/app_card.dart';
 import '../components/countdown.dart';
 import '../components/error_view.dart';
-import '../components/ticket_card.dart';
+import '../components/ticket_card.dart' show TicketCard, TicketTear;
 import '../domain/prediction.dart';
 import '../domain/result_display.dart';
 import '../domain/scoring.dart';
@@ -783,10 +783,10 @@ class _HorizontalDashedLinePainter extends CustomPainter {
   bool shouldRepaint(_HorizontalDashedLinePainter old) => old.color != color;
 }
 
-/// Validated-ticket take on the old ScoreBanner: brand-red stock with the
-/// stub torn off. The white text override sits inside the body so the
-/// TicketCard's default-black wrapper (used by cream tickets) gets shadowed
-/// by the more specific style.
+/// Caller's session score, presented in the same torn cream stock as the
+/// member tickets below — just so it reads as part of the same visual
+/// family. Wording matches the old red ScoreBanner: small caps label, big
+/// `+score`, exact/in-top-N/miss breakdown subtitle.
 class _YourScoreTicket extends StatelessWidget {
   final int score;
   final String subtitle;
@@ -795,28 +795,24 @@ class _YourScoreTicket extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return TicketCard(
-      background: BrandColors.accent,
-      torn: true,
+      tear: TicketTear.ghosted,
       bodyPadding: const EdgeInsets.fromLTRB(
           Spacing.lg, Spacing.md, Spacing.xl, Spacing.md),
-      body: DefaultTextStyle.merge(
-        style: const TextStyle(color: Colors.white),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('YOUR SCORE',
-                style: AppText.label(10,
-                    color: Colors.white.withOpacity(0.8))),
-            const SizedBox(height: 4),
-            Text('+$score',
-                style: AppText.display(36, color: Colors.white)),
-            const SizedBox(height: 4),
-            Text(subtitle,
-                style: AppText.body(12,
-                    color: Colors.white.withOpacity(0.9))),
-          ],
-        ),
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text('YOUR SCORE',
+              style: AppText.label(10,
+                  color: Colors.black.withOpacity(0.7))),
+          const SizedBox(height: 4),
+          Text('+$score',
+              style: AppText.display(36, color: Colors.black)),
+          const SizedBox(height: 4),
+          Text(subtitle,
+              style: AppText.body(12,
+                  color: Colors.black.withOpacity(0.7))),
+        ],
       ),
     );
   }
@@ -834,7 +830,7 @@ class _MemberPickTicket extends StatelessWidget {
     final empty = member.picks.isEmpty;
     final pts = member.pointsTotal;
     return TicketCard(
-      torn: true,
+      tear: TicketTear.ghosted,
       bodyPadding: const EdgeInsets.fromLTRB(
           Spacing.lg, Spacing.md, Spacing.xl, Spacing.md),
       body: Column(
