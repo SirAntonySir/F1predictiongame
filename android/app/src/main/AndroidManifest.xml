@@ -1,4 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Required for release builds to talk to the backend. Flutter's template
+         only adds this to the debug/profile overlays for hot-reload, so the
+         release APK silently has no network until it's declared here too. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <application
         android:label="predictiongame"
         android:name="${applicationName}"
