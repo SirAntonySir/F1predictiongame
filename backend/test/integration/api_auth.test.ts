@@ -116,6 +116,60 @@ describe('PATCH /api/auth/me', () => {
   })
 })
 
+describe('POST /api/auth/change-password', () => {
+  async function change(a: Awaited<ReturnType<typeof app>>, payload: unknown) {
+    return a.inject({ method: 'POST', url: '/api/auth/change-password', payload })
+  }
+
+  it('updates the password — old fails, new succeeds', async () => {
+    const a = await app()
+    await signup(a, 'cp@x.com', 'oldpass1')
+    const res = await change(a, { email: 'cp@x.com', currentPassword: 'oldpass1', newPassword: 'newpass2' })
+    expect(res.statusCode).toBe(200)
+    expect(res.json().ok).toBe(true)
+
+    const oldLogin = await a.inject({ method: 'POST', url: '/api/auth/login', payload: { email: 'cp@x.com', password: 'oldpass1' } })
+    expect(oldLogin.statusCode).toBe(401)
+    const newLogin = await a.inject({ method: 'POST', url: '/api/auth/login', payload: { email: 'cp@x.com', password: 'newpass2' } })
+    expect(newLogin.statusCode).toBe(200)
+  })
+
+  it('rejects a wrong current password with 401', async () => {
+    const a = await app()
+    await signup(a, 'cp2@x.com', 'rightnow')
+    const res = await change(a, { email: 'cp2@x.com', currentPassword: 'guessguess', newPassword: 'anotherone' })
+    expect(res.statusCode).toBe(401)
+    expect(res.json().error.code).toBe('UNAUTHORIZED')
+  })
+
+  it('rejects an unknown email with 401 (no enumeration leak)', async () => {
+    const a = await app()
+    const res = await change(a, { email: 'nobody@x.com', currentPassword: 'whatever', newPassword: 'anewlongone' })
+    expect(res.statusCode).toBe(401)
+  })
+
+  it('rejects a too-short new password with 422', async () => {
+    const a = await app()
+    await signup(a, 'cp3@x.com', 'longenough')
+    const res = await change(a, { email: 'cp3@x.com', currentPassword: 'longenough', newPassword: 'short' })
+    expect(res.statusCode).toBe(422)
+  })
+
+  it('rejects reusing the current password with 422', async () => {
+    const a = await app()
+    await signup(a, 'cp4@x.com', 'samepass1')
+    const res = await change(a, { email: 'cp4@x.com', currentPassword: 'samepass1', newPassword: 'samepass1' })
+    expect(res.statusCode).toBe(422)
+  })
+
+  it('normalizes the email to lowercase', async () => {
+    const a = await app()
+    await signup(a, 'mixed@x.com', 'oldpass1')
+    const res = await change(a, { email: 'Mixed@X.com', currentPassword: 'oldpass1', newPassword: 'newpass2' })
+    expect(res.statusCode).toBe(200)
+  })
+})
+
 describe('POST /api/auth/logout', () => {
   it('deletes the session, subsequent /me 401s', async () => {
     const a = await app()

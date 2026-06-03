@@ -42,12 +42,33 @@ class TrajectoryChart extends StatelessWidget {
         const SizedBox(height: 4),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: xLabels
-              .map((l) => Text(l, style: AppText.body(9, color: t.colorScheme.onSurface.withOpacity(0.55))))
+          children: _displayLabels()
+              .map((l) => Flexible(
+                    child: Text(
+                      l,
+                      maxLines: 1,
+                      softWrap: false,
+                      overflow: TextOverflow.fade,
+                      style: AppText.body(9, color: t.colorScheme.onSurface.withOpacity(0.55)),
+                    ),
+                  ))
               .toList(),
         ),
       ],
     );
+  }
+
+  // Many sessions → too many labels to fit horizontally. Downsample to at most
+  // `_maxLabels` evenly-spaced anchors (always including first + last). The
+  // chart line still uses every data point; only the tick text thins out.
+  static const int _maxLabels = 6;
+  List<String> _displayLabels() {
+    if (xLabels.length <= _maxLabels) return xLabels;
+    final n = xLabels.length;
+    final indices = <int>{
+      for (var i = 0; i < _maxLabels; i++) (i * (n - 1) / (_maxLabels - 1)).round(),
+    }.toList()..sort();
+    return [for (final i in indices) xLabels[i]];
   }
 }
 

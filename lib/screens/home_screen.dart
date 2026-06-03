@@ -5,12 +5,14 @@ import 'package:intl/intl.dart';
 import '../api/api_client.dart';
 import '../api/models/event.dart';
 import '../api/models/leaderboard_row.dart';
+import '../api/models/prediction_view.dart';
 import '../api/models/session.dart';
 import '../api/models/session_result.dart';
 import '../components/app_card.dart';
 import '../components/countdown.dart';
 import '../components/error_view.dart';
 import '../components/pod_tile.dart';
+import '../components/racing_stripes.dart';
 import '../components/session_chip.dart';
 import '../components/ticket_card.dart';
 import '../domain/scoring.dart';
@@ -180,7 +182,13 @@ class _HomeScreenState extends State<HomeScreen> {
                 if (d.next != null) ...[
                   _section('Your pick',
                       onTap: () => context.go('/predict')),
-                  _pickCard(d, scope, t),
+                  // Wrap pick/last cards in ListenableBuilder so changes saved
+                  // on the predict screen (which mutate scope.predictions)
+                  // re-render here without a full home reload.
+                  ListenableBuilder(
+                    listenable: scope.predictions,
+                    builder: (_, __) => _pickCard(d, scope, t),
+                  ),
                 ],
                 if (d.lastEvent != null) ...[
                   _section('Last race · ${d.lastEvent!.name}', onTap: () {
@@ -190,13 +198,32 @@ class _HomeScreenState extends State<HomeScreen> {
                     );
                     context.push('/race/${d.lastEvent!.round}/${race.id}');
                   }),
-                  _lastCard(d, scope, t),
+                  ListenableBuilder(
+                    listenable: scope.predictions,
+                    builder: (_, __) => _lastCard(d, scope, t),
+                  ),
                 ],
-                _section('$leagueName · Standings',
+                _section('$leagueName · In-season',
                     onTap: () => context.go('/standings/league')),
                 InkWell(
                   onTap: () => context.go('/standings/league'),
-                  child: _leagueCard(d.leaderboard, scope.auth.currentUserId, t),
+                  child: _leagueCard(
+                    d.leaderboard,
+                    scope.auth.currentUserId,
+                    t,
+                    points: (r) => r.inSeasonPoints,
+                  ),
+                ),
+                _section('$leagueName · Total',
+                    onTap: () => context.go('/standings/league')),
+                InkWell(
+                  onTap: () => context.go('/standings/league'),
+                  child: _leagueCard(
+                    d.leaderboard,
+                    scope.auth.currentUserId,
+                    t,
+                    points: (r) => r.pointsTotal,
+                  ),
                 ),
                 const SizedBox(height: Spacing.xxl),
               ],
@@ -271,9 +298,9 @@ class _HomeScreenState extends State<HomeScreen> {
         padding: EdgeInsets.zero,
         child: Stack(
           children: [
-            Positioned.fill(
+            const Positioned.fill(
               child: IgnorePointer(
-                child: CustomPaint(painter: _StripesPainter()),
+                child: CustomPaint(painter: RacingStripesPainter()),
               ),
             ),
             Padding(
@@ -394,10 +421,14 @@ class _HomeScreenState extends State<HomeScreen> {
     // upcoming scorable session at all (shouldn't normally happen).
     final pickSession = d.nextPickable ?? d.next!;
     final sessionId = pickSession.id;
-    final picks = scope.predictions.prediction(sessionId)
-            ?.picks.map((p) => p.driverCode).toList() ??
-        const <String>[];
-    final locked = scope.predictions.prediction(sessionId)?.isLocked ?? false;
+    // `scope` is dynamic here (private InheritedWidget type can't appear in
+    // public method signatures), so cast the prediction lookup to restore
+    // static typing — otherwise `.toList()` produces List<dynamic>.
+    final PredictionView? pred =
+        scope.predictions.prediction(sessionId) as PredictionView?;
+    final picks =
+        pred?.picks.map((p) => p.driverCode).toList() ?? const <String>[];
+    final locked = pred?.isLocked ?? false;
     final empty = picks.isEmpty;
     final sessionLabel = _sessionTypeLabel(pickSession.type);
     return Padding(
@@ -493,11 +524,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _lastCard(_HomeData d, scope, ThemeData t) {
     final lastSession = d.lastRaceSession;
-    final picks = lastSession == null
-        ? const <String>[]
-        : scope.predictions.prediction(lastSession.id)
-              ?.picks.map((p) => p.driverCode).toList() ??
-          const <String>[];
+    final PredictionView? pred = lastSession == null
+        ? null
+        : scope.predictions.prediction(lastSession.id) as PredictionView?;
+    final picks =
+        pred?.picks.map((p) => p.driverCode).toList() ?? const <String>[];
     int score = 0;
     int exactHits = 0;
     if (picks.isNotEmpty && d.lastResult.isNotEmpty) {
@@ -569,7 +600,12 @@ class _HomeScreenState extends State<HomeScreen> {
     return picks[slotIndex] == r.driverCode ? PodMark.exact : PodMark.miss;
   }
 
-  Widget _leagueCard(List<LeaderboardRow> rows, String? meId, ThemeData t) {
+  Widget _leagueCard(
+    List<LeaderboardRow> rows,
+    String? meId,
+    ThemeData t, {
+    required int Function(LeaderboardRow) points,
+  }) {
     if (rows.isEmpty) {
       return Padding(
         padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
@@ -584,13 +620,15 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       );
     }
-    final preview = rows.take(4).toList();
+    final preview = [...rows]
+      ..sort((a, b) => points(b).compareTo(points(a)));
+    final top = preview.take(4).toList();
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
       child: AppCard(
         child: Column(
-          children: List.generate(preview.length, (i) {
-            final r = preview[i];
+          children: List.generate(top.length, (i) {
+            final r = top[i];
             final isMe = r.userId == meId;
             return Padding(
               padding: const EdgeInsets.symmetric(vertical: 6),
@@ -602,7 +640,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     const SizedBox(width: 8),
                     Text(isMe ? '${r.displayName} (you)' : r.displayName, style: AppText.body(13, weight: isMe ? FontWeight.w800 : FontWeight.w600)),
                   ]),
-                  Text('${r.pointsTotal}', style: AppText.display(13)),
+                  Text('${points(r)}', style: AppText.display(13)),
                 ],
               ),
             );
@@ -637,25 +675,3 @@ class _HomeData {
   });
 }
 
-class _StripesPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()..color = Colors.white.withOpacity(0.13);
-    const stripe = 6.0;
-    const gap = 10.0;
-    const step = stripe + gap;
-    final diagonal = size.width + size.height;
-    for (var d = -size.height; d < diagonal; d += step) {
-      final path = Path()
-        ..moveTo(d, 0)
-        ..lineTo(d + stripe, 0)
-        ..lineTo(d + stripe + size.height, size.height)
-        ..lineTo(d + size.height, size.height)
-        ..close();
-      canvas.drawPath(path, paint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(_StripesPainter old) => false;
-}

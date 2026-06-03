@@ -14,7 +14,7 @@ import { mapEventName, EVENTS_TO_SKIP } from './mappings.js'
 import { SESSION_TYPE_BY_KIND } from './types.js'
 
 const PASSWORD_PLAIN = 'tippspiel-test'
-const LEAGUE_NAME = 'Tippspiel 2026 Validation'
+const LEAGUE_NAME = 'The Box'
 const LEAGUE_JOIN_CODE = 'TIPP-2026'
 const ANTON_EXCEL_NAME = 'Anton'
 
@@ -36,19 +36,21 @@ export async function importParsedSeason(parsed: ParsedSeason): Promise<ImportSu
   const db = getDb()
   const passwordHash = await hashPassword(PASSWORD_PLAIN)
 
-  // 1. Upsert users (find-by-email)
+  // 1. Upsert users (find-by-displayName so we don't duplicate when a real
+  // email has been set on the row to replace the @tippspiel.test placeholder).
   const userIdByExcelName = new Map<string, string>()
   for (const player of parsed.players) {
-    const email = emailFor(player.excelName)
-    const existing = await db.select().from(userTable).where(eq(userTable.email, email)).limit(1)
+    const existing = await db.select().from(userTable).where(eq(userTable.displayName, player.excelName)).limit(1)
     let id: string
     if (existing.length > 0) {
       id = existing[0]!.id
-      if (existing[0]!.displayName !== player.excelName) {
-        await db.update(userTable).set({ displayName: player.excelName, updatedAt: sql`now()` }).where(eq(userTable.id, id))
-      }
+      // Leave email + passwordHash alone — they may have been customised after the initial import.
     } else {
-      const created = await usersRepo.insertUser({ email, passwordHash, displayName: player.excelName })
+      const created = await usersRepo.insertUser({
+        email: emailFor(player.excelName),
+        passwordHash,
+        displayName: player.excelName,
+      })
       id = created.id
     }
     userIdByExcelName.set(player.excelName, id)

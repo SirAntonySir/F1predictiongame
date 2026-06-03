@@ -52,7 +52,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('SURPRISE'), findsOneWidget);
     expect(find.text('DISAPPOINTMENT'), findsOneWidget);
-    expect(find.text('Set at season end'), findsNWidgets(2));
+    // 2 subjective categories × 2 axis cards (driver + team) each = 4.
+    expect(find.text('Set at season end'), findsNWidgets(4));
     expect(find.text('Me'), findsOneWidget);
     expect(find.text('Other'), findsOneWidget);
   });

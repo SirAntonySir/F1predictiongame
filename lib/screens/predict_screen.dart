@@ -10,6 +10,7 @@ import '../components/driver_tile.dart';
 import '../components/error_view.dart';
 import '../components/slot.dart';
 import '../domain/prediction.dart';
+import '../nav/nav_guard.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
 import '../theme/colors.dart';
@@ -30,10 +31,14 @@ class PredictScreen extends StatefulWidget {
 class _PredictScreenState extends State<PredictScreen> {
   Future<_PredictData>? _data;
   List<String> _picks = [];
+  // Snapshot of picks as last saved to the server. Used to detect dirty
+  // state for the discard-confirmation dialog.
+  List<String> _initialPicks = const [];
+  // Local UI state: when false the slots are read-only and the top row shows
+  // an EDIT pill that flips this back to true. Independent from the server's
+  // system-lock flag (deadline-based).
+  bool _editing = true;
   bool _saving = false;
-  /// Internal override for which session is being predicted. Lets the user
-  /// flick between sessions via swipe / prev-next arrows without bouncing
-  /// through the URL on every nudge.
   int? _overrideSessionId;
 
   bool _isScorable(SessionType t) =>
@@ -93,6 +98,11 @@ class _PredictScreenState extends State<PredictScreen> {
     }
     final existing = await scope.predictions.fetchPrediction(session.id);
     _picks = existing?.picks.map((p) => p.driverCode).toList() ?? <String>[];
+    _initialPicks = List<String>.from(_picks);
+    // Start in edit mode only if there's nothing saved yet. With saved picks
+    // the screen opens in the read-only state and the top EDIT button is the
+    // way back into editing.
+    _editing = _initialPicks.isEmpty;
     final finished = events
         .expand((e) => e.sessions)
         .where((s) => s.status == SessionStatus.finished)
@@ -135,12 +145,60 @@ class _PredictScreenState extends State<PredictScreen> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    // Wire the bottom-nav guard: tapping HOME/CALENDAR/STANDINGS while
+    // there are unsaved edits triggers the same discard confirmation as the
+    // back gesture (which is handled by PopScope below).
+    NavGuard.instance.canLeave = () async {
+      if (!_isDirty()) return true;
+      return await _confirmDiscard();
+    };
+  }
+
+  @override
+  void dispose() {
+    NavGuard.instance.canLeave = null;
+    super.dispose();
+  }
+
+  @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     _data ??= _load();
   }
 
-  void _navigateTo(_NavRef target) {
+  bool _isDirty() {
+    if (_picks.length != _initialPicks.length) return true;
+    for (var i = 0; i < _picks.length; i++) {
+      if (_picks[i] != _initialPicks[i]) return true;
+    }
+    return false;
+  }
+
+  Future<bool> _confirmDiscard() async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Discard changes?'),
+        content: const Text("You have unsaved edits — they'll be lost if you leave."),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Keep editing'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Discard'),
+          ),
+        ],
+      ),
+    );
+    return result ?? false;
+  }
+
+  Future<void> _navigateTo(_NavRef target) async {
+    if (_isDirty() && !await _confirmDiscard()) return;
     setState(() {
       _overrideSessionId = target.sessionId;
       _data = _load();
@@ -177,7 +235,12 @@ class _PredictScreenState extends State<PredictScreen> {
           Pick(position: i + 1, driverCode: _picks[i]),
       ];
       await scope.predictions.savePrediction(session.id, picks);
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Pick locked')));
+      if (!mounted) return;
+      setState(() {
+        _initialPicks = List<String>.from(_picks);
+        _editing = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Pick saved')));
     } on ConflictException catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
     } on ValidationException catch (e) {
@@ -192,13 +255,22 @@ class _PredictScreenState extends State<PredictScreen> {
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
-    return Scaffold(
-      backgroundColor: t.colorScheme.surface,
-      body: SafeArea(
-        bottom: false,
-        child: FutureBuilder<_PredictData>(
-          future: _data,
-          builder: (_, snap) {
+    return PopScope(
+      canPop: !_isDirty(),
+      onPopInvoked: (didPop) async {
+        if (didPop) return;
+        final nav = Navigator.of(context);
+        if (await _confirmDiscard() && mounted) {
+          nav.pop();
+        }
+      },
+      child: Scaffold(
+        backgroundColor: t.colorScheme.surface,
+        body: SafeArea(
+          bottom: false,
+          child: FutureBuilder<_PredictData>(
+            future: _data,
+            builder: (_, snap) {
             if (snap.connectionState != ConnectionState.done) {
               return const Center(child: CircularProgressIndicator());
             }
@@ -246,7 +318,10 @@ class _PredictScreenState extends State<PredictScreen> {
             _currentType = session.type;
             final req = requiredPicks(session.type);
             final scope = AppState.of(context);
-            final locked = scope.predictions.prediction(session.id)?.isLocked ?? false;
+            final systemLocked = scope.predictions.prediction(session.id)?.isLocked ?? false;
+            final hasSaved = _initialPicks.isNotEmpty;
+            final canEdit = _editing && !systemLocked;
+            final canLock = !systemLocked && !_saving && _picks.length == req;
             return GestureDetector(
               behavior: HitTestBehavior.translucent,
               onHorizontalDragEnd: (details) {
@@ -284,6 +359,28 @@ class _PredictScreenState extends State<PredictScreen> {
                 Padding(
                   padding: const EdgeInsets.fromLTRB(Spacing.xl, 0, Spacing.xl, Spacing.sm),
                   child: Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+                    // Primary action pill — sits next to the countdown so the
+                    // user's eye stays on a single decision area:
+                    //   editing  → "LOCK PICK" (accent, enabled when complete)
+                    //   saved    → "EDIT"      (outlined)
+                    //   locked   → nothing     (countdown pill already shows "LOCKED")
+                    if (_editing) ...[
+                      _ActionPill(
+                        label: _saving ? 'SAVING…' : 'LOCK PICK',
+                        icon: Icons.lock_outline,
+                        accent: true,
+                        onTap: canLock ? _lock : null,
+                      ),
+                      const SizedBox(width: Spacing.sm),
+                    ] else if (hasSaved && !systemLocked) ...[
+                      _ActionPill(
+                        label: 'EDIT',
+                        icon: Icons.edit,
+                        accent: false,
+                        onTap: () => setState(() => _editing = true),
+                      ),
+                      const SizedBox(width: Spacing.sm),
+                    ],
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: Spacing.md, vertical: 4),
                       decoration: BoxDecoration(border: Border.all(color: BrandColors.accent, width: 1.5), borderRadius: const BorderRadius.all(Radius.circular(999))),
@@ -310,7 +407,7 @@ class _PredictScreenState extends State<PredictScreen> {
                           driverName: r?.driverName,
                           number: null,
                           constructorId: r?.constructorId,
-                          onClear: filled && !locked
+                          onClear: filled && canEdit
                               ? () => setState(() => _picks.removeAt(i))
                               : null,
                         ),
@@ -337,35 +434,16 @@ class _PredictScreenState extends State<PredictScreen> {
                         code: r.driverCode,
                         constructorId: r.constructorId,
                         pickedSlot: slot == -1 ? null : slot + 1,
-                        onTap: locked ? null : () => _toggleDriver(r.driverCode),
+                        onTap: canEdit ? () => _toggleDriver(r.driverCode) : null,
                       );
                     }).toList(),
-                  ),
-                ),
-                const SizedBox(height: Spacing.xxl),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: FilledButton(
-                      onPressed: locked || _saving ? null : (_picks.length == req ? _lock : null),
-                      style: FilledButton.styleFrom(
-                        backgroundColor: locked ? Colors.black : BrandColors.accent,
-                        disabledBackgroundColor: locked ? Colors.black : null,
-                        disabledForegroundColor: locked ? Colors.white : null,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: Spacing.md),
-                        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
-                      ),
-                      child: Text(locked ? 'LOCKED' : (_saving ? 'SAVING…' : 'LOCK PICK'),
-                          style: AppText.label(13, color: Colors.white)),
-                    ),
                   ),
                 ),
               ],
               ),
             );
           },
+          ),
         ),
       ),
     );
@@ -375,6 +453,57 @@ class _PredictScreenState extends State<PredictScreen> {
     final diff = when.difference(DateTime.now());
     if (diff.isNegative) return 'LOCKED';
     return 'LOCKS IN ${diff.inHours}h ${diff.inMinutes.remainder(60)}m';
+  }
+}
+
+/// Compact pill that sits beside the "LOCKS IN …" countdown and carries the
+/// primary action for the current state. Accent variant (filled red, white
+/// text) for LOCK PICK; outlined variant for EDIT. A null [onTap] renders
+/// the accent variant in a dimmed disabled state (used when the current
+/// picks aren't complete enough to lock).
+class _ActionPill extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final bool accent;
+  final VoidCallback? onTap;
+  const _ActionPill({
+    required this.label,
+    required this.icon,
+    required this.accent,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Theme.of(context);
+    final disabled = onTap == null;
+    final bg = accent
+        ? (disabled ? BrandColors.accent.withOpacity(0.35) : BrandColors.accent)
+        : t.colorScheme.surface;
+    final fg = accent ? Colors.white : t.colorScheme.onSurface;
+    final border = accent
+        ? Border.all(color: Colors.transparent, width: 1.5)
+        : Border.all(color: t.strokeColor, width: 1.5);
+    return InkWell(
+      onTap: onTap,
+      borderRadius: const BorderRadius.all(Radius.circular(999)),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: Spacing.md, vertical: 4),
+        decoration: BoxDecoration(
+          color: bg,
+          border: border,
+          borderRadius: const BorderRadius.all(Radius.circular(999)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 11, color: fg),
+            const SizedBox(width: 4),
+            Text(label, style: AppText.label(10, color: fg)),
+          ],
+        ),
+      ),
+    );
   }
 }
 

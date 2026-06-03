@@ -44,6 +44,17 @@ describe('parseRaceResults', () => {
     const empty = { MRData: { RaceTable: { Races: [] } } }
     expect(parseRaceResults(empty)).toEqual([])
   })
+
+  // `deriveMostFastestLaps` checks `fastestLap === '1'` to identify the
+  // race-fastest-lap holder. The Jolpica payload carries `FastestLap.rank`
+  // (= '1' for the FL holder) and `FastestLap.lap` (the lap number, e.g. '39'),
+  // so the parser must surface `rank`, not `lap`.
+  it('stores FastestLap.rank — exactly one row per race carries fastestLap = "1"', () => {
+    const rows = parseRaceResults(fx('race-2024-1.json'))
+    const flHolders = rows.filter((r) => r.fastestLap === '1')
+    expect(flHolders).toHaveLength(1)
+    expect(rows.every((r) => r.fastestLap === null || /^[0-9]+$/.test(r.fastestLap))).toBe(true)
+  })
 })
 
 describe('parseQualifyingResults', () => {

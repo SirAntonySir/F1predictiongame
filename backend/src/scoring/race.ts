@@ -6,13 +6,14 @@ const TEAM_BONUS = 2
 const RULE = 'race-v1'
 
 export function scoreRace(picks: Pick[], finishers: Finisher[]): ScoreBreakdown {
+  const topN = picks.length
   const perPosition: ScoreBreakdownPerPosition[] = picks.map((p) => {
     const exactFinisher = finishers.find((f) => f.position === p.position)
     if (exactFinisher && exactFinisher.driverCode === p.driverCode) {
       return { position: p.position, driverCode: p.driverCode, exact: true, wrongPos: false, points: EXACT }
     }
-    const driverFinishedSomewhere = finishers.some((f) => f.driverCode === p.driverCode)
-    if (driverFinishedSomewhere) {
+    const driverInTopN = finishers.some((f) => f.driverCode === p.driverCode && f.position <= topN)
+    if (driverInTopN) {
       return { position: p.position, driverCode: p.driverCode, exact: false, wrongPos: true, points: WRONG_POS }
     }
     return { position: p.position, driverCode: p.driverCode, exact: false, wrongPos: false, points: 0 }

@@ -54,6 +54,14 @@ export async function updateDisplayName(id: string, displayName: string): Promis
   return toUser(row)
 }
 
+export async function updatePasswordHash(id: string, passwordHash: string): Promise<void> {
+  const db = getDb()
+  await db
+    .update(user)
+    .set({ passwordHash, updatedAt: sql`now()` })
+    .where(eq(user.id, id))
+}
+
 export async function deleteById(id: string): Promise<void> {
   const db = getDb()
   await db.delete(user).where(eq(user.id, id))

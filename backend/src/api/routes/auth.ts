@@ -25,6 +25,12 @@ const patchMeBody = z.object({
   displayName: z.string().trim().min(1).max(40).optional()
 })
 
+const changePasswordBody = z.object({
+  email: z.string().email().trim(),
+  currentPassword: z.string().min(1),
+  newPassword: z.string().min(8)
+})
+
 function parse<T>(schema: z.ZodType<T>, body: unknown): T {
   const r = schema.safeParse(body)
   if (!r.success) {
@@ -93,6 +99,25 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
       user = await usersRepo.updateDisplayName(u.id, body.displayName)
     }
     return { user: publicUser(user) }
+  })
+
+  // Unauthenticated: caller proves identity via email + current password.
+  // Works from both the login screen (user not logged in) and settings (user
+  // logged in, pre-fills their email). Existing sessions are intentionally
+  // left intact — the caller's own token keeps working after a change.
+  app.post('/api/auth/change-password', async (req, reply) => {
+    const body = parse(changePasswordBody, req.body)
+    const email = body.email.toLowerCase()
+    const u = await usersRepo.findByEmailWithSecret(email)
+    if (!u || !(await verifyPassword(body.currentPassword, u.passwordHash))) {
+      throw new ApiError('UNAUTHORIZED', 'Invalid email or current password')
+    }
+    if (body.currentPassword === body.newPassword) {
+      throw new ApiError('VALIDATION', 'New password must differ from the current one')
+    }
+    const passwordHash = await hashPassword(body.newPassword)
+    await usersRepo.updatePasswordHash(u.id, passwordHash)
+    reply.send({ ok: true })
   })
 
   app.post('/api/auth/logout', async (req) => {

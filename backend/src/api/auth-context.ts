@@ -50,7 +50,10 @@ async function authenticate(req: FastifyRequest): Promise<void> {
 export function registerAuthHook(app: FastifyInstance): void {
   app.addHook('preHandler', async (req) => {
     const path = req.url.split('?')[0]
-    if (path === '/api/auth/signup' || path === '/api/auth/login') return
+    // Unauthenticated public endpoints. change-password is open so the user
+    // can reset their password from the login screen (without a session) —
+    // the route itself enforces email + current password.
+    if (path === '/api/auth/signup' || path === '/api/auth/login' || path === '/api/auth/change-password') return
     await authenticate(req)
   })
 }

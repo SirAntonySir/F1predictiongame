@@ -72,7 +72,11 @@ function parseClassification(raw: unknown, key: 'Results' | 'QualifyingResults' 
     raceTime: r.Time?.time ?? null,
     status: r.status ?? null,
     points: r.points != null ? Number(r.points) : null,
-    fastestLap: r.FastestLap?.lap ?? null,
+    // Jolpica's FastestLap object exposes both `lap` (the lap number the
+    // driver set their personal best on) and `rank` (= "1" for the holder of
+    // THE race's fastest lap, "2" for second-fastest, etc.). The preseason
+    // "fastest_lap" derivation needs the rank flag, not the lap number.
+    fastestLap: r.FastestLap?.rank ?? null,
     fastestLapTime: r.FastestLap?.Time?.time ?? null,
     fastestLapSpeed: r.FastestLap?.AverageSpeed?.speed ?? null,
     q1: r.Q1 ?? null,

@@ -43,3 +43,11 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+.superpowers/
+ios/*
+
+# Local artifacts not for commit
+.clone/
+backend/tippspiel-audit.md
+Tippspiel*.xlsx

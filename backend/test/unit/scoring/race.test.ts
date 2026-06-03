@@ -61,6 +61,28 @@ describe('scoreRace', () => {
     expect(b.teamBonus).toEqual({ applied: false, points: 0 })
   })
 
+  it('wrong-pos requires driver to finish in actual top-5, not just anywhere', () => {
+    // VER picked for P1 finishes P10 → driver finished, but outside top-5 → 0 points.
+    // HAM picked for P2 finishes P3 → still in top-5 → wrong-pos 1 point.
+    const picks = [
+      { position: 1, driverCode: VER.code },
+      { position: 2, driverCode: HAM.code },
+      { position: 3, driverCode: NOR.code },
+      { position: 4, driverCode: PIA.code },
+      { position: 5, driverCode: RUS.code }
+    ]
+    const finishers = [
+      f(1, NOR), f(2, PIA), f(3, HAM), f(4, RUS), f(5, PER),
+      { position: 10, driverCode: VER.code, constructorId: VER.team }
+    ]
+    const b = scoreRace(picks, finishers)
+    expect(b.perPosition[0]).toEqual({ position: 1, driverCode: VER.code, exact: false, wrongPos: false, points: 0 })
+    expect(b.perPosition[1]).toEqual({ position: 2, driverCode: HAM.code, exact: false, wrongPos: true, points: 1 })
+    expect(b.perPosition[2]).toEqual({ position: 3, driverCode: NOR.code, exact: false, wrongPos: true, points: 1 })
+    expect(b.perPosition[3]).toEqual({ position: 4, driverCode: PIA.code, exact: false, wrongPos: true, points: 1 })
+    expect(b.perPosition[4]).toEqual({ position: 5, driverCode: RUS.code, exact: false, wrongPos: true, points: 1 })
+  })
+
   it('fewer than 5 finishers (DNFs): missing positions score 0', () => {
     const picks = [
       { position: 1, driverCode: VER.code },

@@ -166,7 +166,7 @@ The crawler auto-rescores preseason after every standings refresh.
 
 ## Deploy
 
-`render.yaml` is a Render Blueprint. From the Render dashboard:
+`render.yaml` at the repo root is a Render Blueprint (`rootDir: backend` scopes the build to this folder). From the Render dashboard:
 
 1. **New → Blueprint** → connect this repo.
 2. Render creates Postgres + web service from the blueprint.

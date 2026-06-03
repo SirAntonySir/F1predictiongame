@@ -40,7 +40,7 @@ Per race weekend, four kinds of predictable sessions:
 | D3 | **Lock at the predicted session's scheduled_start** | Already-present column on the existing `session` table. No buffer, no per-type offset. Matches existing Flutter app behavior. |
 | D4 | **Auto-recompute on every result update** | When the tick writes session_result rows, the rescorer runs for that session. Handles FIA penalty corrections automatically. |
 | D5 | **One JSONB breakdown per (user, session) score row** | Stores per-position component points + team bonus verbatim. UI replays without recomputing. Includes a `rule` version string for audit when scoring formulas change. |
-| D6 | **No partial-credit "podium-presence" bonus** beyond what's in the scoring table | Rules are: exact position (full), right driver in wrong position (1 pt), team bonus. No "you got someone on the podium somewhere" credit. |
+| D6 | **No partial-credit "podium-presence" bonus** beyond what's in the scoring table | Rules are: exact position (full), right driver in wrong position (1 pt), team bonus. No "you got someone on the podium somewhere" credit. "Right driver, wrong position" requires the picked driver to actually finish in the session's top-N (N = number of picks: 2 for quali, 3 for sprint, 5 for race). A picked P1 winner who finishes P15 scores 0, not 1. |
 | D7 | **Drivers picked must be in the current season** | Enforced at the route layer by joining `driver_standing`. Prevents picking retired drivers. |
 | D8 | **Other users' predictions stay private until lock** | Reading anyone else's picks before lock returns 403. After lock, full session prediction list is open. |
 

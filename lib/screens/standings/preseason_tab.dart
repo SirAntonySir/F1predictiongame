@@ -111,6 +111,16 @@ class _Body extends StatelessWidget {
     final standings = view.me.standings;
     final myDriverByPosition = {for (final p in standings.myDriverPicks) p.position: p.driverCode};
     final myTeamByPosition = {for (final p in standings.myConstructorPicks) p.position: p.constructorId};
+    // Where each driver/team is in the *projected* order. Used to compute the
+    // delta between a slot's user-pick and that pick's actual standing.
+    final actualDriverPosition = {
+      for (var i = 0; i < standings.projectedDriverOrder.length; i++)
+        standings.projectedDriverOrder[i]: i + 1,
+    };
+    final actualTeamPosition = {
+      for (var i = 0; i < standings.projectedConstructorOrder.length; i++)
+        standings.projectedConstructorOrder[i]: i + 1,
+    };
 
     return ListView(
       padding: const EdgeInsets.only(bottom: Spacing.xxl),
@@ -143,11 +153,25 @@ class _Body extends StatelessWidget {
           ),
         ),
         _h('YOUR PROJECTIONS'),
-        for (final c in view.me.categories)
+        for (final c in view.me.categories) ...[
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: Spacing.lg, vertical: 3),
-            child: _CategoryCard(card: c, constructorById: data.constructorById),
+            padding: const EdgeInsets.fromLTRB(Spacing.lg, Spacing.sm, Spacing.lg, Spacing.xs),
+            child: Text(_categoryLabelFor(c.category), style: AppText.label(11)),
           ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
+            child: IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(child: _CategoryAxisCard(card: c, axis: _PickAxis.driver, constructorById: data.constructorById)),
+                  const SizedBox(width: Spacing.sm),
+                  Expanded(child: _CategoryAxisCard(card: c, axis: _PickAxis.team, constructorById: data.constructorById)),
+                ],
+              ),
+            ),
+          ),
+        ],
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: Spacing.lg, vertical: 3),
           child: _StandingsSummary(standings: standings),
@@ -164,6 +188,7 @@ class _Body extends StatelessWidget {
               myStanding: myDriverByPosition[i + 1] == null
                   ? null
                   : data.driverById[myDriverByPosition[i + 1]!],
+              myActualPosition: actualDriverPosition[myDriverByPosition[i + 1]],
             ),
           ),
         _h('COMPLETE CHAMPIONSHIP · TEAMS'),
@@ -178,6 +203,7 @@ class _Body extends StatelessWidget {
               myStanding: myTeamByPosition[i + 1] == null
                   ? null
                   : data.constructorById[myTeamByPosition[i + 1]!],
+              myActualPosition: actualTeamPosition[myTeamByPosition[i + 1]],
             ),
           ),
       ],
@@ -229,74 +255,156 @@ String _prettyConstructorId(String id) =>
 String constructorDisplayName(String id, Map<String, ConstructorStanding> byId) =>
     byId[id]?.constructorName ?? _prettyConstructorId(id);
 
-class _CategoryCard extends StatelessWidget {
-  final CategoryProjectionView card;
-  final Map<String, ConstructorStanding> constructorById;
-  const _CategoryCard({required this.card, required this.constructorById});
+String _categoryLabelFor(PreseasonCategory c) {
+  switch (c) {
+    case PreseasonCategory.surprise:       return 'SURPRISE';
+    case PreseasonCategory.disappointment: return 'DISAPPOINTMENT';
+    case PreseasonCategory.dnf:            return 'MOST DNFs';
+    case PreseasonCategory.poles:          return 'MOST POLES';
+    case PreseasonCategory.fastest_lap:    return 'MOST FASTEST LAPS';
+    case PreseasonCategory.wdc_wcc:        return 'WDC + WCC';
+  }
+}
 
-  String _categoryLabel() {
-    switch (card.category) {
-      case PreseasonCategory.surprise:
-        return 'SURPRISE';
-      case PreseasonCategory.disappointment:
-        return 'DISAPPOINTMENT';
-      case PreseasonCategory.dnf:
-        return 'MOST DNFs';
-      case PreseasonCategory.poles:
-        return 'MOST POLES';
-      case PreseasonCategory.fastest_lap:
-        return 'MOST FASTEST LAPS';
-      case PreseasonCategory.wdc_wcc:
-        return 'WDC + WCC';
-    }
+enum _PickAxis { driver, team }
+
+/// One side of a category pair — focused on either the driver axis or the team
+/// axis of the user's pick. Badge reflects only that axis, so it's a clean
+/// full/none binary (no partial state needed).
+class _CategoryAxisCard extends StatelessWidget {
+  final CategoryProjectionView card;
+  final _PickAxis axis;
+  final Map<String, ConstructorStanding> constructorById;
+  const _CategoryAxisCard({required this.card, required this.axis, required this.constructorById});
+
+  bool get _isSubjective =>
+      card.category == PreseasonCategory.surprise ||
+      card.category == PreseasonCategory.disappointment;
+
+  String? get _pickRaw =>
+      axis == _PickAxis.driver ? card.myPick.driverCode : card.myPick.constructorId;
+  String? get _truthRaw =>
+      axis == _PickAxis.driver ? card.projectedTruth?.driverCode : card.projectedTruth?.constructorId;
+
+  String _formatVal(String? raw) {
+    if (raw == null) return '—';
+    if (axis == _PickAxis.driver) return raw;
+    return constructorDisplayName(raw, constructorById);
   }
 
-  String _renderPair(PickPairView? p) {
-    if (p == null) return '—';
-    final parts = <String>[];
-    if (p.driverCode != null) parts.add(p.driverCode!);
-    if (p.constructorId != null) {
-      parts.add(constructorDisplayName(p.constructorId!, constructorById));
+  String _liveText() {
+    if (_isSubjective) return 'Set at season end';
+    if (_truthRaw == null) return 'Not yet recorded';
+    return _formatVal(_truthRaw);
+  }
+
+  _MatchState _state() {
+    if (_isSubjective) return _MatchState.subjective;
+    if (_truthRaw == null) return _MatchState.pending;
+    if (_pickRaw == null) return _MatchState.none;
+    return _pickRaw == _truthRaw ? _MatchState.full : _MatchState.none;
+  }
+
+  // Backend awards each axis (driver / team) independently — half of the
+  // category's `max`. So a 4/4 axis-card maps to a 8-point category total.
+  String _scoreText(_MatchState state) {
+    final axisMax = card.max ~/ 2;
+    switch (state) {
+      case _MatchState.full:    return '+$axisMax / $axisMax';
+      case _MatchState.none:    return '+0 / $axisMax';
+      case _MatchState.partial: return '+0 / $axisMax'; // not produced here
+      case _MatchState.subjective:
+      case _MatchState.pending: return '— / $axisMax';
     }
-    return parts.isEmpty ? '—' : parts.join(' · ');
   }
 
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
-    final subjective = card.projectedTruth == null;
+    final state = _state();
     return AppCard(
-      padding: const EdgeInsets.fromLTRB(Spacing.lg, Spacing.md, Spacing.lg, Spacing.md),
+      padding: const EdgeInsets.fromLTRB(Spacing.md, Spacing.sm, Spacing.md, Spacing.sm),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
           Row(
             children: [
-              Expanded(child: Text(_categoryLabel(), style: AppText.display(15))),
-              Text(subjective ? '— / ${card.max}' : '+${card.projectedPoints} / ${card.max}',
-                  style: AppText.label(11, color: t.colorScheme.onSurface.withOpacity(0.6))),
+              Expanded(
+                child: Text(
+                  axis == _PickAxis.driver ? 'DRIVER' : 'TEAM',
+                  style: AppText.label(9, color: t.colorScheme.onSurface.withOpacity(0.55)),
+                ),
+              ),
+              Text(
+                _scoreText(state),
+                style: AppText.label(10, color: t.colorScheme.onSurface.withOpacity(0.6)),
+              ),
+              const SizedBox(width: Spacing.xs),
+              _MatchBadge(state: state),
             ],
           ),
           const SizedBox(height: 6),
-          _kv('Your pick', _renderPair(card.myPick), t),
+          Text(
+            _formatVal(_pickRaw),
+            maxLines: 1,
+            overflow: TextOverflow.fade,
+            softWrap: false,
+            style: AppText.display(14, color: _pickRaw == null ? t.colorScheme.onSurface.withOpacity(0.4) : null),
+          ),
           const SizedBox(height: 2),
-          _kv('On track', subjective ? 'Set at season end' : _renderPair(card.projectedTruth), t),
+          Text(
+            _liveText(),
+            maxLines: 1,
+            overflow: TextOverflow.fade,
+            softWrap: false,
+            style: AppText.body(11, color: t.colorScheme.onSurface.withOpacity(0.6)),
+          ),
         ],
       ),
     );
   }
+}
 
-  Widget _kv(String k, String v, ThemeData t) => Row(
-        children: [
-          SizedBox(
-            width: 80,
-            child: Text(k.toUpperCase(),
-                style: AppText.label(10, color: t.colorScheme.onSurface.withOpacity(0.55))),
-          ),
-          Expanded(child: Text(v, style: AppText.body(13, weight: FontWeight.w700))),
-        ],
-      );
+enum _MatchState {
+  /// No truth ever (e.g. "biggest surprise" — judged at season end).
+  subjective,
+  /// Objective but not yet recorded (e.g. no DNFs yet this season).
+  pending,
+  /// Pick matches truth on every non-null axis → full points.
+  full,
+  /// Pick matches some axes (e.g. team yes, driver no) → partial points.
+  partial,
+  /// Pick matches nothing → zero points.
+  none,
+}
+
+/// Compact match-state pill next to a "Your pick" value.
+///   full     → green ✓
+///   partial  → yellow ½  (driver matched but team didn't, or vice versa)
+///   none     → black  ✗
+///   subjective / pending → no badge at all (nothing to judge yet)
+class _MatchBadge extends StatelessWidget {
+  final _MatchState state;
+  const _MatchBadge({required this.state});
+
+  @override
+  Widget build(BuildContext context) {
+    final (Color bg, String glyph, Color fg)? cfg = switch (state) {
+      _MatchState.full    => (BrandColors.ok,     '✓', Colors.black),
+      _MatchState.partial => (BrandColors.near,   '½', Colors.black),
+      _MatchState.none    => (Colors.black,       '✗', Colors.white),
+      _MatchState.subjective || _MatchState.pending => null,
+    };
+    if (cfg == null) return const SizedBox.shrink();
+    return Container(
+      width: 20,
+      height: 20,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(color: cfg.$1, shape: BoxShape.circle),
+      child: Text(cfg.$2, style: TextStyle(color: cfg.$3, fontWeight: FontWeight.w900, fontSize: 11)),
+    );
+  }
 }
 
 class _StandingsSummary extends StatelessWidget {
@@ -354,27 +462,35 @@ class _StandingsSummary extends StatelessWidget {
 }
 
 /// Compact RaceTile-style row for one championship position. Left: large position
-/// number. Middle: the driver projected to land in that slot, with team color
-/// stripe. Right: the caller's pick for that slot (if any) plus ✓/✗.
+/// number. Middle: the driver the *user predicted* for this slot (with team color
+/// stripe). Right: badge showing where that pick actually stands today — ✓ if at
+/// the predicted slot, ▲/▼ + magnitude otherwise, ✗ if the pick isn't in the
+/// current projection at all.
 class _DriverPositionTile extends StatelessWidget {
   final int position;
   final String projectedCode;
   final String? myCode;
   final DriverStanding? projectedStanding;
   final DriverStanding? myStanding;
+  // Where the user's pick (`myCode`) actually sits in the projected order.
+  // null = pick isn't in the current projection at all → fall back to ✗.
+  final int? myActualPosition;
   const _DriverPositionTile({
     required this.position,
     required this.projectedCode,
     required this.myCode,
     required this.projectedStanding,
     required this.myStanding,
+    required this.myActualPosition,
   });
 
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
     final correct = myCode != null && myCode == projectedCode;
-    final pickedDifferent = myCode != null && myCode != projectedCode;
+    final delta = (myCode != null && myActualPosition != null)
+        ? myActualPosition! - position
+        : null;
     return AppCard(
       padding: EdgeInsets.zero,
       child: IntrinsicHeight(
@@ -391,8 +507,8 @@ class _DriverPositionTile extends StatelessWidget {
                 ),
               ),
             ),
-            if (projectedStanding != null)
-              Container(width: 4, color: teamColor(projectedStanding!.constructorId)),
+            if (myStanding != null)
+              Container(width: 4, color: teamColor(myStanding!.constructorId)),
             const SizedBox(width: Spacing.sm),
             Expanded(
               child: Padding(
@@ -401,10 +517,14 @@ class _DriverPositionTile extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(projectedCode, style: AppText.display(15)),
-                    if (projectedStanding != null) ...[
+                    Text(
+                      myCode ?? '—',
+                      style: AppText.display(15,
+                          color: myCode == null ? t.colorScheme.onSurface.withOpacity(0.4) : null),
+                    ),
+                    if (myStanding != null) ...[
                       const SizedBox(height: 2),
-                      Text(projectedStanding!.driverName,
+                      Text(myStanding!.driverName,
                           style: AppText.body(11, color: t.colorScheme.onSurface.withOpacity(0.65))),
                     ],
                   ],
@@ -418,7 +538,8 @@ class _DriverPositionTile extends StatelessWidget {
                 child: _PickIndicator(
                   myLabel: myCode,
                   correct: correct,
-                  pickedDifferent: pickedDifferent,
+                  pickedDifferent: false,
+                  delta: delta,
                 ),
               ),
             ),
@@ -435,18 +556,23 @@ class _TeamPositionTile extends StatelessWidget {
   final String? myId;
   final ConstructorStanding? projectedStanding;
   final ConstructorStanding? myStanding;
+  final int? myActualPosition;
   const _TeamPositionTile({
     required this.position,
     required this.projectedId,
     required this.myId,
     required this.projectedStanding,
     required this.myStanding,
+    required this.myActualPosition,
   });
 
   @override
   Widget build(BuildContext context) {
+    final t = Theme.of(context);
     final correct = myId != null && myId == projectedId;
-    final pickedDifferent = myId != null && myId != projectedId;
+    final delta = (myId != null && myActualPosition != null)
+        ? myActualPosition! - position
+        : null;
     return AppCard(
       padding: EdgeInsets.zero,
       child: IntrinsicHeight(
@@ -463,14 +589,17 @@ class _TeamPositionTile extends StatelessWidget {
                 ),
               ),
             ),
-            Container(width: 4, color: teamColor(projectedId)),
+            if (myId != null) Container(width: 4, color: teamColor(myId!)),
             const SizedBox(width: Spacing.sm),
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: Spacing.sm),
                 child: Text(
-                  projectedStanding?.constructorName ?? _prettyConstructorId(projectedId),
-                  style: AppText.display(15),
+                  myId == null
+                      ? '—'
+                      : (myStanding?.constructorName ?? _prettyConstructorId(myId!)),
+                  style: AppText.display(15,
+                      color: myId == null ? t.colorScheme.onSurface.withOpacity(0.4) : null),
                 ),
               ),
             ),
@@ -479,9 +608,10 @@ class _TeamPositionTile extends StatelessWidget {
               child: Align(
                 alignment: Alignment.center,
                 child: _PickIndicator(
-                  myLabel: myStanding?.constructorName ?? (myId == null ? null : _prettyConstructorId(myId!)),
+                  myLabel: myId,
                   correct: correct,
-                  pickedDifferent: pickedDifferent,
+                  pickedDifferent: false,
+                  delta: delta,
                 ),
               ),
             ),
@@ -496,7 +626,18 @@ class _PickIndicator extends StatelessWidget {
   final String? myLabel;
   final bool correct;
   final bool pickedDifferent;
-  const _PickIndicator({required this.myLabel, required this.correct, required this.pickedDifferent});
+  // Signed offset of the user's pick from this slot in the projected order:
+  //   <0 → pick is currently *higher* than predicted (overperforming) → green ▲
+  //   >0 → pick is currently *lower*  than predicted (underperforming) → red  ▼
+  //   ==0 → exact match (renders as ✓ via `correct`)
+  //   null → pick isn't in the projection at all (renders as ✗)
+  final int? delta;
+  const _PickIndicator({
+    required this.myLabel,
+    required this.correct,
+    required this.pickedDifferent,
+    this.delta,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -504,9 +645,20 @@ class _PickIndicator extends StatelessWidget {
     if (myLabel == null) {
       return Text('—', style: AppText.label(11, color: t.colorScheme.onSurface.withOpacity(0.4)));
     }
-    final (bg, glyph, fg) = correct
-        ? (BrandColors.ok, '✓', Colors.black)
-        : (Colors.black, '✗', Colors.white);
+    final Widget badge;
+    if (correct) {
+      badge = _circleBadge(BrandColors.ok, '✓', Colors.black);
+    } else if (delta != null && delta != 0) {
+      final up = delta! < 0;
+      badge = _arrowPill(
+        bg: up ? BrandColors.ok : BrandColors.accent,
+        fg: up ? Colors.black : Colors.white,
+        arrow: up ? '▲' : '▼',
+        magnitude: delta!.abs(),
+      );
+    } else {
+      badge = _circleBadge(Colors.black, '✗', Colors.white);
+    }
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -514,14 +666,31 @@ class _PickIndicator extends StatelessWidget {
           Text(myLabel!, style: AppText.body(11, weight: FontWeight.w700, color: t.colorScheme.onSurface.withOpacity(0.75))),
           const SizedBox(width: 6),
         ],
-        Container(
-          width: 20,
-          height: 20,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(color: bg, shape: BoxShape.circle),
-          child: Text(glyph, style: TextStyle(color: fg, fontWeight: FontWeight.w900, fontSize: 11)),
-        ),
+        badge,
       ],
     );
   }
+
+  Widget _circleBadge(Color bg, String glyph, Color fg) => Container(
+        width: 20,
+        height: 20,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(color: bg, shape: BoxShape.circle),
+        child: Text(glyph, style: TextStyle(color: fg, fontWeight: FontWeight.w900, fontSize: 11)),
+      );
+
+  Widget _arrowPill({required Color bg, required Color fg, required String arrow, required int magnitude}) => Container(
+        height: 20,
+        padding: const EdgeInsets.symmetric(horizontal: 6),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(color: bg, borderRadius: const BorderRadius.all(Radius.circular(10))),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(arrow, style: TextStyle(color: fg, fontWeight: FontWeight.w900, fontSize: 9, height: 1.1)),
+            const SizedBox(width: 2),
+            Text('$magnitude', style: TextStyle(color: fg, fontWeight: FontWeight.w900, fontSize: 11)),
+          ],
+        ),
+      );
 }

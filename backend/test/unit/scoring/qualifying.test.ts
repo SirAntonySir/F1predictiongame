@@ -44,6 +44,21 @@ describe('scoreQualifying', () => {
     expect(b.perPosition[1]).toEqual({ position: 2, driverCode: HAM.code, exact: false, wrongPos: true, points: 1 })
   })
 
+  it('wrong-pos requires driver to qualify in actual top-2, not just anywhere', () => {
+    // HAM picked for P1 actually qualifies P8 → driver in result list but outside top-2 → 0 points.
+    // VER picked for P2 finishes P1 → in top-2 → wrong-pos 1 point.
+    const picks = [{ position: 1, driverCode: HAM.code }, { position: 2, driverCode: VER.code }]
+    const finishers = [
+      f(1, VER), f(2, NOR),
+      { position: 8, driverCode: HAM.code, constructorId: HAM.team }
+    ]
+    const b = scoreQualifying(picks, finishers)
+    expect(b.perPosition[0]).toEqual({ position: 1, driverCode: HAM.code, exact: false, wrongPos: false, points: 0 })
+    expect(b.perPosition[1]).toEqual({ position: 2, driverCode: VER.code, exact: false, wrongPos: true, points: 1 })
+    // HAM (mercedes) picked for P1, VER (red_bull) on actual pole → no team bonus.
+    expect(b.teamBonus).toEqual({ applied: false, points: 0 })
+  })
+
   it('no matches at all: 0 points', () => {
     const picks = [{ position: 1, driverCode: NOR.code }, { position: 2, driverCode: NOR.code }]
     const finishers = [f(1, VER), f(2, HAM)]

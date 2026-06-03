@@ -17,10 +17,10 @@
 ### Task 1: Remove "PICK VS RESULT" block
 
 **Files:**
+
 - Modify: `lib/screens/session_results_screen.dart` (delete lines ~328–394 — the `if (payload.picks.isNotEmpty && payload.result.isNotEmpty) { ... 'PICK VS RESULT' ... }` block)
 - Test: `test/screens/session_results_no_pick_vs_result_test.dart` (new)
-
-- [ ] **Step 1: Write the failing source-scan test**
+- **Step 1: Write the failing source-scan test**
 
 Instantiating the full `SessionResultsScreen` in a widget test would require stubbing AppState + ApiClient + AppRouter, which is heavy for a guard against a heading-string regression. A source-scan test is the right fit: it's fast, deterministic, and unambiguously enforces the intent.
 
@@ -39,12 +39,12 @@ void main() {
 }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- **Step 2: Run test to verify it fails**
 
 Run: `flutter test test/screens/session_results_no_pick_vs_result_test.dart`
 Expected: FAIL (the source still contains "PICK VS RESULT").
 
-- [ ] **Step 3: Delete the PICK VS RESULT block**
+- **Step 3: Delete the PICK VS RESULT block**
 
 In `lib/screens/session_results_screen.dart`, locate the block starting with the comment-free line:
 
@@ -60,17 +60,17 @@ and ending with the closing `),` + `],` of that whole conditional (the next sibl
 
 After the edit the `Column` children list should go directly from the `ScoreBanner` / empty-state block to `if (payload.result.isNotEmpty) ...[ ... FULL CLASSIFICATION ... ]`.
 
-- [ ] **Step 4: Run test to verify it passes**
+- **Step 4: Run test to verify it passes**
 
 Run: `flutter test test/screens/session_results_no_pick_vs_result_test.dart`
 Expected: PASS.
 
-- [ ] **Step 5: Run the full Flutter suite to catch regressions**
+- **Step 5: Run the full Flutter suite to catch regressions**
 
 Run: `flutter test`
 Expected: all green. If `flutter analyze` is in the project's standard loop, also run `flutter analyze` and expect no new warnings.
 
-- [ ] **Step 6: Commit**
+- **Step 6: Commit**
 
 ```bash
 git add lib/screens/session_results_screen.dart test/screens/session_results_no_pick_vs_result_test.dart
@@ -82,11 +82,11 @@ git commit -m "ui: drop PICK VS RESULT card — info already inline in FULL CLAS
 ### Task 2: Backend — split `leagueLeaderboard` into in-season + preseason columns
 
 **Files:**
+
 - Modify: `backend/src/repo/scores.ts` (rewrite `LeaderboardRow` type + `leagueLeaderboard` body)
 - Modify: `backend/test/integration/api_leaderboard_with_preseason.test.ts` (existing assertions stay; add field-level assertions)
 - Modify: `backend/test/integration/repo_scores.test.ts` (only if it references `pointsTotal` in ways that conflict — verify in step 2)
-
-- [ ] **Step 1: Write the failing test additions**
+- **Step 1: Write the failing test additions**
 
 Append to `backend/test/integration/api_leaderboard_with_preseason.test.ts` inside the existing `describe(...)` block:
 
@@ -121,12 +121,12 @@ Append to `backend/test/integration/api_leaderboard_with_preseason.test.ts` insi
   })
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- **Step 2: Run tests to verify they fail**
 
 Run: `make backend-test`
 Expected: the two new tests FAIL with TypeScript errors (`Property 'inSeasonPoints' does not exist on type 'LeaderboardRow'`). The existing tests still pass.
 
-- [ ] **Step 3: Update `LeaderboardRow` type + rewrite the query**
+- **Step 3: Update `LeaderboardRow` type + rewrite the query**
 
 In `backend/src/repo/scores.ts`, replace the existing `LeaderboardRow` type (around line 6) and the existing `leagueLeaderboard` function body (around lines 72–98) with:
 
@@ -173,12 +173,12 @@ export async function leagueLeaderboard(leagueId: string, seasonYear: number): P
 
 The `FILTER (WHERE ...)` clauses give per-kind sums in a single pass. `sessionsScored` is counted only over rows where `kind = 'session'`, preserving the old semantic.
 
-- [ ] **Step 4: Run tests to verify they pass**
+- **Step 4: Run tests to verify they pass**
 
 Run: `make backend-test`
 Expected: all leaderboard tests pass (including the two new ones and the four existing combined-total tests).
 
-- [ ] **Step 5: Commit**
+- **Step 5: Commit**
 
 ```bash
 git add backend/src/repo/scores.ts backend/test/integration/api_leaderboard_with_preseason.test.ts
@@ -190,12 +190,12 @@ git commit -m "backend: split leagueLeaderboard into inSeasonPoints + preseasonP
 ### Task 3: Flutter — `LeaderboardRow` model + `LeagueRow` widget + `LeagueTab` use the split
 
 **Files:**
+
 - Modify: `lib/api/models/leaderboard_row.dart`
 - Modify: `lib/components/league_row.dart`
 - Modify: `lib/screens/standings/league_tab.dart`
 - Modify: `test/components/standings_insights_test.dart` (existing `LeagueRow` test needs updating — it currently asserts on `points: 148`)
-
-- [ ] **Step 1: Update the existing LeagueRow widget test to fail against the new API**
+- **Step 1: Update the existing LeagueRow widget test to fail against the new API**
 
 In `test/components/standings_insights_test.dart`, replace the existing `LeagueRow` test (lines ~16–24) with:
 
@@ -214,12 +214,12 @@ In `test/components/standings_insights_test.dart`, replace the existing `LeagueR
   });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- **Step 2: Run test to verify it fails**
 
 Run: `flutter test test/components/standings_insights_test.dart`
 Expected: FAIL (compile error — `points`/missing parameters on `LeagueRow`).
 
-- [ ] **Step 3: Update `LeaderboardRow` model**
+- **Step 3: Update `LeaderboardRow` model**
 
 Replace the contents of `lib/api/models/leaderboard_row.dart` with:
 
@@ -252,7 +252,7 @@ class LeaderboardRow {
 }
 ```
 
-- [ ] **Step 4: Update `LeagueRow` widget**
+- **Step 4: Update `LeagueRow` widget**
 
 In `lib/components/league_row.dart`, replace the `points` field with three fields and adjust the right-hand column to render three numbers:
 
@@ -353,7 +353,7 @@ class LeagueRow extends StatelessWidget {
 }
 ```
 
-- [ ] **Step 5: Update `LeagueTab` to pass the new fields**
+- **Step 5: Update `LeagueTab` to pass the new fields**
 
 In `lib/screens/standings/league_tab.dart`, replace the `LeagueRow(...)` construction inside `List.generate` (around lines 75–86):
 
@@ -369,12 +369,12 @@ return LeagueRow(
 );
 ```
 
-- [ ] **Step 6: Run tests to verify they pass**
+- **Step 6: Run tests to verify they pass**
 
 Run: `flutter test test/components/standings_insights_test.dart && flutter analyze`
 Expected: all green.
 
-- [ ] **Step 7: Commit**
+- **Step 7: Commit**
 
 ```bash
 git add lib/api/models/leaderboard_row.dart lib/components/league_row.dart lib/screens/standings/league_tab.dart test/components/standings_insights_test.dart
@@ -388,12 +388,12 @@ git commit -m "flutter: surface split in-season + preseason totals on league tab
 The backend endpoint `GET /api/leagues/:id/leaderboard/sessions` already exists; only the Flutter side is missing.
 
 **Files:**
+
 - Create: `lib/api/models/session_leaderboard_row.dart`
 - Modify: `lib/api/api_client.dart` (add abstract method)
 - Modify: `lib/api/http_api_client.dart` (add implementation)
 - Test: `test/api/models/session_leaderboard_row_test.dart` (new)
-
-- [ ] **Step 1: Write the failing fromJson test**
+- **Step 1: Write the failing fromJson test**
 
 Create `test/api/models/session_leaderboard_row_test.dart`:
 
@@ -427,12 +427,12 @@ void main() {
 }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- **Step 2: Run test to verify it fails**
 
 Run: `flutter test test/api/models/session_leaderboard_row_test.dart`
 Expected: FAIL (compile error — model not defined).
 
-- [ ] **Step 3: Create the model**
+- **Step 3: Create the model**
 
 Create `lib/api/models/session_leaderboard_row.dart`:
 
@@ -482,7 +482,7 @@ class SessionLeaderboardRow {
 }
 ```
 
-- [ ] **Step 4: Add `leagueSessionBreakdown` to `ApiClient`**
+- **Step 4: Add `leagueSessionBreakdown` to `ApiClient`**
 
 In `lib/api/api_client.dart`, near the existing `leagueLeaderboard` declaration, add the import and the abstract method:
 
@@ -493,7 +493,7 @@ import 'models/session_leaderboard_row.dart';
   Future<List<SessionLeaderboardRow>> leagueSessionBreakdown(String leagueId, {int? season});
 ```
 
-- [ ] **Step 5: Add the HTTP implementation**
+- **Step 5: Add the HTTP implementation**
 
 In `lib/api/http_api_client.dart`, near the existing `leagueLeaderboard` impl, add (mirror the existing one's structure — handle `season` query param, decode the wrapping `{ sessions, season }` envelope):
 
@@ -509,12 +509,12 @@ Future<List<SessionLeaderboardRow>> leagueSessionBreakdown(String leagueId, {int
 
 (Adjust `_get` to whatever the existing private helper is named — confirm by reading the `leagueLeaderboard` impl in the same file. If it uses `_authedGet` or similar, match that.)
 
-- [ ] **Step 6: Run tests to verify they pass**
+- **Step 6: Run tests to verify they pass**
 
 Run: `flutter test test/api/models/session_leaderboard_row_test.dart && flutter analyze`
 Expected: all green.
 
-- [ ] **Step 7: Commit**
+- **Step 7: Commit**
 
 ```bash
 git add lib/api/models/session_leaderboard_row.dart lib/api/api_client.dart lib/api/http_api_client.dart test/api/models/session_leaderboard_row_test.dart
@@ -526,10 +526,10 @@ git commit -m "flutter: add SessionLeaderboardRow model + leagueSessionBreakdown
 ### Task 5: Flutter — trajectory shows top-3 + me + my immediate neighbors
 
 **Files:**
+
 - Modify: `lib/screens/standings/insights_tab.dart` (replace `_buildTrajectory` + extend `_InsightsData` with `sessions`)
 - Test: `test/components/standings_insights_test.dart` (extend the trajectory test to assert multi-series)
-
-- [ ] **Step 1: Write the failing test**
+- **Step 1: Write the failing test**
 
 In `test/components/standings_insights_test.dart`, add a new test below the existing `TrajectoryChart paints without throwing`:
 
@@ -549,12 +549,12 @@ In `test/components/standings_insights_test.dart`, add a new test below the exis
   });
 ```
 
-- [ ] **Step 2: Run test to verify it passes against existing chart**
+- **Step 2: Run test to verify it passes against existing chart**
 
 Run: `flutter test test/components/standings_insights_test.dart`
 Expected: PASS. The chart widget already supports multiple series — this test guards the legend rendering. (No code change needed yet.)
 
-- [ ] **Step 3: Extend `_InsightsData` and `_load` to fetch the session breakdown**
+- **Step 3: Extend `_InsightsData` and `_load` to fetch the session breakdown**
 
 In `lib/screens/standings/insights_tab.dart`:
 
@@ -596,7 +596,7 @@ Future<_InsightsData> _load() async {
 }
 ```
 
-- [ ] **Step 4: Replace `_buildTrajectory` with a filtered multi-series builder**
+- **Step 4: Replace `_buildTrajectory` with a filtered multi-series builder**
 
 Remove the existing `_buildTrajectory(_InsightsData d) → _Trajectory?` method and the `_Trajectory` class. The new builder plots only the members that are interesting in context: the top 3 of the current league leaderboard, plus the caller, plus the caller's immediate neighbors in the standings (one position above + one below). When the caller is already in the top 3, neighbors are omitted (the top 3 already includes them).
 
@@ -684,7 +684,7 @@ String _typeAbbrev(String t) {
 }
 ```
 
-- [ ] **Step 5: Update the `build` method to use the new builder**
+- **Step 5: Update the `build` method to use the new builder**
 
 Replace the `final trajectory = _buildTrajectory(d);` line and the conditional rendering block (around the `TRAJECTORY` section, ~lines 89–112) with:
 
@@ -709,12 +709,12 @@ Padding(
 ),
 ```
 
-- [ ] **Step 6: Run tests and analyzer**
+- **Step 6: Run tests and analyzer**
 
 Run: `flutter test && flutter analyze`
 Expected: all green.
 
-- [ ] **Step 7: Commit**
+- **Step 7: Commit**
 
 ```bash
 git add lib/screens/standings/insights_tab.dart test/components/standings_insights_test.dart
@@ -726,14 +726,14 @@ git commit -m "flutter: trajectory chart overlays every league member"
 ### Task 6: Backend — preseason projection module
 
 **Files:**
+
 - Create: `backend/src/preseason/projection.ts`
 - Test: `backend/test/unit/preseason/projection.test.ts` (new)
+- **Step 1: Inspect existing scoring helpers**
 
-- [ ] **Step 1: Inspect existing scoring helpers**
+Skim `backend/src/preseason/singlePick.ts` and `backend/src/preseason/standings.ts` to confirm the exported function names (`scorePreseasonCategory`, `scoreStandings`) and parameter shapes. Also confirm the export of `derive`* helpers from `backend/src/preseason/derive.ts`. These are the building blocks; no need to read them deeply — just verify the signatures the projection module will call.
 
-Skim `backend/src/preseason/singlePick.ts` and `backend/src/preseason/standings.ts` to confirm the exported function names (`scorePreseasonCategory`, `scoreStandings`) and parameter shapes. Also confirm the export of `derive*` helpers from `backend/src/preseason/derive.ts`. These are the building blocks; no need to read them deeply — just verify the signatures the projection module will call.
-
-- [ ] **Step 2: Write the failing unit test**
+- **Step 2: Write the failing unit test**
 
 Create `backend/test/unit/preseason/projection.test.ts`:
 
@@ -803,12 +803,12 @@ describe('projectCategoryScore', () => {
 })
 ```
 
-- [ ] **Step 3: Run test to verify it fails**
+- **Step 3: Run test to verify it fails**
 
 Run: `make backend-test -- backend/test/unit/preseason/projection.test.ts` (or just `make backend-test` and observe the new file fail).
 Expected: FAIL — module not found.
 
-- [ ] **Step 4: Implement the projection module**
+- **Step 4: Implement the projection module**
 
 Create `backend/src/preseason/projection.ts`:
 
@@ -1034,6 +1034,7 @@ export async function buildLeaguePreseasonView(
 ```
 
 **Before running tests, verify two assumptions:**
+
 - `leagueMembersRepo.listUserIds(leagueId): Promise<string[]>` — open `backend/src/repo/leagueMembers.js` and confirm it exists with that signature. If the actual export name differs (e.g., `listMembers` returning richer rows), adapt the call.
 - `usersRepo.getById(id): Promise<User | null>` — open `backend/src/repo/users.js` and confirm. If the exported function is `getUserById` or similar, adapt.
 - The `CATEGORY_MAX` constant: confirm by reading `backend/src/preseason/singlePick.ts` (or wherever the metadata lives) that each category caps at 8. If different (e.g., 4+4 split with bonuses), update the table here to match.
@@ -1041,12 +1042,12 @@ export async function buildLeaguePreseasonView(
 
 If any of those don't match, fix the implementation file before re-running tests.
 
-- [ ] **Step 5: Run unit test to verify it passes**
+- **Step 5: Run unit test to verify it passes**
 
 Run: `make backend-test`
 Expected: the unit tests in `backend/test/unit/preseason/projection.test.ts` pass; no existing tests regress.
 
-- [ ] **Step 6: Commit**
+- **Step 6: Commit**
 
 ```bash
 git add backend/src/preseason/projection.ts backend/test/unit/preseason/projection.test.ts
@@ -1058,10 +1059,10 @@ git commit -m "backend: preseason projection module (live truth + per-member agg
 ### Task 7: Backend — `GET /api/leagues/:id/preseason` route
 
 **Files:**
+
 - Modify: `backend/src/api/routes/preseason.ts` (add one route)
 - Test: `backend/test/integration/api_league_preseason.test.ts` (new)
-
-- [ ] **Step 1: Write the failing integration test**
+- **Step 1: Write the failing integration test**
 
 Create `backend/test/integration/api_league_preseason.test.ts`:
 
@@ -1161,17 +1162,18 @@ describe('GET /api/leagues/:id/preseason', () => {
 ```
 
 **Before running, verify:**
+
 - `users.issueTestToken(userId)` — confirm this helper exists in `backend/src/repo/users.ts` (or in `backend/test/helpers/factories.ts`). Several existing integration tests must use it; find one that does (e.g., `api_preseason.test.ts`) and copy its auth approach exactly.
 - `members.addMember(leagueId, userId)` — confirm signature.
 
 Match the existing test conventions for auth and seeding rather than the names above if they don't exist verbatim.
 
-- [ ] **Step 2: Run test to verify it fails**
+- **Step 2: Run test to verify it fails**
 
 Run: `make backend-test`
 Expected: FAIL — route returns 404.
 
-- [ ] **Step 3: Add the route**
+- **Step 3: Add the route**
 
 In `backend/src/api/routes/preseason.ts`, after the existing imports, add:
 
@@ -1191,12 +1193,12 @@ Inside `registerPreseasonRoutes`, after the last existing route (`/api/users/me/
   })
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- **Step 4: Run test to verify it passes**
 
 Run: `make backend-test`
 Expected: all green.
 
-- [ ] **Step 5: Commit**
+- **Step 5: Commit**
 
 ```bash
 git add backend/src/api/routes/preseason.ts backend/test/integration/api_league_preseason.test.ts
@@ -1208,12 +1210,12 @@ git commit -m "backend: route GET /api/leagues/:id/preseason (live projection + 
 ### Task 8: Flutter — `LeaguePreseasonView` model + `ApiClient.leaguePreseason`
 
 **Files:**
+
 - Create: `lib/api/models/league_preseason_view.dart`
 - Modify: `lib/api/api_client.dart` (add abstract method)
 - Modify: `lib/api/http_api_client.dart` (add HTTP impl)
 - Test: `test/api/models/league_preseason_view_test.dart` (new)
-
-- [ ] **Step 1: Write the failing fromJson test**
+- **Step 1: Write the failing fromJson test**
 
 Create `test/api/models/league_preseason_view_test.dart`:
 
@@ -1273,12 +1275,12 @@ void main() {
 }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- **Step 2: Run test to verify it fails**
 
 Run: `flutter test test/api/models/league_preseason_view_test.dart`
 Expected: FAIL — model not defined.
 
-- [ ] **Step 3: Create the model**
+- **Step 3: Create the model**
 
 Create `lib/api/models/league_preseason_view.dart`:
 
@@ -1405,7 +1407,7 @@ class LeaguePreseasonView {
 }
 ```
 
-- [ ] **Step 4: Add `leaguePreseason` to `ApiClient`**
+- **Step 4: Add `leaguePreseason` to `ApiClient`**
 
 In `lib/api/api_client.dart`, add import and abstract method:
 
@@ -1416,7 +1418,7 @@ import 'models/league_preseason_view.dart';
   Future<LeaguePreseasonView> leaguePreseason(String leagueId);
 ```
 
-- [ ] **Step 5: Add HTTP impl**
+- **Step 5: Add HTTP impl**
 
 In `lib/api/http_api_client.dart`, near other preseason calls:
 
@@ -1430,12 +1432,12 @@ Future<LeaguePreseasonView> leaguePreseason(String leagueId) async {
 
 (Match whichever private helper name `getPreseasonMine` uses.)
 
-- [ ] **Step 6: Run tests + analyzer**
+- **Step 6: Run tests + analyzer**
 
 Run: `flutter test test/api/models/league_preseason_view_test.dart && flutter analyze`
 Expected: all green.
 
-- [ ] **Step 7: Commit**
+- **Step 7: Commit**
 
 ```bash
 git add lib/api/models/league_preseason_view.dart lib/api/api_client.dart lib/api/http_api_client.dart test/api/models/league_preseason_view_test.dart
@@ -1447,10 +1449,10 @@ git commit -m "flutter: LeaguePreseasonView model + leaguePreseason client"
 ### Task 9: Flutter — `PreseasonTab` screen
 
 **Files:**
+
 - Create: `lib/screens/standings/preseason_tab.dart`
 - Test: `test/screens/preseason_tab_test.dart` (new)
-
-- [ ] **Step 1: Write the failing widget test**
+- **Step 1: Write the failing widget test**
 
 Create `test/screens/preseason_tab_test.dart`:
 
@@ -1513,12 +1515,12 @@ void main() {
 }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- **Step 2: Run test to verify it fails**
 
 Run: `flutter test test/screens/preseason_tab_test.dart`
 Expected: FAIL — screen not defined.
 
-- [ ] **Step 3: Implement the screen**
+- **Step 3: Implement the screen**
 
 Create `lib/screens/standings/preseason_tab.dart`:
 
@@ -1780,12 +1782,12 @@ class _StandingsCard extends StatelessWidget {
 }
 ```
 
-- [ ] **Step 4: Run tests + analyzer**
+- **Step 4: Run tests + analyzer**
 
 Run: `flutter test test/screens/preseason_tab_test.dart && flutter analyze`
 Expected: all green.
 
-- [ ] **Step 5: Commit**
+- **Step 5: Commit**
 
 ```bash
 git add lib/screens/standings/preseason_tab.dart test/screens/preseason_tab_test.dart
@@ -1797,9 +1799,9 @@ git commit -m "flutter: PreseasonTab — live projection + per-member leaderboar
 ### Task 10: Wire PRESEASON sub-tab into `StandingsScreen`
 
 **Files:**
-- Modify: `lib/screens/standings/standings_screen.dart`
 
-- [ ] **Step 1: Add the new sub-tab**
+- Modify: `lib/screens/standings/standings_screen.dart`
+- **Step 1: Add the new sub-tab**
 
 In `lib/screens/standings/standings_screen.dart`:
 
@@ -1809,7 +1811,7 @@ In `lib/screens/standings/standings_screen.dart`:
 import 'preseason_tab.dart';
 ```
 
-2. In the four-pill row inside `build` (around lines 67–74), update the children to make room for a fourth pill. Reduce font size on labels to 9pt since the row becomes tighter, and shrink spacing between pills:
+1. In the four-pill row inside `build` (around lines 67–74), update the children to make room for a fourth pill. Reduce font size on labels to 9pt since the row becomes tighter, and shrink spacing between pills:
 
 ```dart
 Padding(
@@ -1826,7 +1828,7 @@ Padding(
 ),
 ```
 
-3. Extend the body switch:
+1. Extend the body switch:
 
 ```dart
 Expanded(child: switch (_subTab) {
@@ -1837,18 +1839,18 @@ Expanded(child: switch (_subTab) {
 }),
 ```
 
-4. Adjust `_tab` so it still reads cleanly with the 4-pill density. Reduce the label font to 9pt if it visibly clips on iPhone-SE-sized screens; otherwise leave as-is. Confirm by running:
+1. Adjust `_tab` so it still reads cleanly with the 4-pill density. Reduce the label font to 9pt if it visibly clips on iPhone-SE-sized screens; otherwise leave as-is. Confirm by running:
 
 ```bash
 flutter run -d "iPhone 17 Pro"   # or whatever simulator is default; verify visually that all four labels render without truncation
 ```
 
-- [ ] **Step 2: Run the full Flutter test suite**
+- **Step 2: Run the full Flutter test suite**
 
 Run: `flutter test && flutter analyze`
 Expected: all green.
 
-- [ ] **Step 3: Commit**
+- **Step 3: Commit**
 
 ```bash
 git add lib/screens/standings/standings_screen.dart
@@ -1862,11 +1864,11 @@ git commit -m "ui: add PRESEASON sub-tab on StandingsScreen"
 The insights gained/cost stats in Task 12 need to know which driver was at each pick position. The scorers already receive that info (it's literally the `picks` argument) — they just discard it before writing the breakdown to the score table. Add it.
 
 **Files:**
+
 - Modify: `backend/src/scoring/types.ts`
 - Modify: `backend/src/scoring/race.ts`, `qualifying.ts`, `sprintRace.ts`, `sprintShootout.ts`
 - Modify: `backend/test/unit/scoring/race.test.ts`, `sprintShootout.test.ts` (assertions on the new field)
-
-- [ ] **Step 1: Update the existing scorer tests to assert the new field**
+- **Step 1: Update the existing scorer tests to assert the new field**
 
 In `backend/test/unit/scoring/race.test.ts`, modify the two `.toEqual({ position: ..., exact: ..., wrongPos: ..., points: ... })` assertions (lines 42–44 area) to include `driverCode`. Read the test to see which picks it uses; concretely:
 
@@ -1886,12 +1888,12 @@ In `backend/test/unit/scoring/sprintShootout.test.ts`, similarly update line ~16
 
 The `b.perPosition[0].points` assertions on lines ~24, ~37, and the `race.test.ts` sum-over-perPosition assertion don't reference shape — they don't need updating.
 
-- [ ] **Step 2: Run tests to verify they fail**
+- **Step 2: Run tests to verify they fail**
 
 Run: `make backend-test`
 Expected: FAIL — the asserted objects don't yet include `driverCode`.
 
-- [ ] **Step 3: Add `driverCode` to the type**
+- **Step 3: Add `driverCode` to the type**
 
 In `backend/src/scoring/types.ts`:
 
@@ -1905,7 +1907,7 @@ export type ScoreBreakdownPerPosition = {
 }
 ```
 
-- [ ] **Step 4: Populate `driverCode` in every scorer**
+- **Step 4: Populate `driverCode` in every scorer**
 
 In each of `backend/src/scoring/race.ts`, `qualifying.ts`, `sprintRace.ts`, `sprintShootout.ts`, change the `picks.map((p) => { ... })` body so the returned object includes `driverCode: p.driverCode`. The pattern is:
 
@@ -1918,12 +1920,12 @@ const perPosition: ScoreBreakdownPerPosition[] = picks.map((p) => {
 
 Apply this change to all four scorers — the exact computation in between varies but the return shape is uniform.
 
-- [ ] **Step 5: Run tests to verify they pass**
+- **Step 5: Run tests to verify they pass**
 
 Run: `make backend-test`
 Expected: all green. Old scores stored in the DB without `driverCode` will still parse on the wire because the Flutter model in Task 12 will accept it as nullable. New scores include it.
 
-- [ ] **Step 6: Commit**
+- **Step 6: Commit**
 
 ```bash
 git add backend/src/scoring/types.ts backend/src/scoring/race.ts backend/src/scoring/qualifying.ts backend/src/scoring/sprintRace.ts backend/src/scoring/sprintShootout.ts backend/test/unit/scoring/race.test.ts backend/test/unit/scoring/sprintShootout.test.ts
@@ -1935,10 +1937,10 @@ git commit -m "backend: record picked driverCode on each ScoreBreakdownPerPositi
 ### Task 12: Flutter — "gained / cost" driver stat cards in InsightsTab
 
 **Files:**
+
 - Modify: `lib/api/models/score_breakdown.dart` (make `driverCode` nullable on `ScoreBreakdownPerPosition`)
 - Modify: `lib/screens/standings/insights_tab.dart` (compute + render two extra stat cards)
-
-- [ ] **Step 1: Update the Flutter score-breakdown model**
+- **Step 1: Update the Flutter score-breakdown model**
 
 In `lib/api/models/score_breakdown.dart`, extend `ScoreBreakdownPerPosition` with a nullable `driverCode`:
 
@@ -1970,7 +1972,7 @@ class ScoreBreakdownPerPosition {
 
 Nullable handles old DB rows that pre-date Task 11.
 
-- [ ] **Step 2: Add gained/cost computation to `_computeStats`**
+- **Step 2: Add gained/cost computation to `_computeStats`**
 
 In `lib/screens/standings/insights_tab.dart`, extend the `_Stats` class with two fields:
 
@@ -2014,7 +2016,7 @@ missesByDriver.forEach((code, n) {
 
 Pass these into the returned `_Stats`.
 
-- [ ] **Step 3: Render two extra stat cells in the `YOUR SEASON` block**
+- **Step 3: Render two extra stat cells in the `YOUR SEASON` block**
 
 In `build`, the YOUR SEASON `Column` currently shows a 2×2 grid (TOTAL POINTS / AVERAGE, HIT RATE / BEST ROUND). Add a third row below for the new cards:
 
@@ -2037,12 +2039,12 @@ Row(
 
 The `_stat` helper already accepts a value + extra subtitle, so it renders cleanly.
 
-- [ ] **Step 4: Run tests + analyzer**
+- **Step 4: Run tests + analyzer**
 
 Run: `flutter test && flutter analyze`
 Expected: all green. Existing `_computeStats` tests (if any) keep passing because we only added fields to `_Stats`. The widget tests don't assert on the new cells.
 
-- [ ] **Step 5: Commit**
+- **Step 5: Commit**
 
 ```bash
 git add lib/api/models/score_breakdown.dart lib/screens/standings/insights_tab.dart
@@ -2053,7 +2055,7 @@ git commit -m "flutter: insights — surface top-earning and biggest-miss driver
 
 ### Final verification
 
-- [ ] **Run everything**
+- **Run everything**
 
 ```bash
 make backend-test && flutter test && flutter analyze
@@ -2061,7 +2063,7 @@ make backend-test && flutter test && flutter analyze
 
 Expected: all green.
 
-- [ ] **Manual smoke test**
+- **Manual smoke test**
 
 ```bash
 make up           # start the backend
@@ -2069,12 +2071,13 @@ make app          # run the iOS app
 ```
 
 Verify:
+
 1. **Race scores screen:** open a finished session — only the FULL CLASSIFICATION card appears beneath the score banner; no "PICK VS RESULT" duplicate above it.
 2. **League tab:** each row shows three numbers (season / pre / total) with the total emphasized.
 3. **Insights tab → Trajectory:** plot shows top-3 league members + you + your immediate neighbors (if you're not in the top 3); "You" is the red accent.
 4. **Insights tab → Your Season:** the stats grid includes "TOP EARNER" and "BIGGEST MISS" cards naming a driver code and the gained-points / missed-picks count.
 5. **Standings header:** four pills visible — LEAGUE / F1 / INSIGHTS / PRESEASON. Tapping PRESEASON loads the new screen with category cards + member leaderboard. Surprise + Disappointment show "Set at season end".
 
-- [ ] **Final commit / housekeeping**
+- **Final commit / housekeeping**
 
 If anything needed an emergency fix during smoke testing, commit it now with a short message describing the fix. Otherwise the branch is ready to push.

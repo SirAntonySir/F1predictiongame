@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../components/bottom_nav.dart';
+import 'nav_guard.dart';
 
 class AppShell extends StatelessWidget {
   final Widget child;
@@ -22,7 +23,13 @@ class AppShell extends StatelessWidget {
       body: child,
       bottomNavigationBar: BottomNav(
         currentIndex: _indexFor(location),
-        onTap: (i) => context.go(_paths[i]),
+        onTap: (i) async {
+          final target = _paths[i];
+          if (location.startsWith(target)) return;
+          final guard = NavGuard.instance.canLeave;
+          if (guard != null && !await guard()) return;
+          if (context.mounted) context.go(target);
+        },
       ),
     );
   }
