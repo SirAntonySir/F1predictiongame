@@ -1,5 +1,6 @@
 import 'package:go_router/go_router.dart';
 import '../screens/calendar_screen.dart';
+import '../screens/change_password_screen.dart';
 import '../screens/home_screen.dart';
 import '../screens/league_onboarding_screen.dart';
 import '../screens/login_screen.dart';
@@ -15,6 +16,10 @@ import 'app_shell.dart';
 
 GoRouter buildRouter(AuthController auth) {
   const authRoutes = {'/login', '/signup'};
+  // Routes accessible regardless of auth state. /change-password is here so
+  // the login screen can offer "Change password" without forcing a sign-in
+  // first, while settings can also push to it for the logged-in flow.
+  const openRoutes = {'/change-password'};
   const onboardingRoute = '/onboarding/league';
   return GoRouter(
     initialLocation: '/home',
@@ -22,7 +27,8 @@ GoRouter buildRouter(AuthController auth) {
     redirect: (context, state) {
       final loc = state.matchedLocation;
       if (!auth.isLoggedIn) {
-        return authRoutes.contains(loc) ? null : '/login';
+        if (authRoutes.contains(loc) || openRoutes.contains(loc)) return null;
+        return '/login';
       }
       if (!auth.hasLeague) {
         return loc == onboardingRoute ? null : onboardingRoute;
@@ -33,6 +39,12 @@ GoRouter buildRouter(AuthController auth) {
     routes: [
       GoRoute(path: '/login',  builder: (_, __) => LoginScreen(auth: auth)),
       GoRoute(path: '/signup', builder: (_, __) => SignupScreen(auth: auth)),
+      GoRoute(
+        path: '/change-password',
+        builder: (_, s) => ChangePasswordScreen(
+          prefilledEmail: s.uri.queryParameters['email'],
+        ),
+      ),
       GoRoute(path: onboardingRoute, builder: (_, __) => LeagueOnboardingScreen(auth: auth)),
       ShellRoute(
         builder: (_, __, child) => AppShell(child: child),

@@ -172,6 +172,19 @@ class HttpApiClient implements ApiClient {
   }
 
   @override
+  Future<void> changePassword({
+    required String email,
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    await _request('POST', '/api/auth/change-password', body: {
+      'email': email,
+      'currentPassword': currentPassword,
+      'newPassword': newPassword,
+    });
+  }
+
+  @override
   Future<LeagueView> createLeague({required String name}) async {
     final j = await _request('POST', '/api/leagues', body: {'name': name}) as Map<String, dynamic>;
     return LeagueView.fromJson(j);

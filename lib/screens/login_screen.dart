@@ -101,6 +101,12 @@ class _LoginScreenState extends State<LoginScreen> {
                   onPressed: _busy ? null : () => context.go('/signup'),
                   child: const Text('No account? Sign up'),
                 ),
+                TextButton(
+                  onPressed: _busy
+                      ? null
+                      : () => context.push('/change-password'),
+                  child: const Text('Change password'),
+                ),
               ],
             ),
           ),

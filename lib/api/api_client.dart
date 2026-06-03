@@ -36,6 +36,11 @@ abstract class ApiClient {
   Future<AuthResult> login({required String email, required String password});
   Future<MeResult>   me();
   Future<void>       logout();
+  Future<void>       changePassword({
+    required String email,
+    required String currentPassword,
+    required String newPassword,
+  });
 
   // leagues
   Future<LeagueView> createLeague({required String name});
