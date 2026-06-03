@@ -8,6 +8,7 @@ import 'models/event.dart';
 import 'models/leaderboard_row.dart';
 import 'models/league_preseason_view.dart';
 import 'models/league_view.dart';
+import 'models/member_prediction.dart';
 import 'models/me_result.dart';
 import 'models/my_score.dart';
 import 'models/pick.dart';
@@ -250,6 +251,15 @@ class HttpApiClient implements ApiClient {
     final q = season == null ? '' : '?season=$season';
     final j = await _request('GET', '/api/leagues/$leagueId/leaderboard/sessions$q') as Map<String, dynamic>;
     return (j['sessions'] as List).cast<Map<String, dynamic>>().map(SessionLeaderboardRow.fromJson).toList();
+  }
+
+  @override
+  Future<LeagueSessionPredictions> leagueSessionPredictions(String leagueId, int sessionId) async {
+    final j = await _request(
+      'GET',
+      '/api/leagues/$leagueId/sessions/$sessionId/predictions',
+    ) as Map<String, dynamic>;
+    return LeagueSessionPredictions.fromJson(j);
   }
 
   @override

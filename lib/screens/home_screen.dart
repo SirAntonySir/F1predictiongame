@@ -69,6 +69,20 @@ class _HomeScreenState extends State<HomeScreen> {
         orElse: () => events.first,
       );
     }
+    // The pickable session can live in a later weekend than `next` (which
+    // may be FP1). Resolve its event independently so the pick card's body
+    // tap can deep-link to the correct race detail.
+    Event? pickEvent;
+    if (nextPickable != null) {
+      final resolvedPick = nextPickable;
+      try {
+        pickEvent = events.firstWhere(
+          (e) => e.sessions.any((s) => s.id == resolvedPick.id),
+        );
+      } catch (_) {
+        pickEvent = nextEvent;
+      }
+    }
     if (nextPickable != null) {
       // Prime the predictions cache for the pickable session that _pickCard
       // actually renders, not the chronologically-next one (which is often FP1
@@ -111,6 +125,7 @@ class _HomeScreenState extends State<HomeScreen> {
       next: next,
       nextPickable: nextPickable,
       nextEvent: nextEvent,
+      pickEvent: pickEvent,
       lastEvent: lastEvent,
       lastRaceSession: lastRaceSession,
       lastResult: lastResult,
@@ -234,32 +249,44 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _topbar(String leagueName, int memberCount) => Padding(
-        padding: const EdgeInsets.symmetric(horizontal: Spacing.xl),
-        child: Row(
-          children: [
-            Container(padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3), color: Colors.black,
-              child: Text('F1', style: AppText.display(14, color: Colors.white))),
-            const SizedBox(width: 4),
-            Text('PG', style: AppText.display(14)),
-            const Spacer(),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: Spacing.md, vertical: 5),
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.black, width: 1.5),
-                borderRadius: const BorderRadius.all(Radius.circular(999)),
-              ),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Container(width: 8, height: 8, decoration: const BoxDecoration(color: BrandColors.accent, shape: BoxShape.circle)),
-                const SizedBox(width: 6),
-                Text('$leagueName · $memberCount', style: AppText.label(11)),
-              ]),
+  Widget _topbar(String leagueName, int memberCount) {
+    final t = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: Spacing.xl),
+      child: Row(
+        children: [
+          // F1 logo plate: invert surface so it reads as a strong badge in
+          // both themes (black-on-white in light, off-white-on-black in dark)
+          // instead of disappearing into the dark surface.
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+            color: t.colorScheme.onSurface,
+            child: Text('F1',
+                style: AppText.display(14, color: t.colorScheme.surface)),
+          ),
+          const SizedBox(width: 4),
+          Text('PG', style: AppText.display(14)),
+          const Spacer(),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: Spacing.md, vertical: 5),
+            decoration: BoxDecoration(
+              // strokeColor adapts per theme — matches every other pill
+              // border in the app (settings, standings tabs, etc.).
+              border: Border.all(color: t.strokeColor, width: 1.5),
+              borderRadius: const BorderRadius.all(Radius.circular(999)),
             ),
-            const SizedBox(width: Spacing.sm),
-            IconButton(onPressed: () => context.push('/settings'), icon: const Icon(Icons.settings_outlined)),
-          ],
-        ),
-      );
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Container(width: 8, height: 8, decoration: const BoxDecoration(color: BrandColors.accent, shape: BoxShape.circle)),
+              const SizedBox(width: 6),
+              Text('$leagueName · $memberCount', style: AppText.label(11)),
+            ]),
+          ),
+          const SizedBox(width: Spacing.sm),
+          IconButton(onPressed: () => context.push('/settings'), icon: const Icon(Icons.settings_outlined)),
+        ],
+      ),
+    );
+  }
 
   Widget _noNextHero(ThemeData t) => Padding(
         padding: const EdgeInsets.fromLTRB(
@@ -431,10 +458,17 @@ class _HomeScreenState extends State<HomeScreen> {
     final locked = pred?.isLocked ?? false;
     final empty = picks.isEmpty;
     final sessionLabel = _sessionTypeLabel(pickSession.type);
+    // Split tap zones: tapping the body opens the race-detail view (same
+    // route the calendar uses), tapping the EDIT/PICK stub jumps straight
+    // into the predict screen.
+    final round = d.pickEvent?.round ?? d.nextEvent?.round;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
       child: TicketCard(
-        onTap: () => context.go('/predict?session=$sessionId'),
+        onBodyTap: round == null
+            ? null
+            : () => context.push('/race/$round/$sessionId'),
+        onStubTap: () => context.go('/predict?session=$sessionId'),
         stubWidth: 80,
         body: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -442,26 +476,29 @@ class _HomeScreenState extends State<HomeScreen> {
           children: [
             Row(
               children: [
+                // Hardcoded black tones because the ticket card is cream in
+                // both themes — using t.colorScheme.onSurface would render
+                // white-on-cream in dark mode.
                 Text(sessionLabel,
                     style: AppText.label(10,
-                        color: t.colorScheme.onSurface.withOpacity(0.6))),
+                        color: Colors.black.withOpacity(0.6))),
                 const SizedBox(width: 6),
                 _statusDot(t, empty: empty, locked: locked),
                 const SizedBox(width: 4),
                 Text(empty ? 'no picks' : (locked ? 'locked' : 'draft'),
                     style: AppText.label(10,
-                        color: t.colorScheme.onSurface.withOpacity(0.6))),
+                        color: Colors.black.withOpacity(0.6))),
                 const Spacer(),
                 Text('YOUR PICK',
                     style: AppText.label(9,
-                        color: t.colorScheme.onSurface.withOpacity(0.45))),
+                        color: Colors.black.withOpacity(0.45))),
               ],
             ),
             const SizedBox(height: 10),
             if (empty)
               Text('Tap to make your pick',
                   style: AppText.body(13,
-                      color: t.colorScheme.onSurface.withOpacity(0.5))
+                      color: Colors.black.withOpacity(0.5))
                       .copyWith(fontStyle: FontStyle.italic))
             else
               Wrap(
@@ -494,7 +531,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _statusDot(ThemeData t, {required bool empty, required bool locked}) {
     final color = empty
         ? BrandColors.accent
-        : (locked ? Colors.black : t.colorScheme.onSurface.withOpacity(0.4));
+        : (locked ? Colors.black : Colors.black.withOpacity(0.4));
     return Container(
       width: 6,
       height: 6,
@@ -514,10 +551,11 @@ class _HomeScreenState extends State<HomeScreen> {
             borderRadius: const BorderRadius.all(Radius.circular(4)),
           ),
           child: Text('P$position',
-              style: AppText.label(9, color: t.colorScheme.onSurface.withOpacity(0.7))),
+              style: AppText.label(9, color: Colors.black.withOpacity(0.7))),
         ),
         const SizedBox(width: 6),
-        Text(driverCode, style: AppText.body(14, weight: FontWeight.w800)),
+        Text(driverCode,
+            style: AppText.body(14, weight: FontWeight.w800, color: Colors.black)),
       ],
     );
   }
@@ -659,6 +697,10 @@ class _HomeData {
   /// it doesn't render "Make your pick · FP1".
   final Session? nextPickable;
   final Event? nextEvent;
+  /// Event that owns [nextPickable]. Differs from [nextEvent] when the
+  /// chronologically-next session is FP-only and the next pickable session
+  /// lives in a later weekend.
+  final Event? pickEvent;
   final Event? lastEvent;
   final Session? lastRaceSession;
   final List<SessionResult> lastResult;
@@ -668,6 +710,7 @@ class _HomeData {
     required this.next,
     required this.nextPickable,
     required this.nextEvent,
+    required this.pickEvent,
     required this.lastEvent,
     required this.lastRaceSession,
     required this.lastResult,

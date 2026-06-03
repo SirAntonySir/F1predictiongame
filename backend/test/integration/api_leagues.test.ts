@@ -1,5 +1,20 @@
 import { describe, it, expect } from 'vitest'
 import { buildApp } from '../../src/index.js'
+import * as seasons from '../../src/repo/seasons.js'
+import * as events from '../../src/repo/events.js'
+import * as sessions from '../../src/repo/sessions.js'
+import * as predictionsRepo from '../../src/repo/predictions.js'
+import * as drivers from '../../src/repo/drivers.js'
+
+async function seedDrivers(codes: string[]) {
+  for (const code of codes) {
+    await drivers.upsertDriver({
+      code, givenName: code, familyName: 'X',
+      nationality: null, permanentNumber: null, wikipediaUrl: null,
+      imageUrl: null, imageUrlOverride: null, headshotUrl: null
+    })
+  }
+}
 
 async function app() { return buildApp({ scheduler: null }) }
 
@@ -225,5 +240,101 @@ describe('DELETE /api/leagues/:id', () => {
     expect(del.statusCode).toBe(200)
     const get = await a.inject({ method: 'GET', url: `/api/leagues/${id}`, headers: auth(owner.token) })
     expect(get.statusCode).toBe(404)
+  })
+})
+
+describe('GET /api/leagues/:id/sessions/:sessionId/predictions', () => {
+  async function seedSession(opts: { startInPast: boolean }) {
+    await seasons.upsertSeason({ year: 2099, isCurrent: false })
+    const ev = await events.upsertEvent({
+      seasonYear: 2099, round: 1, name: 'T', circuitName: 'C', country: 'X', hasSprint: false
+    })
+    const start = opts.startInPast
+      ? new Date(Date.now() - 60 * 60 * 1000)
+      : new Date(Date.now() + 24 * 60 * 60 * 1000)
+    const ses = await sessions.upsertSession({
+      eventId: ev.id, type: 'race',
+      scheduledStart: start,
+      scheduledEnd: new Date(start.getTime() + 2 * 60 * 60 * 1000),
+      status: 'scheduled', openf1SessionKey: null
+    })
+    return ses
+  }
+
+  it('returns every member\'s picks once the session has started', async () => {
+    const a = await app()
+    const owner = await signupAndToken(a, 'lp-o@x.com')
+    const m1 = await signupAndToken(a, 'lp-1@x.com')
+    const created = await a.inject({ method: 'POST', url: '/api/leagues', headers: auth(owner.token), payload: { name: 'P' } })
+    const leagueId = created.json().league.id
+    const code = created.json().league.joinCode
+    await a.inject({ method: 'POST', url: '/api/leagues/join', headers: auth(m1.token), payload: { joinCode: code } })
+
+    const ses = await seedSession({ startInPast: true })
+    await seedDrivers(['VER', 'NOR', 'HAM', 'PIA', 'LEC'])
+    await predictionsRepo.upsertPredictionWithPicks(owner.userId, ses.id, [
+      { position: 1, driverCode: 'VER' },
+      { position: 2, driverCode: 'NOR' },
+      { position: 3, driverCode: 'HAM' },
+      { position: 4, driverCode: 'PIA' },
+      { position: 5, driverCode: 'LEC' }
+    ])
+    // m1 deliberately didn't submit picks — should appear with empty list.
+
+    const res = await a.inject({
+      method: 'GET',
+      url: `/api/leagues/${leagueId}/sessions/${ses.id}/predictions`,
+      headers: auth(owner.token)
+    })
+    expect(res.statusCode).toBe(200)
+    const body = res.json()
+    expect(body.sessionLocked).toBe(true)
+    expect(body.predictions).toHaveLength(2)
+    const byUser = new Map(body.predictions.map((p: any) => [p.userId, p]))
+    expect((byUser.get(owner.userId) as any).picks).toHaveLength(5)
+    expect((byUser.get(owner.userId) as any).pointsTotal).toBeNull()
+    expect((byUser.get(m1.userId) as any).picks).toHaveLength(0)
+  })
+
+  it('hides picks before session start (sessionLocked: false, empty list)', async () => {
+    const a = await app()
+    const owner = await signupAndToken(a, 'lp-fut@x.com')
+    const created = await a.inject({ method: 'POST', url: '/api/leagues', headers: auth(owner.token), payload: { name: 'F' } })
+    const leagueId = created.json().league.id
+
+    const ses = await seedSession({ startInPast: false })
+    await seedDrivers(['VER', 'NOR', 'HAM', 'PIA', 'LEC'])
+    await predictionsRepo.upsertPredictionWithPicks(owner.userId, ses.id, [
+      { position: 1, driverCode: 'VER' },
+      { position: 2, driverCode: 'NOR' },
+      { position: 3, driverCode: 'HAM' },
+      { position: 4, driverCode: 'PIA' },
+      { position: 5, driverCode: 'LEC' }
+    ])
+
+    const res = await a.inject({
+      method: 'GET',
+      url: `/api/leagues/${leagueId}/sessions/${ses.id}/predictions`,
+      headers: auth(owner.token)
+    })
+    expect(res.statusCode).toBe(200)
+    expect(res.json().sessionLocked).toBe(false)
+    expect(res.json().predictions).toHaveLength(0)
+  })
+
+  it('403 for non-members', async () => {
+    const a = await app()
+    const owner = await signupAndToken(a, 'lp-403o@x.com')
+    const stranger = await signupAndToken(a, 'lp-403s@x.com')
+    const created = await a.inject({ method: 'POST', url: '/api/leagues', headers: auth(owner.token), payload: { name: 'S' } })
+    const leagueId = created.json().league.id
+    const ses = await seedSession({ startInPast: true })
+
+    const res = await a.inject({
+      method: 'GET',
+      url: `/api/leagues/${leagueId}/sessions/${ses.id}/predictions`,
+      headers: auth(stranger.token)
+    })
+    expect(res.statusCode).toBe(403)
   })
 })

@@ -3,6 +3,8 @@ import { z } from 'zod'
 import { ApiError } from '../errors.js'
 import * as leaguesRepo from '../../repo/leagues.js'
 import * as members from '../../repo/leagueMembers.js'
+import * as predictionsRepo from '../../repo/predictions.js'
+import * as sessionsRepo from '../../repo/sessions.js'
 import { generateUniqueJoinCode } from '../../auth/joinCodes.js'
 import { getCurrentUser, registerAuthHook, requireLeagueMember, requireLeagueOwner } from '../auth-context.js'
 
@@ -142,4 +144,31 @@ export async function registerLeagueRoutes(app: FastifyInstance): Promise<void> 
     await members.remove(req.params.id, req.params.userId)
     return { ok: true }
   })
+
+  // Every league member's picks + session score for one session. Gated by the
+  // session's scheduledStart — predictions are hidden until kickoff so we
+  // don't leak picks before lock. Used by the race-detail screen to render a
+  // ticket per member below the official classification.
+  app.get<{ Params: { id: string; sessionId: string } }>(
+    '/api/leagues/:id/sessions/:sessionId/predictions',
+    async (req) => {
+      await requireLeagueMember(req, req.params.id)
+      const sessionId = Number(req.params.sessionId)
+      if (!Number.isFinite(sessionId)) {
+        throw new ApiError('BAD_REQUEST', 'sessionId must be a number')
+      }
+      const s = await sessionsRepo.getById(sessionId)
+      if (!s) throw new ApiError('NOT_FOUND', 'Session not found')
+
+      if (s.scheduledStart.getTime() > Date.now()) {
+        return { sessionLocked: false, predictions: [] }
+      }
+
+      const list = await predictionsRepo.listLeagueMemberPredictions(
+        req.params.id,
+        sessionId
+      )
+      return { sessionLocked: true, predictions: list }
+    }
+  )
 }

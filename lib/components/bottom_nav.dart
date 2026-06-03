@@ -17,7 +17,10 @@ class BottomNav extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = Theme.of(context);
     return Container(
-      padding: const EdgeInsets.fromLTRB(Spacing.xl, Spacing.md, Spacing.xl, Spacing.xxl),
+      // Bottom padding intentionally 0 — the SafeArea below handles the
+      // device home-indicator inset. The previous xxl value stacked on top
+      // of that inset and produced a noticeable gap under the labels.
+      padding: const EdgeInsets.fromLTRB(Spacing.xl, Spacing.md, Spacing.xl, 0),
       decoration: BoxDecoration(
         color: t.colorScheme.surface,
         border: Border(top: BorderSide(color: t.strokeColor, width: Strokes.card)),

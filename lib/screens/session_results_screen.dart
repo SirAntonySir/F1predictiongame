@@ -4,12 +4,12 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../api/api_client.dart';
 import '../api/models/event.dart';
+import '../api/models/member_prediction.dart';
 import '../api/models/session.dart';
 import '../api/models/session_result.dart';
 import '../components/app_card.dart';
 import '../components/countdown.dart';
 import '../components/error_view.dart';
-import '../components/score_banner.dart';
 import '../components/ticket_card.dart';
 import '../domain/prediction.dart';
 import '../domain/result_display.dart';
@@ -25,8 +25,8 @@ import '../theme/typography.dart';
 // Sprint Quali is "view-only": users can no longer pick (see predict_screen.dart)
 // and the backend no longer scores it, but we still surface a SPRINT QUALI tab
 // on the results screen so the actual session classification stays visible from
-// the calendar drill-down. With no picks, the ScoreBanner just reads "No picks
-// for this session" and the FULL CLASSIFICATION renders normally.
+// the calendar drill-down. With no picks, the YourScore ticket just reads
+// "No picks for this session" and the FULL CLASSIFICATION renders normally.
 const _pickableTypes = {
   SessionType.qualifying,
   SessionType.sprint_quali,
@@ -92,10 +92,30 @@ class _SessionResultsScreenState extends State<SessionResultsScreen> {
               ?.picks.map((p) => p.driverCode).toList() ??
           const <String>[];
       final backendScore = scope.predictions.score(sessionId)?.pointsTotal;
+      // Best-effort fetch of league members' picks. Hidden if the user has
+      // no league, the session hasn't started yet (backend returns
+      // sessionLocked: false), or the call errors out.
+      var members = const <MemberPrediction>[];
+      final leagues = scope.auth.leagues;
+      final selfId = scope.auth.currentUserId;
+      if (leagues.isNotEmpty) {
+        try {
+          final res = await scope.api.leagueSessionPredictions(
+              leagues.first.id, sessionId);
+          members = res.sessionLocked
+              ? res.predictions.where((p) => p.userId != selfId).toList()
+              : const [];
+          members.sort((a, b) =>
+              (b.pointsTotal ?? -1).compareTo(a.pointsTotal ?? -1));
+        } catch (_) {
+          members = const [];
+        }
+      }
       return _SessionPayload(
         result: result,
         picks: picks,
         backendScore: backendScore,
+        leagueMemberPredictions: members,
       );
     });
   }
@@ -409,9 +429,8 @@ class _Body extends StatelessWidget {
         ] else ...[
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
-            child: ScoreBanner(
-              label: 'Your score',
-              value: '+$score',
+            child: _YourScoreTicket(
+              score: score,
               subtitle: payload.picks.isEmpty
                   ? 'No picks for this session'
                   : '$exactCount exact · $nearCount in top-$topN · $missCount miss',
@@ -498,6 +517,21 @@ class _Body extends StatelessWidget {
             ),
           ),
         ],
+        if (payload.leagueMemberPredictions.isNotEmpty) ...[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+                Spacing.lg, Spacing.xl, Spacing.lg, Spacing.xs),
+            child: Text('LEAGUE PICKS',
+                style: AppText.label(11,
+                    color: t.colorScheme.onSurface.withOpacity(0.6))),
+          ),
+          for (final member in payload.leagueMemberPredictions)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                  Spacing.lg, 0, Spacing.lg, Spacing.sm),
+              child: _MemberPickTicket(member: member),
+            ),
+        ],
       ],
     );
   }
@@ -560,10 +594,15 @@ class _SessionPayload {
   final List<SessionResult> result;
   final List<String> picks;
   final int? backendScore;
+  /// Every league member's picks + session score for this session. Empty when
+  /// the user has no league, the session hasn't started, or the call failed.
+  /// Already filtered to exclude the caller themselves.
+  final List<MemberPrediction> leagueMemberPredictions;
   _SessionPayload({
     required this.result,
     required this.picks,
     this.backendScore,
+    this.leagueMemberPredictions = const [],
   });
 }
 
@@ -742,4 +781,133 @@ class _HorizontalDashedLinePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_HorizontalDashedLinePainter old) => old.color != color;
+}
+
+/// Validated-ticket take on the old ScoreBanner: brand-red stock with the
+/// stub torn off. The white text override sits inside the body so the
+/// TicketCard's default-black wrapper (used by cream tickets) gets shadowed
+/// by the more specific style.
+class _YourScoreTicket extends StatelessWidget {
+  final int score;
+  final String subtitle;
+  const _YourScoreTicket({required this.score, required this.subtitle});
+
+  @override
+  Widget build(BuildContext context) {
+    return TicketCard(
+      background: BrandColors.accent,
+      torn: true,
+      bodyPadding: const EdgeInsets.fromLTRB(
+          Spacing.lg, Spacing.md, Spacing.xl, Spacing.md),
+      body: DefaultTextStyle.merge(
+        style: const TextStyle(color: Colors.white),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('YOUR SCORE',
+                style: AppText.label(10,
+                    color: Colors.white.withOpacity(0.8))),
+            const SizedBox(height: 4),
+            Text('+$score',
+                style: AppText.display(36, color: Colors.white)),
+            const SizedBox(height: 4),
+            Text(subtitle,
+                style: AppText.body(12,
+                    color: Colors.white.withOpacity(0.9))),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Ticket showing one league member's picks for this session. Cream stock
+/// with the stub torn off — they no longer get to edit, but you can see
+/// what they played.
+class _MemberPickTicket extends StatelessWidget {
+  final MemberPrediction member;
+  const _MemberPickTicket({required this.member});
+
+  @override
+  Widget build(BuildContext context) {
+    final empty = member.picks.isEmpty;
+    final pts = member.pointsTotal;
+    return TicketCard(
+      torn: true,
+      bodyPadding: const EdgeInsets.fromLTRB(
+          Spacing.lg, Spacing.md, Spacing.xl, Spacing.md),
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(member.displayName.toUpperCase(),
+                    overflow: TextOverflow.ellipsis,
+                    style: AppText.display(15, color: Colors.black)),
+              ),
+              if (pts != null)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 7, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: pts > 0 ? BrandColors.ok : Colors.black,
+                    borderRadius:
+                        const BorderRadius.all(Radius.circular(6)),
+                  ),
+                  child: Text('+$pts',
+                      style: AppText.label(9,
+                          color: pts > 0 ? Colors.black : Colors.white)),
+                ),
+            ],
+          ),
+          const SizedBox(height: Spacing.sm),
+          if (empty)
+            Text('No picks for this session',
+                style: AppText.body(12,
+                    color: Colors.black.withOpacity(0.55))
+                    .copyWith(fontStyle: FontStyle.italic))
+          else
+            Wrap(
+              spacing: 12,
+              runSpacing: 6,
+              children: [
+                for (final p in member.picks)
+                  _MemberPickChip(position: p.position, driverCode: p.driverCode),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MemberPickChip extends StatelessWidget {
+  final int position;
+  final String driverCode;
+  const _MemberPickChip({required this.position, required this.driverCode});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+          decoration: BoxDecoration(
+            color: Colors.black.withOpacity(0.08),
+            borderRadius: const BorderRadius.all(Radius.circular(4)),
+          ),
+          child: Text('P$position',
+              style: AppText.label(9, color: Colors.black.withOpacity(0.7))),
+        ),
+        const SizedBox(width: 6),
+        Text(driverCode,
+            style: AppText.body(14, weight: FontWeight.w800, color: Colors.black)),
+      ],
+    );
+  }
 }

@@ -117,6 +117,9 @@ class _LeagueTabState extends State<LeagueTab> {
                       pointsTotal: r.pointsTotal,
                       trend: TrendDirection.equal,
                       isMe: isMe,
+                      focus: _metric == _Metric.inSeason
+                          ? LeagueRowFocus.inSeason
+                          : LeagueRowFocus.total,
                     );
                   }),
                 ),

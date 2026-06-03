@@ -1,6 +1,6 @@
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 import { getDb } from '../db/client.js'
-import { prediction, predictionPick } from '../db/schema.js'
+import { leagueMember, prediction, predictionPick, score, user } from '../db/schema.js'
 import type { Prediction } from '../domain/types.js'
 import type { PickInput } from './predictionPicks.js'
 
@@ -98,4 +98,72 @@ export async function listForSessionWithPicks(sessionId: number): Promise<Predic
     p.picks.sort((a, b) => a.position - b.position)
   }
   return Array.from(byPrediction.values())
+}
+
+export type LeagueMemberPrediction = {
+  userId: string
+  displayName: string
+  picks: { position: number; driverCode: string }[]
+  pointsTotal: number | null
+}
+
+/// Every league member's prediction + session score for a single session.
+/// Members with no prediction yield an empty `picks` list. Members with no
+/// computed score yield `pointsTotal: null`.
+export async function listLeagueMemberPredictions(
+  leagueId: string,
+  sessionId: number
+): Promise<LeagueMemberPrediction[]> {
+  const db = getDb()
+
+  const members = await db
+    .select({ userId: leagueMember.userId, displayName: user.displayName })
+    .from(leagueMember)
+    .innerJoin(user, eq(user.id, leagueMember.userId))
+    .where(eq(leagueMember.leagueId, leagueId))
+
+  if (members.length === 0) return []
+  const userIds = members.map((m) => m.userId)
+
+  const predRows = await db
+    .select({
+      userId: prediction.userId,
+      position: predictionPick.position,
+      driverCode: predictionPick.driverCode
+    })
+    .from(prediction)
+    .leftJoin(predictionPick, eq(predictionPick.predictionId, prediction.id))
+    .where(and(
+      eq(prediction.sessionId, sessionId),
+      inArray(prediction.userId, userIds)
+    ))
+
+  const scoreRows = await db
+    .select({ userId: score.userId, pointsTotal: score.pointsTotal })
+    .from(score)
+    .where(and(
+      eq(score.sessionId, sessionId),
+      eq(score.kind, 'session'),
+      inArray(score.userId, userIds)
+    ))
+
+  const picksByUser = new Map<string, { position: number; driverCode: string }[]>()
+  for (const r of predRows) {
+    if (r.position === null || r.driverCode === null) continue
+    const list = picksByUser.get(r.userId) ?? []
+    list.push({ position: r.position, driverCode: r.driverCode })
+    picksByUser.set(r.userId, list)
+  }
+  for (const list of picksByUser.values()) {
+    list.sort((a, b) => a.position - b.position)
+  }
+
+  const scoreByUser = new Map(scoreRows.map((s) => [s.userId, s.pointsTotal]))
+
+  return members.map((m) => ({
+    userId: m.userId,
+    displayName: m.displayName,
+    picks: picksByUser.get(m.userId) ?? [],
+    pointsTotal: scoreByUser.get(m.userId) ?? null
+  }))
 }

@@ -6,6 +6,12 @@ import '../theme/tokens.dart';
 import '../theme/typography.dart';
 import 'trend_badge.dart';
 
+/// Which column the row should emphasise. Drives both the bold/large
+/// rendering of the "fat" number and (for [inSeason]) hides the redundant
+/// total column entirely — the user is already looking at an in-season
+/// leaderboard so the cumulated total is noise.
+enum LeagueRowFocus { inSeason, total }
+
 class LeagueRow extends StatelessWidget {
   final int rank;
   final String name;
@@ -16,6 +22,7 @@ class LeagueRow extends StatelessWidget {
   final TrendDirection trend;
   final bool isMe;
   final Color? accentStripe;
+  final LeagueRowFocus focus;
 
   const LeagueRow({
     super.key,
@@ -28,6 +35,7 @@ class LeagueRow extends StatelessWidget {
     required this.trend,
     this.isMe = false,
     this.accentStripe,
+    this.focus = LeagueRowFocus.total,
   });
 
   @override
@@ -71,11 +79,20 @@ class LeagueRow extends StatelessWidget {
             TrendBadge(direction: trend, label: '1'),
             const SizedBox(width: Spacing.sm),
           ],
-          _pointsCell(t, '$inSeasonPoints', 'season'),
-          const SizedBox(width: 8),
-          _pointsCell(t, '$preseasonPoints', 'pre'),
-          const SizedBox(width: 8),
-          _pointsCell(t, '$pointsTotal', 'pts', emphasis: true),
+          // In-season tab: pre on the left, season (big) on the right so the
+          // emphasised value sits in the same end-of-row slot as the total
+          // does in the Total tab.
+          if (focus == LeagueRowFocus.inSeason) ...[
+            _pointsCell(t, '$preseasonPoints', 'pre'),
+            const SizedBox(width: 8),
+            _pointsCell(t, '$inSeasonPoints', 'season', emphasis: true),
+          ] else ...[
+            _pointsCell(t, '$inSeasonPoints', 'season'),
+            const SizedBox(width: 8),
+            _pointsCell(t, '$preseasonPoints', 'pre'),
+            const SizedBox(width: 8),
+            _pointsCell(t, '$pointsTotal', 'pts', emphasis: true),
+          ],
         ],
       ),
     );
