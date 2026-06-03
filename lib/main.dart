@@ -11,7 +11,7 @@ import 'state/theme_controller.dart';
 import 'state/token_storage.dart';
 
 const _apiUrl =
-    String.fromEnvironment('API_URL', defaultValue: 'http://localhost:3000');
+    String.fromEnvironment('API_URL', defaultValue: 'https://f1pg-backend.onrender.com');
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -98,6 +98,22 @@ class _AfterBootState extends State<_AfterBoot> {
     if (widget.auth.leagues.isNotEmpty) {
       await league.load(widget.auth.leagues.first.id);
     }
+    // Keep the LeagueController in sync with auth.leagues so Settings and
+    // Standings (which read scope.league.league directly) show the right name
+    // and join code after login/logout/league-switch — without this the
+    // controller only loads at app boot and stays null for everyone who
+    // signs in afterwards.
+    widget.auth.addListener(() {
+      final leagues = widget.auth.leagues;
+      if (leagues.isEmpty) {
+        league.clear();
+        return;
+      }
+      if (league.league?.id != leagues.first.id) {
+        // ignore: discarded_futures
+        league.load(leagues.first.id);
+      }
+    });
     final preseason = PreseasonController(api: widget.api);
     if (widget.auth.isLoggedIn) {
       // Best-effort prefetch; screen calls refresh() on demand if it fails.

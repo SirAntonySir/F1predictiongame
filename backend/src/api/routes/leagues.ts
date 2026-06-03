@@ -26,6 +26,10 @@ async function leagueViewForCaller(leagueId: string, callerUserId: string) {
     name: l.name,
     ownerUserId: l.ownerUserId,
     memberCount,
+    // The Flutter LeagueView model parses this as a required string. Keep
+    // it on every league view (create / join / get / patch) so the client's
+    // LeagueController.load() doesn't fail silently and stay null.
+    role: isOwner ? 'owner' : 'member',
     createdAt: l.createdAt,
     ...(isOwner ? { joinCode: l.joinCode } : {})
   }

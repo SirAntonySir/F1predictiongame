@@ -73,6 +73,27 @@ describe('GET /api/leagues/:id', () => {
     expect(asMember.json().members).toHaveLength(2)
   })
 
+  // The Flutter LeagueView model parses `role` as a required string. If the
+  // backend stops including it the client silently fails to load the league
+  // and Settings / Standings render "No league" forever.
+  it('includes the caller\'s role on the league object', async () => {
+    const a = await app()
+    const owner = await signupAndToken(a, 'ro@x.com')
+    const joiner = await signupAndToken(a, 'rj@x.com')
+    const created = await a.inject({ method: 'POST', url: '/api/leagues', headers: auth(owner.token), payload: { name: 'R' } })
+    const id = created.json().league.id
+    const code = created.json().league.joinCode
+    await a.inject({ method: 'POST', url: '/api/leagues/join', headers: auth(joiner.token), payload: { joinCode: code } })
+
+    expect(created.json().league.role).toBe('owner')
+
+    const asOwner = await a.inject({ method: 'GET', url: `/api/leagues/${id}`, headers: auth(owner.token) })
+    expect(asOwner.json().league.role).toBe('owner')
+
+    const asMember = await a.inject({ method: 'GET', url: `/api/leagues/${id}`, headers: auth(joiner.token) })
+    expect(asMember.json().league.role).toBe('member')
+  })
+
   it('403 for non-members', async () => {
     const a = await app()
     const owner = await signupAndToken(a, 'fo@x.com')
