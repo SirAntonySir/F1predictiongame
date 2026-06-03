@@ -321,7 +321,11 @@ class _PredictScreenState extends State<PredictScreen> {
             final systemLocked = scope.predictions.prediction(session.id)?.isLocked ?? false;
             final hasSaved = _initialPicks.isNotEmpty;
             final canEdit = _editing && !systemLocked;
-            final canLock = !systemLocked && !_saving && _picks.length == req;
+            // Partial / empty pick lists are now savable — the backend accepts
+            // 0..req picks, so the lock button stays enabled whenever the user
+            // is editing an unlocked session, regardless of how many slots
+            // they've filled.
+            final canLock = !systemLocked && !_saving;
             return GestureDetector(
               behavior: HitTestBehavior.translucent,
               onHorizontalDragEnd: (details) {

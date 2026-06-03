@@ -87,12 +87,55 @@ describe('PUT /api/sessions/:id/my-prediction', () => {
     expect(res.statusCode).toBe(409)
   })
 
-  it('rejects wrong pick count with 422', async () => {
+  it('rejects more than max picks with 422', async () => {
     const { futureSession } = await seedScene()
     const { app, token } = await buildAndUser()
     const res = await app.inject({
       method: 'PUT', url: `/api/sessions/${futureSession.id}/my-prediction`,
-      headers: auth(token), payload: { picks: [{ position: 1, driverCode: 'VER' }] }  // race needs 5
+      headers: auth(token),
+      payload: { picks: [
+        { position: 1, driverCode: 'VER' }, { position: 2, driverCode: 'HAM' },
+        { position: 3, driverCode: 'NOR' }, { position: 4, driverCode: 'PIA' },
+        { position: 5, driverCode: 'RUS' }, { position: 6, driverCode: 'LEC' }
+      ] }  // race expects at most 5
+    })
+    expect(res.statusCode).toBe(422)
+  })
+
+  it('accepts a partial pick list (positions 1..n with empty trailing slots)', async () => {
+    const { futureSession } = await seedScene()
+    const { app, token } = await buildAndUser()
+    const res = await app.inject({
+      method: 'PUT', url: `/api/sessions/${futureSession.id}/my-prediction`,
+      headers: auth(token),
+      payload: { picks: [
+        { position: 1, driverCode: 'VER' }, { position: 2, driverCode: 'HAM' }
+      ] }  // race expects up to 5 — 2 is fine
+    })
+    expect(res.statusCode).toBe(200)
+    expect(res.json().prediction.picks).toHaveLength(2)
+  })
+
+  it('accepts an empty pick list (lock in with no slots filled)', async () => {
+    const { futureSession } = await seedScene()
+    const { app, token } = await buildAndUser()
+    const res = await app.inject({
+      method: 'PUT', url: `/api/sessions/${futureSession.id}/my-prediction`,
+      headers: auth(token), payload: { picks: [] }
+    })
+    expect(res.statusCode).toBe(200)
+    expect(res.json().prediction.picks).toHaveLength(0)
+  })
+
+  it('still rejects gappy positions (e.g. 1,3 with no 2)', async () => {
+    const { futureSession } = await seedScene()
+    const { app, token } = await buildAndUser()
+    const res = await app.inject({
+      method: 'PUT', url: `/api/sessions/${futureSession.id}/my-prediction`,
+      headers: auth(token),
+      payload: { picks: [
+        { position: 1, driverCode: 'VER' }, { position: 3, driverCode: 'HAM' }
+      ] }
     })
     expect(res.statusCode).toBe(422)
   })

@@ -15,6 +15,7 @@ import '../components/pod_tile.dart';
 import '../components/racing_stripes.dart';
 import '../components/session_chip.dart';
 import '../components/ticket_card.dart';
+import '../domain/prediction.dart';
 import '../domain/scoring.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
@@ -567,12 +568,17 @@ class _HomeScreenState extends State<HomeScreen> {
         : scope.predictions.prediction(lastSession.id) as PredictionView?;
     final picks =
         pred?.picks.map((p) => p.driverCode).toList() ?? const <String>[];
+    // Render as many finisher tiles as the session's pick depth (race = 5,
+    // sprint = 3, qualifying = 2, sprint-quali = 1) so users see every slot
+    // they were asked to predict, not a fixed top-3. Falls back to 3 when
+    // there's no session for some reason.
+    final topN = lastSession != null ? requiredPicks(lastSession.type) : 3;
     int score = 0;
     int exactHits = 0;
     if (picks.isNotEmpty && d.lastResult.isNotEmpty) {
       score = scoreRace(picks, d.lastResult);
       for (var i = 0; i < picks.length; i++) {
-        if (outcomeFor(picks[i], i + 1, d.lastResult, 5) ==
+        if (outcomeFor(picks[i], i + 1, d.lastResult, topN) ==
             PickOutcome.exact) {
           exactHits++;
         }
@@ -593,7 +599,7 @@ class _HomeScreenState extends State<HomeScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('Top 3',
+                  Text('Top $topN',
                       style: AppText.label(11,
                           color: t.colorScheme.onSurface.withOpacity(0.6))),
                   if (picks.isNotEmpty)
@@ -611,7 +617,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(height: Spacing.sm),
               Row(children: [
-                for (final r in d.lastResult.take(3))
+                for (final r in d.lastResult.take(topN))
                   Expanded(
                     child: Padding(
                       padding: const EdgeInsets.only(right: 6),

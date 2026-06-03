@@ -18,7 +18,8 @@ const pickSchema = z.object({
 })
 
 const putBody = z.object({
-  picks: z.array(pickSchema).min(1).max(20)
+  // Empty array is allowed so the caller can lock in with no slots filled.
+  picks: z.array(pickSchema).max(20)
 })
 
 function parse<T>(schema: z.ZodType<T>, body: unknown): T {
@@ -67,14 +68,17 @@ async function validatePicksForSessionType(sessionType: SessionType, picks: { po
   if (!isScorableSessionType(sessionType)) {
     throw new ApiError('VALIDATION', `Session type ${sessionType} is not scorable`)
   }
-  const expected = picksRequiredFor(sessionType)!
-  if (picks.length !== expected) {
-    throw new ApiError('VALIDATION', `${sessionType} expects ${expected} picks, got ${picks.length}`)
+  const max = picksRequiredFor(sessionType)!
+  // Partial picks are allowed (caller may want to lock in with empty slots
+  // and fill the rest later). We only enforce the upper bound and that the
+  // positions form a contiguous prefix 1..picks.length with no gaps.
+  if (picks.length > max) {
+    throw new ApiError('VALIDATION', `${sessionType} allows at most ${max} picks, got ${picks.length}`)
   }
   const positions = picks.map((p) => p.position).sort((a, b) => a - b)
-  for (let i = 0; i < expected; i++) {
+  for (let i = 0; i < picks.length; i++) {
     if (positions[i] !== i + 1) {
-      throw new ApiError('VALIDATION', `picks.position must be exactly 1..${expected}`)
+      throw new ApiError('VALIDATION', `picks.position must be a prefix 1..${picks.length}`)
     }
   }
   const driverSet = new Set(picks.map((p) => p.driverCode))
@@ -83,12 +87,12 @@ async function validatePicksForSessionType(sessionType: SessionType, picks: { po
   }
   // All drivers exist and are in the current season
   const cur = await seasonsRepo.getCurrent()
-  if (!cur) throw new ApiError('VALIDATION', 'No current season')
+  if (!cur && picks.length > 0) throw new ApiError('VALIDATION', 'No current season')
   for (const p of picks) {
     if (!(await driversRepo.exists(p.driverCode))) {
       throw new ApiError('VALIDATION', `Unknown driver: ${p.driverCode}`)
     }
-    if (!(await standingsRepo.driverHasStandingForYear(p.driverCode, cur.year))) {
+    if (!(await standingsRepo.driverHasStandingForYear(p.driverCode, cur!.year))) {
       throw new ApiError('VALIDATION', `Driver ${p.driverCode} not in current season`)
     }
   }
