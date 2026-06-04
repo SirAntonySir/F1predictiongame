@@ -425,22 +425,34 @@ class _PredictScreenState extends State<PredictScreen> {
                 ),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
-                  child: GridView.count(
-                    crossAxisCount: 4,
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    mainAxisSpacing: 6,
-                    crossAxisSpacing: 6,
-                    childAspectRatio: 1.4,
-                    children: d.drivers.map((r) {
-                      final slot = _picks.indexOf(r.driverCode);
-                      return DriverTile(
-                        code: r.driverCode,
-                        constructorId: r.constructorId,
-                        pickedSlot: slot == -1 ? null : slot + 1,
-                        onTap: canEdit ? () => _toggleDriver(r.driverCode) : null,
+                  // Responsive driver grid: target ~95px per tile so iPads
+                  // and other wide viewports get more columns instead of 4
+                  // huge boxes. Phones stay at 4 (their default), tablets
+                  // jump to 6–8, landscape iPad maxes out around 10.
+                  child: LayoutBuilder(
+                    builder: (ctx, constraints) {
+                      const targetTileWidth = 95.0;
+                      final cols = (constraints.maxWidth / targetTileWidth)
+                          .floor()
+                          .clamp(4, 10);
+                      return GridView.count(
+                        crossAxisCount: cols,
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        mainAxisSpacing: 6,
+                        crossAxisSpacing: 6,
+                        childAspectRatio: 1.4,
+                        children: d.drivers.map((r) {
+                          final slot = _picks.indexOf(r.driverCode);
+                          return DriverTile(
+                            code: r.driverCode,
+                            constructorId: r.constructorId,
+                            pickedSlot: slot == -1 ? null : slot + 1,
+                            onTap: canEdit ? () => _toggleDriver(r.driverCode) : null,
+                          );
+                        }).toList(),
                       );
-                    }).toList(),
+                    },
                   ),
                 ),
               ],

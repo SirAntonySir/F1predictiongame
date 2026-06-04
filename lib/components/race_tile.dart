@@ -37,6 +37,10 @@ class RaceTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = Theme.of(context);
     final stripeColor = state == RaceState.live ? BrandColors.live : null;
+    // Past races read as "done": the round + race-info column fade out so
+    // the eye is drawn to the score in the right column (which stays full
+    // opacity). Live / next / future tiles render at full strength.
+    final pastDim = state == RaceState.past ? 0.45 : 1.0;
     return InkWell(
       onTap: onTap,
       borderRadius: Radii.rLg,
@@ -50,50 +54,56 @@ class RaceTile extends StatelessWidget {
             children: [
               if (stripeColor != null)
                 Container(width: 5, color: stripeColor),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(Spacing.lg, Spacing.md, Spacing.lg, Spacing.md),
-                child: Text(
-                  round.toString().padLeft(2, '0'),
-                  style: AppText.display(28),
+              Opacity(
+                opacity: pastDim,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(Spacing.lg, Spacing.md, Spacing.lg, Spacing.md),
+                  child: Text(
+                    round.toString().padLeft(2, '0'),
+                    style: AppText.display(28),
+                  ),
                 ),
               ),
               Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: Spacing.md),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(country.toUpperCase(),
-                          style: AppText.label(10, color: t.colorScheme.onSurface.withOpacity(0.55))),
-                      const SizedBox(height: Spacing.xxs),
-                      Text(
-                        name.toUpperCase(),
-                        style: AppText.display(16).copyWith(
-                          decoration: state == RaceState.past ? TextDecoration.lineThrough : null,
-                          decorationColor: Colors.black26,
+                child: Opacity(
+                  opacity: pastDim,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: Spacing.md),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(country.toUpperCase(),
+                            style: AppText.label(10, color: t.colorScheme.onSurface.withOpacity(0.55))),
+                        const SizedBox(height: Spacing.xxs),
+                        Text(
+                          name.toUpperCase(),
+                          style: AppText.display(16).copyWith(
+                            decoration: state == RaceState.past ? TextDecoration.lineThrough : null,
+                            decorationColor: Colors.black26,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: Spacing.xxs),
-                      Text(when, style: AppText.body(11, color: t.colorScheme.onSurface.withOpacity(0.7))),
-                      if (pickHits != null) ...[
-                        const SizedBox(height: 5),
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: pickHits!
-                              .map((hit) => Container(
-                                    margin: const EdgeInsets.only(right: 3),
-                                    width: 7,
-                                    height: 7,
-                                    decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      color: hit ? BrandColors.ok : BrandColors.accent,
-                                    ),
-                                  ))
-                              .toList(),
-                        ),
+                        const SizedBox(height: Spacing.xxs),
+                        Text(when, style: AppText.body(11, color: t.colorScheme.onSurface.withOpacity(0.7))),
+                        if (pickHits != null) ...[
+                          const SizedBox(height: 5),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: pickHits!
+                                .map((hit) => Container(
+                                      margin: const EdgeInsets.only(right: 3),
+                                      width: 7,
+                                      height: 7,
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        color: hit ? BrandColors.ok : BrandColors.accent,
+                                      ),
+                                    ))
+                                .toList(),
+                          ),
+                        ],
                       ],
-                    ],
+                    ),
                   ),
                 ),
               ),

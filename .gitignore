@@ -51,3 +51,11 @@ ios/*
 .clone/
 backend/tippspiel-audit.md
 Tippspiel*.xlsx
+
+.cursor/
+.superpowers/
+android/
+ios/
+flutter_export_environment.sh
+.claude/
+android

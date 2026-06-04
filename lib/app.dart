@@ -4,6 +4,7 @@ import 'nav/router.dart';
 import 'state/app_state.dart';
 import 'state/auth_controller.dart';
 import 'state/league_controller.dart';
+import 'state/notification_settings_controller.dart';
 import 'state/predictions_controller.dart';
 import 'state/preseason_controller.dart';
 import 'state/theme_controller.dart';
@@ -16,6 +17,7 @@ class F1PgApp extends StatefulWidget {
   final ThemeController theme;
   final PredictionsController predictions;
   final PreseasonController preseason;
+  final NotificationSettingsController notifications;
 
   const F1PgApp({
     super.key,
@@ -25,6 +27,7 @@ class F1PgApp extends StatefulWidget {
     required this.theme,
     required this.predictions,
     required this.preseason,
+    required this.notifications,
   });
 
   @override
@@ -43,6 +46,7 @@ class _F1PgAppState extends State<F1PgApp> {
       theme: widget.theme,
       predictions: widget.predictions,
       preseason: widget.preseason,
+      notifications: widget.notifications,
       child: ListenableBuilder(
         listenable: widget.theme,
         builder: (_, __) => MaterialApp.router(

@@ -9,6 +9,7 @@ import 'package:predictiongame/nav/router.dart';
 import 'package:predictiongame/state/app_state.dart';
 import 'package:predictiongame/state/auth_controller.dart';
 import 'package:predictiongame/state/league_controller.dart';
+import 'package:predictiongame/state/notification_settings_controller.dart';
 import 'package:predictiongame/state/predictions_controller.dart';
 import 'package:predictiongame/state/preseason_controller.dart';
 import 'package:predictiongame/state/theme_controller.dart';
@@ -31,6 +32,7 @@ Widget _withAppState({required AuthController auth, required GoRouter router}) {
     theme: ThemeController(ThemeMode.system),
     predictions: PredictionsController(api: _FakeApi()),
     preseason: PreseasonController(api: _FakeApi()),
+    notifications: NotificationSettingsController.forTesting(),
     child: MaterialApp.router(routerConfig: router),
   );
 }

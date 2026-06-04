@@ -47,6 +47,11 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<_HomeData> _load(ApiClient api) async {
     final scope = AppState.of(context);
     final events = await api.events();
+    // Re-arm pick reminders for unpicked sessions whenever the home screen
+    // loads. Idempotent — the service cancels-then-reschedules. Best-effort:
+    // a failure here mustn't block the rest of the home-load.
+    // ignore: discarded_futures
+    scope.predictions.refreshUpcoming().catchError((_) {});
     final leagues = scope.auth.leagues;
     List<LeaderboardRow> leaderboard = const [];
     if (leagues.isNotEmpty) {
@@ -206,39 +211,34 @@ class _HomeScreenState extends State<HomeScreen> {
                 (scope.auth.leagues.isNotEmpty ? scope.auth.leagues.first.name : 'No league');
             final memberCount = scope.league.league?.members.length ??
                 d.leaderboard.length;
-            return ListView(
-              padding: const EdgeInsets.fromLTRB(0, Spacing.lg, 0, Spacing.xxl),
-              children: [
-                _topbar(leagueName, memberCount),
-                const SizedBox(height: Spacing.xs),
-                if (d.next != null && d.nextEvent != null)
-                  _hero(_resolveHeroSession(d), d.nextEvent!, t)
-                else
-                  _noNextHero(t),
-                if (d.next != null) ...[
-                  _section('Your pick',
-                      onTap: () => context.go('/predict')),
-                  // Wrap pick/last cards in ListenableBuilder so changes saved
-                  // on the predict screen (which mutate scope.predictions)
-                  // re-render here without a full home reload.
-                  ListenableBuilder(
-                    listenable: scope.predictions,
-                    builder: (_, __) => _pickCard(d, scope, t),
-                  ),
-                ],
-                if (d.lastEvent != null) ...[
-                  _section('Last race · ${d.lastEvent!.name}', onTap: () {
+            // Section header builders + card builders, paired up so the
+            // 2-col path can rebuild each block as `Column(header,
+            // Expanded(card))` inside an IntrinsicHeight row — keeping the
+            // pick ticket and the last-race card the same height — while
+            // the 1-col path stays a plain Column.
+            final yourPickHeader = (d.next == null)
+                ? null
+                : _section('Your pick', onTap: () => context.go('/predict'));
+            Widget pickCard() => ListenableBuilder(
+                  listenable: scope.predictions,
+                  builder: (_, __) => _pickCard(d, scope, t),
+                );
+            final lastRaceHeader = (d.lastEvent == null)
+                ? null
+                : _section('Last race · ${d.lastEvent!.name}', onTap: () {
                     final race = d.lastEvent!.sessions.firstWhere(
                       (s) => s.type == SessionType.race,
                       orElse: () => d.lastEvent!.sessions.first,
                     );
                     context.push('/race/${d.lastEvent!.round}/${race.id}');
-                  }),
-                  ListenableBuilder(
-                    listenable: scope.predictions,
-                    builder: (_, __) => _lastCard(d, scope, t),
-                  ),
-                ],
+                  });
+            Widget lastCard() => ListenableBuilder(
+                  listenable: scope.predictions,
+                  builder: (_, __) => _lastCard(d, scope, t),
+                );
+            final inSeasonBlock = Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
                 _section('$leagueName · In-season',
                     onTap: () => context.go('/standings/league?sort=inseason')),
                 InkWell(
@@ -250,6 +250,11 @@ class _HomeScreenState extends State<HomeScreen> {
                     points: (r) => r.inSeasonPoints,
                   ),
                 ),
+              ],
+            );
+            final totalBlock = Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
                 _section('$leagueName · Total',
                     onTap: () => context.go('/standings/league?sort=total')),
                 InkWell(
@@ -260,6 +265,77 @@ class _HomeScreenState extends State<HomeScreen> {
                     t,
                     points: (r) => r.pointsTotal,
                   ),
+                ),
+              ],
+            );
+
+            return ListView(
+              padding: const EdgeInsets.fromLTRB(0, Spacing.lg, 0, Spacing.xxl),
+              children: [
+                _topbar(leagueName, memberCount),
+                const SizedBox(height: Spacing.xs),
+                if (d.next != null && d.nextEvent != null)
+                  _hero(_resolveHeroSession(d), d.nextEvent!, t)
+                else
+                  _noNextHero(t),
+                LayoutBuilder(
+                  builder: (ctx, constraints) {
+                    final twoCol = constraints.maxWidth >= 700;
+                    if (!twoCol) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          if (yourPickHeader != null) yourPickHeader,
+                          if (d.next != null) pickCard(),
+                          if (lastRaceHeader != null) lastRaceHeader,
+                          if (d.lastEvent != null) lastCard(),
+                          inSeasonBlock,
+                          totalBlock,
+                        ],
+                      );
+                    }
+                    // 2-col top row. We deliberately do NOT wrap in
+                    // IntrinsicHeight here: the pick card contains a `Wrap`,
+                    // which can't report intrinsic dimensions (its height
+                    // depends on its width), and IntrinsicHeight would hang
+                    // layout on iPad. Cards end up top-aligned with their
+                    // natural heights — minor visual asymmetry, but loads.
+                    Widget cardSide(Widget? header, Widget card) => Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (header != null) header,
+                            card,
+                          ],
+                        );
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: d.next == null
+                                  ? const SizedBox.shrink()
+                                  : cardSide(yourPickHeader, pickCard()),
+                            ),
+                            Expanded(
+                              child: d.lastEvent == null
+                                  ? const SizedBox.shrink()
+                                  : cardSide(lastRaceHeader, lastCard()),
+                            ),
+                          ],
+                        ),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(child: inSeasonBlock),
+                            Expanded(child: totalBlock),
+                          ],
+                        ),
+                      ],
+                    );
+                  },
                 ),
                 const SizedBox(height: Spacing.xxl),
               ],
@@ -462,17 +538,29 @@ class _HomeScreenState extends State<HomeScreen> {
     ];
   }
 
-  Widget _section(String title, {VoidCallback? onTap}) => Padding(
-        padding: const EdgeInsets.fromLTRB(Spacing.xl, Spacing.xl, Spacing.xl, Spacing.xs),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(title.toUpperCase(), style: AppText.label(11)),
-            if (onTap != null)
-              GestureDetector(onTap: onTap, child: Text('All ›', style: AppText.label(11, color: Colors.black.withOpacity(0.5)))),
-          ],
-        ),
-      );
+  Widget _section(String title, {VoidCallback? onTap}) {
+    // Use theme-aware onSurface so the "All ›" affordance stays readable in
+    // dark mode (was hardcoded black, which disappeared on dark iPad/iOS).
+    final t = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(Spacing.xl, Spacing.xl, Spacing.xl, Spacing.xs),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(title.toUpperCase(), style: AppText.label(11)),
+          if (onTap != null)
+            GestureDetector(
+              onTap: onTap,
+              child: Text(
+                'All ›',
+                style: AppText.label(11,
+                    color: t.colorScheme.onSurface.withOpacity(0.5)),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
 
   Widget _pickCard(_HomeData d, scope, ThemeData t) {
     // Use the next *pickable* session — d.next can be FP1 which has no

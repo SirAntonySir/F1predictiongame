@@ -525,12 +525,50 @@ class _Body extends StatelessWidget {
                 style: AppText.label(11,
                     color: t.colorScheme.onSurface.withOpacity(0.6))),
           ),
-          for (final member in payload.leagueMemberPredictions)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                  Spacing.lg, 0, Spacing.lg, Spacing.sm),
-              child: _MemberPickTicket(member: member),
-            ),
+          // Responsive layout: on phones each ticket spans the row (one per
+          // member, stacked). On iPad-wide viewports pair them up so we use
+          // the horizontal real estate instead of stretching each ticket to
+          // an awkward slab.
+          LayoutBuilder(
+            builder: (ctx, constraints) {
+              final twoCol = constraints.maxWidth >= 640;
+              final members = payload.leagueMemberPredictions;
+              if (!twoCol) {
+                return Column(
+                  children: [
+                    for (final m in members)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(
+                            Spacing.lg, 0, Spacing.lg, Spacing.sm),
+                        child: _MemberPickTicket(member: m),
+                      ),
+                  ],
+                );
+              }
+              final rows = <Widget>[];
+              for (var i = 0; i < members.length; i += 2) {
+                final left = members[i];
+                final right = i + 1 < members.length ? members[i + 1] : null;
+                rows.add(Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                      Spacing.lg, 0, Spacing.lg, Spacing.sm),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(child: _MemberPickTicket(member: left)),
+                      const SizedBox(width: Spacing.sm),
+                      Expanded(
+                        child: right == null
+                            ? const SizedBox.shrink()
+                            : _MemberPickTicket(member: right),
+                      ),
+                    ],
+                  ),
+                ));
+              }
+              return Column(children: rows);
+            },
+          ),
         ],
       ],
     );

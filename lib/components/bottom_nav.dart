@@ -16,11 +16,14 @@ class BottomNav extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
+    // iOS devices have a home-indicator that SafeArea pads around — adding
+    // more bottom padding there would stack on top of the inset and look
+    // gappy. Android phones don't get that inset, so the labels sit right
+    // at the screen edge unless we add a small explicit pad here.
+    final isAndroid = t.platform == TargetPlatform.android;
     return Container(
-      // Bottom padding intentionally 0 — the SafeArea below handles the
-      // device home-indicator inset. The previous xxl value stacked on top
-      // of that inset and produced a noticeable gap under the labels.
-      padding: const EdgeInsets.fromLTRB(Spacing.xl, Spacing.md, Spacing.xl, 0),
+      padding: EdgeInsets.fromLTRB(
+          Spacing.xl, Spacing.md, Spacing.xl, isAndroid ? Spacing.md : 0),
       decoration: BoxDecoration(
         color: t.colorScheme.surface,
         border: Border(top: BorderSide(color: t.strokeColor, width: Strokes.card)),

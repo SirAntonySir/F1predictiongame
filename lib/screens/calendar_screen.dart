@@ -19,11 +19,22 @@ class CalendarScreen extends StatefulWidget {
 
 class _CalendarScreenState extends State<CalendarScreen> {
   Future<_CalData>? _data;
+  final ScrollController _scroll = ScrollController();
+  // GlobalKey attached to whichever tile holds RaceState.next so we can
+  // jump-scroll to it on first load.
+  final GlobalKey _nextRaceKey = GlobalKey();
+  bool _scrolledToNext = false;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     _data ??= _load();
+  }
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
   }
 
   Future<_CalData> _load() async {
@@ -104,26 +115,19 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 .fold<int?>(null,
                     (prev, r) => prev == null ? r : (r < prev ? r : prev));
 
-            String? lastMonth;
+            // Bucket events by month so the layout builder can pair tiles
+            // within each month on wide viewports (iPad → 2-up rows).
+            final monthOrder = <String>[];
+            final byMonth = <String, List<Widget>>{};
             for (final e in events) {
               final race = e.sessions.firstWhere(
                 (s) => s.type == SessionType.race,
                 orElse: () => e.sessions.first,
               );
               final month = DateFormat('MMMM').format(race.scheduledStart);
-              if (month != lastMonth) {
-                children.add(Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                      Spacing.xl, Spacing.lg, Spacing.xl, Spacing.xs),
-                  child: Row(children: [
-                    Text(month.toUpperCase(), style: AppText.label(11)),
-                    const SizedBox(width: 10),
-                    Expanded(
-                        child: Container(
-                            height: 1, color: Colors.black.withOpacity(0.15))),
-                  ]),
-                ));
-                lastMonth = month;
+              if (!byMonth.containsKey(month)) {
+                monthOrder.add(month);
+                byMonth[month] = <Widget>[];
               }
 
               final RaceState raceState;
@@ -139,30 +143,104 @@ class _CalendarScreenState extends State<CalendarScreen> {
                   ? (data.pointsByRound[e.round] ?? 0)
                   : null;
 
-              children.add(Padding(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: Spacing.lg, vertical: 5),
-                child: RaceTile(
-                  round: e.round,
-                  country: () {
-                    final flag = flagFor(e.country);
-                    return '${flag != null ? '$flag  ' : ''}${e.country} · ${e.circuitName}';
-                  }(),
-                  name: e.name.replaceAll('Grand Prix', 'GP'),
-                  when:
-                      '${DateFormat('d MMM').format(e.sessions.first.scheduledStart)} – ${DateFormat('d MMM').format(race.scheduledStart)}',
-                  state: raceState,
-                  sprint: e.hasSprint,
-                  pointsScored: pts,
-                  distanceFromNow: raceState == RaceState.future
-                      ? _humanDelta(race.scheduledStart)
-                      : null,
-                  onTap: () => context.push('/race/${e.round}/${race.id}'),
-                ),
+              byMonth[month]!.add(RaceTile(
+                // Tag the next race's tile so the post-frame callback below
+                // can scroll the list to it.
+                key: raceState == RaceState.next ? _nextRaceKey : null,
+                round: e.round,
+                country: () {
+                  final flag = flagFor(e.country);
+                  return '${flag != null ? '$flag  ' : ''}${e.country} · ${e.circuitName}';
+                }(),
+                name: e.name.replaceAll('Grand Prix', 'GP'),
+                when:
+                    '${DateFormat('d MMM').format(e.sessions.first.scheduledStart)} – ${DateFormat('d MMM').format(race.scheduledStart)}',
+                state: raceState,
+                sprint: e.hasSprint,
+                pointsScored: pts,
+                distanceFromNow: raceState == RaceState.future
+                    ? _humanDelta(race.scheduledStart)
+                    : null,
+                onTap: () => context.push('/race/${e.round}/${race.id}'),
               ));
             }
+
+            Widget monthDivider(String month) => Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                      Spacing.xl, Spacing.lg, Spacing.xl, Spacing.xs),
+                  child: Row(children: [
+                    Text(month.toUpperCase(), style: AppText.label(11)),
+                    const SizedBox(width: 10),
+                    Expanded(
+                        child: Container(
+                            height: 1, color: Colors.black.withOpacity(0.15))),
+                  ]),
+                );
+
+            children.add(LayoutBuilder(
+              builder: (ctx, constraints) {
+                final twoCol = constraints.maxWidth >= 700;
+                final items = <Widget>[];
+                for (final month in monthOrder) {
+                  items.add(monthDivider(month));
+                  final tiles = byMonth[month]!;
+                  if (!twoCol) {
+                    for (final tile in tiles) {
+                      items.add(Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: Spacing.lg, vertical: 5),
+                        child: tile,
+                      ));
+                    }
+                  } else {
+                    for (var i = 0; i < tiles.length; i += 2) {
+                      final left = tiles[i];
+                      final right = i + 1 < tiles.length ? tiles[i + 1] : null;
+                      items.add(Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: Spacing.lg, vertical: 5),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(child: left),
+                            const SizedBox(width: Spacing.sm),
+                            Expanded(
+                              child: right ?? const SizedBox.shrink(),
+                            ),
+                          ],
+                        ),
+                      ));
+                    }
+                  }
+                }
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: items,
+                );
+              },
+            ));
             children.add(const SizedBox(height: Spacing.xxl));
-            return SingleChildScrollView(child: Column(children: children));
+            // Auto-scroll to the "next" race on first build. Runs once per
+            // mount; subsequent rebuilds (e.g. on scroll) skip the jump so
+            // the user can scroll freely past it.
+            if (!_scrolledToNext && firstFutureRound != null) {
+              _scrolledToNext = true;
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                final ctx = _nextRaceKey.currentContext;
+                if (ctx == null || !_scroll.hasClients) return;
+                Scrollable.ensureVisible(
+                  ctx,
+                  // 0.1 puts the next-race tile just below the header
+                  // instead of pinned to the very top of the viewport.
+                  alignment: 0.1,
+                  duration: const Duration(milliseconds: 350),
+                );
+              });
+            }
+            return SingleChildScrollView(
+              controller: _scroll,
+              child: Column(children: children),
+            );
           },
         ),
       ),

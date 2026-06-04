@@ -5,6 +5,8 @@ import 'app.dart';
 import 'screens/splash_screen.dart';
 import 'state/auth_controller.dart';
 import 'state/league_controller.dart';
+import 'services/reminder_service.dart';
+import 'state/notification_settings_controller.dart';
 import 'state/predictions_controller.dart';
 import 'state/preseason_controller.dart';
 import 'state/theme_controller.dart';
@@ -15,6 +17,10 @@ const _apiUrl =
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // ReminderService.init() is moved to _AfterBoot._loadLate() — calling it
+  // here races with native plugin registration (this app uses the new
+  // FlutterImplicitEngineDelegate pattern which registers plugins AFTER main
+  // starts), producing MissingPluginException on cold launch.
   final storage = SecureTokenStorage();
   final auth = AuthController(storage: storage);
   final api = HttpApiClient(
@@ -92,8 +98,30 @@ class _AfterBootState extends State<_AfterBoot> {
 
   Future<_LateState> _loadLate() async {
     final theme = await ThemeController.load();
-    final preds = PredictionsController(api: widget.api);
+    final notifications = await NotificationSettingsController.load();
+    final reminders = ReminderService.instance;
+    // Reminders are best-effort: a plugin/TZ failure mustn't block the app's
+    // boot. Catch + swallow; the service will silently no-op on schedules
+    // when init didn't complete, and the user can still use everything else.
+    try {
+      await reminders.init();
+      reminders.attachSettings(notifications);
+    } catch (e, st) {
+      debugPrint('ReminderService init failed (continuing without): $e\n$st');
+    }
+    final preds = PredictionsController(
+      api: widget.api,
+      onUpcomingSynced: reminders.syncFromUpcoming,
+      onPredictionSaved: reminders.cancelForSession,
+    );
     widget.auth.attachPredictionsController(preds);
+    // First sync as soon as we have a session — gets reminders armed before
+    // the user even opens the home screen, and silently no-ops if the user
+    // isn't logged in (no upcoming endpoint available).
+    if (widget.auth.isLoggedIn) {
+      // ignore: discarded_futures
+      preds.refreshUpcoming();
+    }
     final league = LeagueController(api: widget.api);
     if (widget.auth.leagues.isNotEmpty) {
       await league.load(widget.auth.leagues.first.id);
@@ -103,23 +131,38 @@ class _AfterBootState extends State<_AfterBoot> {
     // and join code after login/logout/league-switch — without this the
     // controller only loads at app boot and stays null for everyone who
     // signs in afterwards.
+    // Track previous login state so we can detect transitions (login/logout)
+    // and refresh upcoming reminders accordingly. `auth.clear()` already wipes
+    // predictions on logout (which cancels reminders via onUpcomingSynced=[]),
+    // so we only need to re-arm on login here.
+    var wasLoggedIn = widget.auth.isLoggedIn;
     widget.auth.addListener(() {
       final leagues = widget.auth.leagues;
       if (leagues.isEmpty) {
         league.clear();
-        return;
-      }
-      if (league.league?.id != leagues.first.id) {
+      } else if (league.league?.id != leagues.first.id) {
         // ignore: discarded_futures
         league.load(leagues.first.id);
       }
+      final isNow = widget.auth.isLoggedIn;
+      if (isNow && !wasLoggedIn) {
+        // ignore: discarded_futures
+        preds.refreshUpcoming();
+      }
+      wasLoggedIn = isNow;
     });
     final preseason = PreseasonController(api: widget.api);
     if (widget.auth.isLoggedIn) {
       // Best-effort prefetch; screen calls refresh() on demand if it fails.
       try { await preseason.refresh(); } catch (_) {}
     }
-    return _LateState(theme: theme, predictions: preds, preseason: preseason, league: league);
+    return _LateState(
+      theme: theme,
+      predictions: preds,
+      preseason: preseason,
+      league: league,
+      notifications: notifications,
+    );
   }
 
   @override
@@ -130,6 +173,12 @@ class _AfterBootState extends State<_AfterBoot> {
         if (snap.connectionState != ConnectionState.done) {
           return SplashScreen(onRetry: () async {}, error: null);
         }
+        // FutureBuilder hands us a `done` state when the future errored *or*
+        // completed normally. Guard so a thrown _loadLate() doesn't surface
+        // as a cryptic null-check error.
+        if (snap.hasError || snap.data == null) {
+          return SplashScreen(onRetry: () async {}, error: snap.error);
+        }
         final s = snap.data!;
         return F1PgApp(
           api: widget.api,
@@ -138,6 +187,7 @@ class _AfterBootState extends State<_AfterBoot> {
           theme: s.theme,
           predictions: s.predictions,
           preseason: s.preseason,
+          notifications: s.notifications,
         );
       },
     );
@@ -149,5 +199,12 @@ class _LateState {
   final PredictionsController predictions;
   final PreseasonController preseason;
   final LeagueController league;
-  _LateState({required this.theme, required this.predictions, required this.preseason, required this.league});
+  final NotificationSettingsController notifications;
+  _LateState({
+    required this.theme,
+    required this.predictions,
+    required this.preseason,
+    required this.league,
+    required this.notifications,
+  });
 }

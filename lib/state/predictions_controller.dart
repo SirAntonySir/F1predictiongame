@@ -6,8 +6,18 @@ import '../api/models/prediction_view.dart';
 import '../api/models/upcoming_prediction.dart';
 
 class PredictionsController extends ChangeNotifier {
-  PredictionsController({required this.api});
+  PredictionsController({
+    required this.api,
+    this.onUpcomingSynced,
+    this.onPredictionSaved,
+  });
   final ApiClient api;
+  /// Fires after [refreshUpcoming] succeeds. Used by ReminderService to
+  /// reschedule pick-reminders for unpicked sessions.
+  final void Function(List<UpcomingPrediction> upcoming)? onUpcomingSynced;
+  /// Fires after [savePrediction] succeeds. Used by ReminderService to cancel
+  /// any pending reminders for the just-picked session.
+  final void Function(int sessionId)? onPredictionSaved;
 
   final Map<int, PredictionView?> _predictions = {};
   final Set<int> _fetched = {};
@@ -34,12 +44,14 @@ class PredictionsController extends ChangeNotifier {
     _predictions[sessionId] = v;
     _fetched.add(sessionId);
     notifyListeners();
+    onPredictionSaved?.call(sessionId);
     return v;
   }
 
   Future<void> refreshUpcoming() async {
     _upcoming = await api.upcomingPredictions();
     notifyListeners();
+    onUpcomingSynced?.call(_upcoming);
   }
 
   Future<void> refreshScores({int? season}) async {
@@ -56,5 +68,8 @@ class PredictionsController extends ChangeNotifier {
     _scores.clear();
     _upcoming = const [];
     notifyListeners();
+    // Cancel any pending reminders on logout — they'd otherwise fire under the
+    // new user's account or after the app is wiped.
+    onUpcomingSynced?.call(const []);
   }
 }

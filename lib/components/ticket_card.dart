@@ -76,25 +76,44 @@ class TicketCard extends StatelessWidget {
     // but render nothing inside it — the painter shows it as a cutout.
     final reservesStubSpace = stubChild != null || tear == TicketTear.ghosted;
 
-    final row = IntrinsicHeight(
-      child: Row(
-        children: [
-          Expanded(
-            child: hasSplitTaps
-                ? InkWell(onTap: onBodyTap, child: bodyChild)
-                : bodyChild,
-          ),
-          if (reservesStubSpace)
-            SizedBox(
-              width: stubWidth,
-              child: stubChild == null
-                  ? const SizedBox.expand()
-                  : (hasSplitTaps
-                      ? InkWell(onTap: onStubTap, child: stubChild)
-                      : stubChild),
+    // Row layout has two modes:
+    //   1. Unbounded vertical context (the default — ticket in a ListView /
+    //      Column): wrap in IntrinsicHeight so the Row knows what height
+    //      to stretch its children to.
+    //   2. Bounded vertical context (e.g. inside Expanded inside an
+    //      IntrinsicHeight Row on iPad): skip IntrinsicHeight and just
+    //      stretch — the ticket then grows to fill the parent's height,
+    //      matching a taller sibling card.
+    // Either way CrossAxisAlignment.stretch keeps body + stub the same
+    // height as the row.
+    final row = LayoutBuilder(
+      builder: (ctx, constraints) {
+        final coreRow = Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              child: hasSplitTaps
+                  ? InkWell(onTap: onBodyTap, child: bodyChild)
+                  : bodyChild,
             ),
-        ],
-      ),
+            if (reservesStubSpace)
+              SizedBox(
+                width: stubWidth,
+                // Empty SizedBox (not SizedBox.expand) when ghosted with
+                // no stub widget — Row.stretch will fill it to row height
+                // without needing a bounded parent.
+                child: stubChild == null
+                    ? const SizedBox()
+                    : (hasSplitTaps
+                        ? InkWell(onTap: onStubTap, child: stubChild)
+                        : stubChild),
+              ),
+          ],
+        );
+        return constraints.maxHeight.isFinite
+            ? coreRow
+            : IntrinsicHeight(child: coreRow);
+      },
     );
 
     // The cream ticket background is theme-independent. Force a dark default
