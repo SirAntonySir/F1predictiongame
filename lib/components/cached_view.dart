@@ -54,7 +54,6 @@ class CachedView<T> extends StatelessWidget {
           children: [
             Skeletonizer(
               enabled: !hasData,
-              effect: const ShimmerEffect(),
               child: builder(context, data),
             ),
             if (hasData && cache.refreshing)

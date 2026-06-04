@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:skeletonizer/skeletonizer.dart';
 import 'api/api_client.dart';
 import 'nav/router.dart';
 import 'state/app_state.dart';
@@ -59,6 +60,21 @@ class _F1PgAppState extends State<F1PgApp> {
           darkTheme: AppTheme.dark(),
           themeMode: widget.theme.mode,
           routerConfig: router,
+          // Brand the skeleton loading globally: a calm pulse in the app's
+          // own neutral (onSurface at low alpha, so it adapts to light/dark)
+          // instead of the default Material grey shimmer.
+          builder: (context, child) {
+            final onSurface = Theme.of(context).colorScheme.onSurface;
+            return SkeletonizerConfig(
+              data: SkeletonizerConfigData(
+                effect: PulseEffect(
+                  from: onSurface.withValues(alpha: 0.07),
+                  to: onSurface.withValues(alpha: 0.15),
+                ),
+              ),
+              child: child ?? const SizedBox.shrink(),
+            );
+          },
         ),
       ),
     );

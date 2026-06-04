@@ -238,7 +238,6 @@ class _HomeScreenState extends State<HomeScreen> {
               children: [
                 Skeletonizer(
                   enabled: !hasData,
-                  effect: const ShimmerEffect(),
                   child: body,
                 ),
                 if (hasData && cache.refreshing)
