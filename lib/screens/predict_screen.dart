@@ -1,5 +1,6 @@
 // ignore_for_file: deprecated_member_use
 import 'package:flutter/material.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:skeletonizer/skeletonizer.dart';
 import '../api/api_client.dart';
 import '../api/models/event.dart';
@@ -7,6 +8,7 @@ import '../api/models/pick.dart';
 import '../api/models/session.dart';
 import '../api/models/session_result.dart';
 import '../components/app_card.dart';
+import '../components/branded_sheet.dart';
 import '../components/driver_tile.dart';
 import '../components/error_view.dart';
 import '../components/slot.dart';
@@ -178,24 +180,13 @@ class _PredictScreenState extends State<PredictScreen> {
   }
 
   Future<bool> _confirmDiscard() async {
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Discard changes?'),
-        content: const Text("You have unsaved edits — they'll be lost if you leave."),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Keep editing'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Discard'),
-          ),
-        ],
-      ),
+    return BrandedSheet.confirm(
+      context,
+      title: 'Discard changes?',
+      message: "You have unsaved edits — they'll be lost if you leave.",
+      primaryLabel: 'Discard',
+      secondaryLabel: 'Keep editing',
     );
-    return result ?? false;
   }
 
   Future<void> _navigateTo(_NavRef target) async {
@@ -376,7 +367,7 @@ class _PredictScreenState extends State<PredictScreen> {
                     if (_editing) ...[
                       _ActionPill(
                         label: _saving ? 'SAVING…' : 'LOCK PICK',
-                        icon: Icons.lock_outline,
+                        faIcon: FontAwesomeIcons.lock,
                         accent: true,
                         onTap: canLock ? _lock : null,
                       ),
@@ -393,7 +384,11 @@ class _PredictScreenState extends State<PredictScreen> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: Spacing.md, vertical: 4),
                       decoration: BoxDecoration(border: Border.all(color: BrandColors.accent, width: 1.5), borderRadius: const BorderRadius.all(Radius.circular(999))),
-                      child: Text(_lockLabel(session.scheduledStart), style: AppText.label(10, color: BrandColors.accent)),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        const FaIcon(FontAwesomeIcons.clock, size: 10, color: BrandColors.accent),
+                        const SizedBox(width: 5),
+                        Text(_lockLabel(session.scheduledStart), style: AppText.label(10, color: BrandColors.accent)),
+                      ]),
                     ),
                   ]),
                 ),
@@ -484,15 +479,19 @@ class _PredictScreenState extends State<PredictScreen> {
 /// picks aren't complete enough to lock).
 class _ActionPill extends StatelessWidget {
   final String label;
-  final IconData icon;
+  /// Material icon. Exactly one of [icon] / [faIcon] is supplied.
+  final IconData? icon;
+  /// Font Awesome icon. Rendered via [FaIcon] when set.
+  final FaIconData? faIcon;
   final bool accent;
   final VoidCallback? onTap;
   const _ActionPill({
     required this.label,
-    required this.icon,
+    this.icon,
+    this.faIcon,
     required this.accent,
     required this.onTap,
-  });
+  }) : assert(icon != null || faIcon != null, 'provide icon or faIcon');
 
   @override
   Widget build(BuildContext context) {
@@ -518,7 +517,9 @@ class _ActionPill extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 11, color: fg),
+            faIcon != null
+                ? FaIcon(faIcon!, size: 11, color: fg)
+                : Icon(icon, size: 11, color: fg),
             const SizedBox(width: 4),
             Text(label, style: AppText.label(10, color: fg)),
           ],
@@ -559,7 +560,6 @@ class _PredictSkeleton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Skeletonizer(
-      effect: const ShimmerEffect(),
       child: ListView(
         padding: const EdgeInsets.only(bottom: Spacing.xxl + Spacing.xxl),
         children: [

@@ -1,7 +1,11 @@
 // ignore_for_file: deprecated_member_use
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:go_router/go_router.dart';
+import '../components/branded_sheet.dart';
+import '../components/branded_field.dart';
+import '../components/branded_time_picker.dart';
 import '../state/app_state.dart';
 import '../state/notification_settings_controller.dart';
 import '../theme/app_theme.dart';
@@ -69,21 +73,12 @@ class SettingsScreen extends StatelessWidget {
                 ),
                 TextButton(
                   onPressed: () async {
-                    final confirmed = await showDialog<bool>(
-                      context: context,
-                      builder: (_) => AlertDialog(
-                        title: const Text('Log out?'),
-                        actions: [
-                          TextButton(
-                              onPressed: () => Navigator.of(context).pop(false),
-                              child: const Text('Cancel')),
-                          FilledButton(
-                              onPressed: () => Navigator.of(context).pop(true),
-                              child: const Text('Log out')),
-                        ],
-                      ),
+                    final confirmed = await BrandedSheet.confirm(
+                      context,
+                      title: 'Log out?',
+                      primaryLabel: 'Log out',
                     );
-                    if (confirmed == true && context.mounted) {
+                    if (confirmed && context.mounted) {
                       await AppState.of(context).auth.logout();
                     }
                   },
@@ -164,7 +159,7 @@ class SettingsScreen extends StatelessWidget {
                       const SizedBox(height: Spacing.sm),
                       Row(
                         children: [
-                          Icon(Icons.lock_outline, size: 12,
+                          FaIcon(FontAwesomeIcons.lock, size: 12,
                               color: t.colorScheme.onSurface.withOpacity(0.5)),
                           const SizedBox(width: 4),
                           Text('Password-protected',
@@ -356,9 +351,9 @@ class _NotificationsSection extends StatelessWidget {
     final m = (minutes % 60).toString().padLeft(2, '0');
     return GestureDetector(
       onTap: () async {
-        final picked = await showTimePicker(
-          context: context,
-          initialTime: TimeOfDay(hour: minutes ~/ 60, minute: minutes % 60),
+        final picked = await showBrandedTimePicker(
+          context,
+          initial: TimeOfDay(hour: minutes ~/ 60, minute: minutes % 60),
         );
         if (picked == null) return;
         onPick(picked.hour * 60 + picked.minute);
@@ -414,7 +409,6 @@ class _JoinCodeRow extends StatelessWidget {
           borderRadius: const BorderRadius.all(Radius.circular(8)),
         ),
         child: Row(
-          mainAxisSize: MainAxisSize.min,
           children: [
             Text('JOIN CODE',
                 style: AppText.label(9,
@@ -422,7 +416,7 @@ class _JoinCodeRow extends StatelessWidget {
             const SizedBox(width: Spacing.sm),
             Text(code,
                 style: AppText.display(14, color: t.colorScheme.onSurface)),
-            const SizedBox(width: Spacing.sm),
+            const Spacer(),
             Icon(Icons.copy, size: 14, color: t.colorScheme.onSurface.withOpacity(0.7)),
           ],
         ),
@@ -449,8 +443,8 @@ class _LeaguePasswordRowState extends State<_LeaguePasswordRow> {
   bool _busy = false;
 
   Future<void> _open() async {
-    final result = await showDialog<_PwResult>(
-      context: context,
+    final result = await showBrandedSheet<_PwResult>(
+      context,
       builder: (_) => _LeaguePasswordDialog(hasPassword: widget.hasPassword),
     );
     if (result == null || !mounted) return;
@@ -494,10 +488,9 @@ class _LeaguePasswordRowState extends State<_LeaguePasswordRow> {
           borderRadius: const BorderRadius.all(Radius.circular(8)),
         ),
         child: Row(
-          mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              widget.hasPassword ? Icons.lock : Icons.lock_open_outlined,
+            FaIcon(
+              widget.hasPassword ? FontAwesomeIcons.lock : FontAwesomeIcons.lockOpen,
               size: 14,
               color: t.colorScheme.onSurface,
             ),
@@ -530,6 +523,13 @@ class _LeaguePasswordDialogState extends State<_LeaguePasswordDialog> {
   String? _err;
 
   @override
+  void initState() {
+    super.initState();
+    // Keep the primary action label (Save/Remove) in sync as the user types.
+    _ctrl.addListener(() => setState(() {}));
+  }
+
+  @override
   void dispose() {
     _ctrl.dispose();
     super.dispose();
@@ -546,37 +546,33 @@ class _LeaguePasswordDialogState extends State<_LeaguePasswordDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text(widget.hasPassword ? 'Change league password' : 'Set league password'),
+    final t = Theme.of(context);
+    final remove = widget.hasPassword && _ctrl.text.isEmpty;
+    return BrandedSheet(
+      title: widget.hasPassword ? 'Change league password' : 'Set league password',
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          TextField(
+          BrandedField(
+            label: 'NEW PASSWORD',
             controller: _ctrl,
-            obscureText: true,
-            decoration: const InputDecoration(
-              labelText: 'New password',
-              helperText: 'Leave empty and confirm to remove the password',
-            ),
+            obscure: true,
           ),
-          if (_err != null) Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: Text(_err!,
-                style: TextStyle(color: Theme.of(context).colorScheme.error)),
+          const SizedBox(height: Spacing.sm),
+          Text(
+            'Leave empty and confirm to remove the password.',
+            style: AppText.body(11, color: t.colorScheme.onSurface.withOpacity(0.55)),
           ),
+          if (_err != null) ...[
+            const SizedBox(height: Spacing.xs),
+            Text(_err!, style: AppText.body(11, color: t.colorScheme.error)),
+          ],
         ],
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(
-          onPressed: _submit,
-          child: Text(widget.hasPassword && _ctrl.text.isEmpty ? 'Remove' : 'Save'),
-        ),
-      ],
+      primaryLabel: remove ? 'Remove' : 'Save',
+      onPrimary: _submit,
+      onSecondary: () => Navigator.of(context).pop(),
     );
   }
 }
