@@ -1,12 +1,14 @@
 // ignore_for_file: deprecated_member_use
 import 'package:flutter/material.dart';
+import 'package:skeletonizer/skeletonizer.dart';
 import '../../api/models/leaderboard_row.dart';
 import '../../components/app_card.dart';
-import '../../components/error_view.dart';
+import '../../components/cached_view.dart';
 import '../../components/league_row.dart';
 import '../../components/racing_stripes.dart';
 import '../../components/trend_badge.dart';
 import '../../state/app_state.dart';
+import '../../state/async_cache.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/colors.dart';
 import '../../theme/tokens.dart';
@@ -38,43 +40,54 @@ class LeagueTab extends StatefulWidget {
 }
 
 class _LeagueTabState extends State<LeagueTab> {
-  Future<List<LeaderboardRow>>? _data;
+  late final AsyncCache<List<LeaderboardRow>> _cache =
+      AsyncCache<List<LeaderboardRow>>(_fetch);
   late _Metric _metric = switch (widget.initialMetric) {
     'total' => _Metric.total,
     _ => _Metric.inSeason,
   };
+  bool _kickedOffRefresh = false;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _data ??= _load();
+    if (!_kickedOffRefresh) {
+      _kickedOffRefresh = true;
+      // ignore: discarded_futures
+      _cache.refresh();
+    }
   }
 
-  Future<List<LeaderboardRow>> _load() async {
+  @override
+  void dispose() {
+    _cache.dispose();
+    super.dispose();
+  }
+
+  Future<List<LeaderboardRow>> _fetch() async {
     final scope = AppState.of(context);
     final leagues = scope.auth.leagues;
     if (leagues.isEmpty) return const [];
     return scope.api.leagueLeaderboard(leagues.first.id);
   }
 
+  static const _placeholder = <LeaderboardRow>[
+    LeaderboardRow(userId: 'p1', displayName: 'Player one',   inSeasonPoints: 0, preseasonPoints: 0, pointsTotal: 0, sessionsScored: 0),
+    LeaderboardRow(userId: 'p2', displayName: 'Player two',   inSeasonPoints: 0, preseasonPoints: 0, pointsTotal: 0, sessionsScored: 0),
+    LeaderboardRow(userId: 'p3', displayName: 'Player three', inSeasonPoints: 0, preseasonPoints: 0, pointsTotal: 0, sessionsScored: 0),
+    LeaderboardRow(userId: 'p4', displayName: 'Player four',  inSeasonPoints: 0, preseasonPoints: 0, pointsTotal: 0, sessionsScored: 0),
+    LeaderboardRow(userId: 'p5', displayName: 'Player five',  inSeasonPoints: 0, preseasonPoints: 0, pointsTotal: 0, sessionsScored: 0),
+    LeaderboardRow(userId: 'p6', displayName: 'Player six',   inSeasonPoints: 0, preseasonPoints: 0, pointsTotal: 0, sessionsScored: 0),
+  ];
+
   @override
   Widget build(BuildContext context) {
     final scope = AppState.of(context);
-    return FutureBuilder<List<LeaderboardRow>>(
-      future: _data,
-      builder: (_, snap) {
-        if (snap.connectionState != ConnectionState.done) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (snap.hasError) {
-          return ErrorView(
-            error: snap.error!,
-            stack: snap.stackTrace,
-            where: 'League standings',
-            onRetry: () => setState(() => _data = _load()),
-          );
-        }
-        final rows = snap.data!;
+    return CachedView<List<LeaderboardRow>>(
+      cache: _cache,
+      placeholder: _placeholder,
+      where: 'League standings',
+      builder: (_, rows) {
         if (rows.isEmpty) {
           return const Center(
             child: Padding(
@@ -90,12 +103,16 @@ class _LeagueTabState extends State<LeagueTab> {
         return ListView(
           padding: const EdgeInsets.only(bottom: Spacing.xxl),
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                  Spacing.lg, Spacing.md, Spacing.lg, Spacing.sm),
-              child: _MetricToggle(
-                metric: _metric,
-                onChanged: (m) => setState(() => _metric = m),
+            // Toggle is a fixed control — Skeleton.keep so users can still
+            // switch metrics even before the leaderboard lands.
+            Skeleton.keep(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(
+                    Spacing.lg, Spacing.md, Spacing.lg, Spacing.sm),
+                child: _MetricToggle(
+                  metric: _metric,
+                  onChanged: (m) => setState(() => _metric = m),
+                ),
               ),
             ),
             Padding(
@@ -221,21 +238,11 @@ class _Podium extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.fromLTRB(
                 Spacing.md, Spacing.md, Spacing.md, Spacing.sm),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text('TOP 3 · $metricLabel', style: AppText.label(10)),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.emoji_events, size: 12),
-                    const SizedBox(width: 5),
-                    Text(_shortName(first.displayName),
-                        style: AppText.label(10)),
-                  ],
-                ),
-              ],
-            ),
+            // Header used to also carry a trophy + leader-name pill on
+            // the right, but the leader's name already reads loud and
+            // clear on the P1 step below — the pill was a redundant
+            // second "P1" marker.
+            child: Text('TOP 3 · $metricLabel', style: AppText.label(10)),
           ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: Spacing.md),
@@ -280,15 +287,6 @@ class _Podium extends StatelessWidget {
     );
   }
 
-  static String _shortName(String full) {
-    final parts = full.trim().split(RegExp(r'\s+'));
-    if (parts.length == 1) {
-      return parts.first.length <= 4
-          ? parts.first.toUpperCase()
-          : parts.first.substring(0, 4).toUpperCase();
-    }
-    return '${parts.first[0]}. ${parts.last}'.toUpperCase();
-  }
 }
 
 class _PodiumStep extends StatelessWidget {

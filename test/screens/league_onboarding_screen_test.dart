@@ -18,12 +18,12 @@ class _FakeApi implements ApiClient {
   LeagueView? createReply;
   MeResult? meReply;
 
-  @override Future<LeagueView> joinLeague({required String code}) async {
+  @override Future<LeagueView> joinLeague({required String code, String? password}) async {
     lastJoinCode = code;
     if (joinError != null) throw joinError!;
     return joinReply!;
   }
-  @override Future<LeagueView> createLeague({required String name}) async {
+  @override Future<LeagueView> createLeague({required String name, String? password}) async {
     lastCreatedName = name;
     if (createError != null) throw createError!;
     return createReply!;
@@ -37,7 +37,7 @@ void main() {
 
   testWidgets('join → calls joinLeague + refreshMe', (tester) async {
     final api = _FakeApi()
-      ..joinReply = const LeagueView(id: 'L', name: 'Eins', role: 'member', joinCode: null, members: [])
+      ..joinReply = const LeagueView(id: 'L', name: 'Eins', role: 'member', joinCode: null, hasPassword: false, members: [])
       ..meReply = MeResult(
         user: User(id: 'u1', email: 'a@b.com', displayName: 'A', createdAt: DateTime.utc(2026,1,1)),
         leagues: const [UserLeague(id: 'L', name: 'Eins', role: 'member')],
@@ -58,7 +58,7 @@ void main() {
 
   testWidgets('create → calls createLeague + refreshMe', (tester) async {
     final api = _FakeApi()
-      ..createReply = const LeagueView(id: 'L', name: 'New', role: 'owner', joinCode: 'JJJJ22', members: [])
+      ..createReply = const LeagueView(id: 'L', name: 'New', role: 'owner', joinCode: 'JJJJ22', hasPassword: false, members: [])
       ..meReply = MeResult(
         user: User(id: 'u1', email: 'a@b.com', displayName: 'A', createdAt: DateTime.utc(2026,1,1)),
         leagues: const [UserLeague(id: 'L', name: 'New', role: 'owner')],

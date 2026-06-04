@@ -33,7 +33,11 @@ void main() {
     await tester.pumpWidget(MaterialApp(home: LoginScreen(auth: auth)));
     await tester.tap(find.byKey(const Key('login.submit')));
     await tester.pump();
-    expect(find.text('Required'), findsAtLeastNWidgets(1));
+    // New design uses a single form-level error string instead of
+    // per-field validators (matches the rest of the app's BrandedField
+    // pattern). Either of these substrings indicates the form blocked
+    // the submission.
+    expect(find.textContaining('Enter your email'), findsOneWidget);
   });
 
   testWidgets('Calls auth.login with entered values', (tester) async {
