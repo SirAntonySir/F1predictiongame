@@ -1,5 +1,6 @@
 // ignore_for_file: deprecated_member_use
 import 'package:flutter/material.dart';
+import 'package:skeletonizer/skeletonizer.dart';
 import '../api/api_client.dart';
 import '../api/models/event.dart';
 import '../api/models/pick.dart';
@@ -272,7 +273,11 @@ class _PredictScreenState extends State<PredictScreen> {
             future: _data,
             builder: (_, snap) {
             if (snap.connectionState != ConnectionState.done) {
-              return const Center(child: CircularProgressIndicator());
+              // Render a static skeleton of the predict layout instead of a
+              // spinner. Doesn't mirror the real screen exactly (which depends
+              // on session type / picks state) but gives the user a sense of
+              // what's coming.
+              return const _PredictSkeleton();
             }
             if (snap.hasError) {
               return ErrorView(
@@ -542,4 +547,58 @@ class _PredictData {
     required this.prev,
     required this.next,
   });
+}
+
+/// Layout-stable skeleton shown while the predict screen is fetching the
+/// session + drivers list. Renders a few placeholder cards under a
+/// Skeletonizer so the user gets a sense of the upcoming structure instead
+/// of a spinner.
+class _PredictSkeleton extends StatelessWidget {
+  const _PredictSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return Skeletonizer(
+      effect: const ShimmerEffect(),
+      child: ListView(
+        padding: const EdgeInsets.only(bottom: Spacing.xxl + Spacing.xxl),
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+                Spacing.xl, Spacing.lg, Spacing.lg, Spacing.sm),
+            child: Text('Loading Grand Prix', style: AppText.display(22)),
+          ),
+          // 5 pick slots — generous enough to cover race (5), sprint (3),
+          // quali (2), sprint-quali (1). Extra rows in the smaller cases
+          // just become extra skeleton rows; not a layout problem.
+          for (var i = 0; i < 5; i++)
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: Spacing.lg, vertical: 4),
+              child: SizedBox(
+                height: 56,
+                child: AppCard(
+                  child: SizedBox.expand(),
+                ),
+              ),
+            ),
+          const SizedBox(height: Spacing.lg),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(Spacing.xl, 0, Spacing.xl, Spacing.sm),
+            child: Text('DRIVERS', style: AppText.label(11)),
+          ),
+          // Driver tiles — 6 placeholder rows.
+          for (var i = 0; i < 6; i++)
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: Spacing.lg, vertical: 3),
+              child: SizedBox(
+                height: 56,
+                child: AppCard(
+                  child: SizedBox.expand(),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
 }

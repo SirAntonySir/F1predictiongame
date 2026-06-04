@@ -2,7 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
-import '../api/api_client.dart';
+import 'package:skeletonizer/skeletonizer.dart';
 import '../api/models/event.dart';
 import '../api/models/leaderboard_row.dart';
 import '../api/models/prediction_view.dart';
@@ -18,6 +18,7 @@ import '../components/ticket_card.dart';
 import '../domain/prediction.dart';
 import '../domain/scoring.dart';
 import '../state/app_state.dart';
+import '../state/home_cache_controller.dart';
 import '../theme/app_theme.dart';
 import '../theme/colors.dart';
 import '../theme/country_flags.dart';
@@ -31,125 +32,31 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  Future<_HomeData>? _data;
   /// When non-null the hero countdown targets this session instead of the
   /// chronologically-next one. Set by tapping a chip on the hero card. Reset
-  /// implicitly whenever `_data` reloads (state is keyed to the current
-  /// event so picking a stale id is harmless — the resolver falls back).
+  /// implicitly whenever the cache reloads onto a new event — picking a stale
+  /// id is harmless, the resolver falls back to `d.next`.
   int? _heroSessionOverride;
+  bool _kickedOffRefresh = false;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _data ??= _load(AppState.of(context).api);
-  }
-
-  Future<_HomeData> _load(ApiClient api) async {
-    final scope = AppState.of(context);
-    final events = await api.events();
-    // Re-arm pick reminders for unpicked sessions whenever the home screen
-    // loads. Idempotent — the service cancels-then-reschedules. Best-effort:
-    // a failure here mustn't block the rest of the home-load.
-    // ignore: discarded_futures
-    scope.predictions.refreshUpcoming().catchError((_) {});
-    final leagues = scope.auth.leagues;
-    List<LeaderboardRow> leaderboard = const [];
-    if (leagues.isNotEmpty) {
-      try {
-        leaderboard = await api.leagueLeaderboard(leagues.first.id);
-      } catch (_) {
-        leaderboard = const [];
-      }
+    if (!_kickedOffRefresh) {
+      _kickedOffRefresh = true;
+      // Fire a single refresh whenever this screen first sees a context. The
+      // cache dedupes concurrent refreshes, so subsequent screen rebuilds
+      // (route pops, tab switches) won't kick off duplicate fetches.
+      // ignore: discarded_futures
+      AppState.of(context).homeCache.refresh();
     }
-    // The hero shows the chronologically next session (any type — FP1 counts).
-    // The pick card needs the next *pickable* session (quali / SQ / sprint /
-    // race) so it doesn't say "Make your pick · FP1". We resolve both here.
-    Session? next;
-    try {
-      next = await api.nextSession();
-    } on NotFoundException {
-      next = null;
-    }
-    next ??= _computeNextSession(events, pickableOnly: false);
-    final nextPickable = _computeNextSession(events, pickableOnly: true);
-    Event? nextEvent;
-    if (next != null) {
-      final resolvedNext = next;
-      nextEvent = events.firstWhere(
-        (e) => e.sessions.any((s) => s.id == resolvedNext.id),
-        orElse: () => events.first,
-      );
-    }
-    // The pickable session can live in a later weekend than `next` (which
-    // may be FP1). Resolve its event independently so the pick card's body
-    // tap can deep-link to the correct race detail.
-    Event? pickEvent;
-    if (nextPickable != null) {
-      final resolvedPick = nextPickable;
-      try {
-        pickEvent = events.firstWhere(
-          (e) => e.sessions.any((s) => s.id == resolvedPick.id),
-        );
-      } catch (_) {
-        pickEvent = nextEvent;
-      }
-    }
-    if (nextPickable != null) {
-      // Prime the predictions cache for the pickable session that _pickCard
-      // actually renders, not the chronologically-next one (which is often FP1
-      // and has no prediction).
-      try {
-        await scope.predictions.fetchPrediction(nextPickable.id);
-      } catch (_) {
-        // Non-fatal — the card just falls back to "No picks yet".
-      }
-    }
-    final finishedRace = events.lastWhere(
-      (e) => e.sessions.any((s) =>
-          s.type == SessionType.race && s.status == SessionStatus.finished),
-      orElse: () => const Event(
-        round: 0,
-        name: '',
-        country: '',
-        circuitName: '',
-        hasSprint: false,
-        sessions: [],
-      ),
-    );
-    Event? lastEvent;
-    Session? lastRaceSession;
-    List<SessionResult> lastResult = const [];
-    if (finishedRace.sessions.isNotEmpty) {
-      lastEvent = finishedRace;
-      lastRaceSession = finishedRace.sessions.firstWhere(
-        (s) => s.type == SessionType.race,
-        orElse: () => finishedRace.sessions.first,
-      );
-      try {
-        lastResult = await api.sessionResults(lastRaceSession.id);
-      } on NotFoundException {
-        lastResult = const [];
-      }
-    }
-    return _HomeData(
-      events: events,
-      next: next,
-      nextPickable: nextPickable,
-      nextEvent: nextEvent,
-      pickEvent: pickEvent,
-      lastEvent: lastEvent,
-      lastRaceSession: lastRaceSession,
-      lastResult: lastResult,
-      leaderboard: leaderboard,
-    );
   }
 
   /// Resolve which session the hero should target. Default: `d.next` (the
   /// backend's / locally-computed next session). If the user tapped a chip,
   /// the override wins — provided the chosen session still belongs to the
-  /// current `nextEvent`. Stale overrides (e.g. after `_data` refreshes onto
-  /// a new event) silently fall back to `d.next`.
-  Session _resolveHeroSession(_HomeData d) {
+  /// current `nextEvent`. Stale overrides silently fall back to `d.next`.
+  Session _resolveHeroSession(HomeData d) {
     final override = _heroSessionOverride;
     if (override != null && d.nextEvent != null) {
       for (final s in d.nextEvent!.sessions) {
@@ -159,54 +66,34 @@ class _HomeScreenState extends State<HomeScreen> {
     return d.next!;
   }
 
-  Session? _computeNextSession(List<Event> events, {required bool pickableOnly}) {
-    bool isPickable(SessionType t) =>
-        t == SessionType.qualifying ||
-        t == SessionType.sprint_quali ||
-        t == SessionType.sprint ||
-        t == SessionType.race;
-    final now = DateTime.now();
-    Session? best;
-    for (final e in events) {
-      for (final s in e.sessions) {
-        if (s.status != SessionStatus.scheduled) continue;
-        if (!s.scheduledStart.isAfter(now)) continue;
-        if (pickableOnly && !isPickable(s.type)) continue;
-        if (best == null || s.scheduledStart.isBefore(best.scheduledStart)) {
-          best = s;
-        }
-      }
-    }
-    return best;
-  }
-
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
     final scope = AppState.of(context);
+    final cache = scope.homeCache;
     return Scaffold(
       backgroundColor: t.colorScheme.surface,
       body: SafeArea(
         bottom: false,
-        child: FutureBuilder<_HomeData>(
-          future: _data,
-          builder: (_, snap) {
-            if (snap.connectionState != ConnectionState.done) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            if (snap.hasError) {
+        child: ListenableBuilder(
+          listenable: cache,
+          builder: (_, __) {
+            final hasData = cache.data != null;
+            // First-load error: we never got data, just show the error view.
+            if (!hasData && cache.error != null && !cache.refreshing) {
               return ErrorView(
-                error: snap.error!,
-                stack: snap.stackTrace,
+                error: cache.error!,
+                stack: cache.stack,
                 where: 'Home',
-                onRetry: () {
-                  setState(() {
-                    _data = _load(AppState.of(context).api);
-                  });
-                },
+                // ignore: discarded_futures
+                onRetry: () => cache.refresh(),
               );
             }
-            final d = snap.data!;
+            // No data + refreshing → show placeholder under Skeletonizer so
+            // the layout is intentional rather than a spinner-in-the-middle.
+            // With data → show the real screen + a thin top progress bar
+            // while we fetch fresh values in the background.
+            final d = cache.data ?? HomeData.placeholder();
             final leagueName = scope.league.league?.name ??
                 (scope.auth.leagues.isNotEmpty ? scope.auth.leagues.first.name : 'No league');
             final memberCount = scope.league.league?.members.length ??
@@ -269,7 +156,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             );
 
-            return ListView(
+            final body = ListView(
               padding: const EdgeInsets.fromLTRB(0, Spacing.lg, 0, Spacing.xxl),
               children: [
                 _topbar(leagueName, memberCount),
@@ -340,6 +227,33 @@ class _HomeScreenState extends State<HomeScreen> {
                 const SizedBox(height: Spacing.xxl),
               ],
             );
+            // First-load → wrap the placeholder body in Skeletonizer so every
+            // text/box renders as a skeleton block. Refresh-with-data → show
+            // the real body and a thin progress bar pinned to the top edge.
+            // `fit: expand` so the ListView gets the full surface; without it
+            // the ListView falls back to loose-sizing inside the Stack and
+            // children measure against an unbounded width.
+            return Stack(
+              fit: StackFit.expand,
+              children: [
+                Skeletonizer(
+                  enabled: !hasData,
+                  effect: const ShimmerEffect(),
+                  child: body,
+                ),
+                if (hasData && cache.refreshing)
+                  const Positioned(
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    child: LinearProgressIndicator(
+                      minHeight: 2,
+                      color: BrandColors.accent,
+                      backgroundColor: Colors.transparent,
+                    ),
+                  ),
+              ],
+            );
           },
         ),
       ),
@@ -352,17 +266,23 @@ class _HomeScreenState extends State<HomeScreen> {
       padding: const EdgeInsets.symmetric(horizontal: Spacing.xl),
       child: Row(
         children: [
-          // F1 logo plate: invert surface so it reads as a strong badge in
-          // both themes (black-on-white in light, off-white-on-black in dark)
-          // instead of disappearing into the dark surface.
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-            color: t.colorScheme.onSurface,
-            child: Text('F1',
-                style: AppText.display(14, color: t.colorScheme.surface)),
+          // F1 logo plate + settings icon are fixed identity — Skeleton.keep
+          // so they don't go gray during the first-load placeholder.
+          Skeleton.keep(
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                  color: t.colorScheme.onSurface,
+                  child: Text('F1',
+                      style: AppText.display(14, color: t.colorScheme.surface)),
+                ),
+                const SizedBox(width: 4),
+                Text('PG', style: AppText.display(14)),
+              ],
+            ),
           ),
-          const SizedBox(width: 4),
-          Text('PG', style: AppText.display(14)),
           const Spacer(),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: Spacing.md, vertical: 5),
@@ -373,13 +293,20 @@ class _HomeScreenState extends State<HomeScreen> {
               borderRadius: const BorderRadius.all(Radius.circular(999)),
             ),
             child: Row(mainAxisSize: MainAxisSize.min, children: [
-              Container(width: 8, height: 8, decoration: const BoxDecoration(color: BrandColors.accent, shape: BoxShape.circle)),
+              Skeleton.keep(
+                child: Container(width: 8, height: 8, decoration: const BoxDecoration(color: BrandColors.accent, shape: BoxShape.circle)),
+              ),
               const SizedBox(width: 6),
               Text('$leagueName · $memberCount', style: AppText.label(11)),
             ]),
           ),
           const SizedBox(width: Spacing.sm),
-          IconButton(onPressed: () => context.push('/settings'), icon: const Icon(Icons.settings_outlined)),
+          Skeleton.keep(
+            child: IconButton(
+              onPressed: () => context.push('/settings'),
+              icon: const Icon(Icons.settings_outlined),
+            ),
+          ),
         ],
       ),
     );
@@ -545,24 +472,38 @@ class _HomeScreenState extends State<HomeScreen> {
     return Padding(
       padding: const EdgeInsets.fromLTRB(Spacing.xl, Spacing.xl, Spacing.xl, Spacing.xs),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(title.toUpperCase(), style: AppText.label(11)),
-          if (onTap != null)
-            GestureDetector(
-              onTap: onTap,
-              child: Text(
-                'All ›',
-                style: AppText.label(11,
-                    color: t.colorScheme.onSurface.withOpacity(0.5)),
+          Expanded(
+            child: Text(
+              title.toUpperCase(),
+              maxLines: 1,
+              overflow: TextOverflow.fade,
+              softWrap: false,
+              style: AppText.label(11),
+            ),
+          ),
+          if (onTap != null) ...[
+            const SizedBox(width: Spacing.sm),
+            // The affordance is a fixed label, not data — keep it readable
+            // during skeleton loading so the user understands the section is
+            // interactive even before content lands.
+            Skeleton.keep(
+              child: GestureDetector(
+                onTap: onTap,
+                child: Text(
+                  'All ›',
+                  style: AppText.label(11,
+                      color: t.colorScheme.onSurface.withOpacity(0.5)),
+                ),
               ),
             ),
+          ],
         ],
       ),
     );
   }
 
-  Widget _pickCard(_HomeData d, scope, ThemeData t) {
+  Widget _pickCard(HomeData d, scope, ThemeData t) {
     // Use the next *pickable* session — d.next can be FP1 which has no
     // prediction. Falls back to d.next for the rare case where there's no
     // upcoming scorable session at all (shouldn't normally happen).
@@ -680,7 +621,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _lastCard(_HomeData d, scope, ThemeData t) {
+  Widget _lastCard(HomeData d, scope, ThemeData t) {
     final lastSession = d.lastRaceSession;
     final PredictionView? pred = lastSession == null
         ? null
@@ -796,13 +737,35 @@ class _HomeScreenState extends State<HomeScreen> {
             return Padding(
               padding: const EdgeInsets.symmetric(vertical: 6),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Row(children: [
-                    SizedBox(width: 18, child: Text('${i + 1}', style: AppText.display(13, color: isMe ? BrandColors.accent : t.colorScheme.onSurface))),
-                    const SizedBox(width: 8),
-                    Text(isMe ? '${r.displayName} (you)' : r.displayName, style: AppText.body(13, weight: isMe ? FontWeight.w800 : FontWeight.w600)),
-                  ]),
+                  Expanded(
+                    child: Row(
+                      children: [
+                        SizedBox(
+                          width: 18,
+                          child: Text('${i + 1}',
+                              style: AppText.display(13,
+                                  color: isMe
+                                      ? BrandColors.accent
+                                      : t.colorScheme.onSurface)),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            isMe ? '${r.displayName} (you)' : r.displayName,
+                            maxLines: 1,
+                            overflow: TextOverflow.fade,
+                            softWrap: false,
+                            style: AppText.body(13,
+                                weight: isMe
+                                    ? FontWeight.w800
+                                    : FontWeight.w600),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: Spacing.sm),
                   Text('${points(r)}', style: AppText.display(13)),
                 ],
               ),
@@ -814,32 +777,4 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-class _HomeData {
-  final List<Event> events;
-  final Session? next;
-  /// The next session that the caller can predict (qualifying / SQ / sprint /
-  /// race). Differs from [next] during practice days. Used by the pick card so
-  /// it doesn't render "Make your pick · FP1".
-  final Session? nextPickable;
-  final Event? nextEvent;
-  /// Event that owns [nextPickable]. Differs from [nextEvent] when the
-  /// chronologically-next session is FP-only and the next pickable session
-  /// lives in a later weekend.
-  final Event? pickEvent;
-  final Event? lastEvent;
-  final Session? lastRaceSession;
-  final List<SessionResult> lastResult;
-  final List<LeaderboardRow> leaderboard;
-  _HomeData({
-    required this.events,
-    required this.next,
-    required this.nextPickable,
-    required this.nextEvent,
-    required this.pickEvent,
-    required this.lastEvent,
-    required this.lastRaceSession,
-    required this.lastResult,
-    required this.leaderboard,
-  });
-}
 

@@ -2,11 +2,13 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:skeletonizer/skeletonizer.dart';
 import '../api/models/event.dart';
 import '../api/models/session.dart';
-import '../components/error_view.dart';
+import '../components/cached_view.dart';
 import '../components/race_tile.dart';
 import '../state/app_state.dart';
+import '../state/async_cache.dart';
 import '../theme/country_flags.dart';
 import '../theme/tokens.dart';
 import '../theme/typography.dart';
@@ -18,26 +20,32 @@ class CalendarScreen extends StatefulWidget {
 }
 
 class _CalendarScreenState extends State<CalendarScreen> {
-  Future<_CalData>? _data;
+  late final AsyncCache<_CalData> _cache = AsyncCache<_CalData>(_fetch);
   final ScrollController _scroll = ScrollController();
   // GlobalKey attached to whichever tile holds RaceState.next so we can
   // jump-scroll to it on first load.
   final GlobalKey _nextRaceKey = GlobalKey();
   bool _scrolledToNext = false;
+  bool _kickedOffRefresh = false;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _data ??= _load();
+    if (!_kickedOffRefresh) {
+      _kickedOffRefresh = true;
+      // ignore: discarded_futures
+      _cache.refresh();
+    }
   }
 
   @override
   void dispose() {
     _scroll.dispose();
+    _cache.dispose();
     super.dispose();
   }
 
-  Future<_CalData> _load() async {
+  Future<_CalData> _fetch() async {
     final scope = AppState.of(context);
     final events = await scope.api.events();
     events.sort((a, b) => a.round.compareTo(b.round));
@@ -59,51 +67,41 @@ class _CalendarScreenState extends State<CalendarScreen> {
       backgroundColor: Theme.of(context).colorScheme.surface,
       body: SafeArea(
         bottom: false,
-        child: FutureBuilder<_CalData>(
-          future: _data,
-          builder: (_, snap) {
-            if (snap.connectionState != ConnectionState.done) {
-              return const SizedBox.shrink();
-            }
-            if (snap.hasError) {
-              return ErrorView(
-                error: snap.error!,
-                stack: snap.stackTrace,
-                where: 'Calendar',
-                onRetry: () {
-                  setState(() {
-                    _data = _load();
-                  });
-                },
-              );
-            }
-            final data = snap.data!;
+        child: CachedView<_CalData>(
+          cache: _cache,
+          placeholder: _CalData.placeholder(),
+          where: 'Calendar',
+          builder: (_, data) {
             final events = data.events;
             final children = <Widget>[
-              Padding(
-                padding: const EdgeInsets.fromLTRB(
-                    Spacing.xl, Spacing.lg, Spacing.xl, Spacing.xs),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text('Calendar'.toUpperCase(),
-                        style: AppText.display(28)),
-                    // Static season label — only 2026 exists, so no dropdown
-                    // affordance. Bring back the chevron + tap handler if/when
-                    // a second season ships.
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: Spacing.md, vertical: 5),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.black, width: 1.5),
-                        borderRadius:
-                            const BorderRadius.all(Radius.circular(999)),
+              // Header is purely structural — keep visible during skeleton
+              // so the user has a stable anchor while data loads.
+              Skeleton.keep(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                      Spacing.xl, Spacing.lg, Spacing.xl, Spacing.xs),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('Calendar'.toUpperCase(),
+                          style: AppText.display(28)),
+                      // Static season label — only 2026 exists, so no dropdown
+                      // affordance. Bring back the chevron + tap handler if/when
+                      // a second season ships.
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: Spacing.md, vertical: 5),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Colors.black, width: 1.5),
+                          borderRadius:
+                              const BorderRadius.all(Radius.circular(999)),
+                        ),
+                        child: const Text('2026',
+                            style: TextStyle(
+                                fontWeight: FontWeight.w800, fontSize: 11)),
                       ),
-                      child: const Text('2026',
-                          style: TextStyle(
-                              fontWeight: FontWeight.w800, fontSize: 11)),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ];
@@ -222,8 +220,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
             children.add(const SizedBox(height: Spacing.xxl));
             // Auto-scroll to the "next" race on first build. Runs once per
             // mount; subsequent rebuilds (e.g. on scroll) skip the jump so
-            // the user can scroll freely past it.
-            if (!_scrolledToNext && firstFutureRound != null) {
+            // the user can scroll freely past it. Skipped while we're still
+            // showing the placeholder data — would scroll to fake content.
+            if (!_scrolledToNext && firstFutureRound != null && _cache.data != null) {
               _scrolledToNext = true;
               WidgetsBinding.instance.addPostFrameCallback((_) {
                 final ctx = _nextRaceKey.currentContext;
@@ -257,4 +256,39 @@ class _CalData {
   final List<Event> events;
   final Map<int, int> pointsByRound;
   _CalData({required this.events, required this.pointsByRound});
+
+  /// Synthetic 8-race calendar across the next few months — enough rows to
+  /// fill the scrollview with skeleton tiles. Real values get replaced once
+  /// [AsyncCache] hands us the live payload.
+  factory _CalData.placeholder() {
+    final now = DateTime.now();
+    final events = <Event>[];
+    for (var i = 0; i < 8; i++) {
+      final start = DateTime(now.year, now.month + i ~/ 2, 1 + (i % 2) * 14, 14);
+      events.add(Event(
+        round: i + 1,
+        name: 'Loading Grand Prix',
+        country: 'XX',
+        circuitName: 'Loading Circuit',
+        hasSprint: i.isEven,
+        sessions: [
+          Session(
+            id: i * 5,
+            type: SessionType.race,
+            scheduledStart: start.add(const Duration(days: 2)),
+            scheduledEnd: start.add(const Duration(days: 2, hours: 2)),
+            status: SessionStatus.scheduled,
+          ),
+          Session(
+            id: i * 5 + 1,
+            type: SessionType.qualifying,
+            scheduledStart: start.add(const Duration(days: 1)),
+            scheduledEnd: start.add(const Duration(days: 1, hours: 1)),
+            status: SessionStatus.scheduled,
+          ),
+        ],
+      ));
+    }
+    return _CalData(events: events, pointsByRound: const {});
+  }
 }

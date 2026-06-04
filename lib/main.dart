@@ -6,14 +6,15 @@ import 'screens/splash_screen.dart';
 import 'state/auth_controller.dart';
 import 'state/league_controller.dart';
 import 'services/reminder_service.dart';
+import 'state/home_cache_controller.dart';
 import 'state/notification_settings_controller.dart';
 import 'state/predictions_controller.dart';
 import 'state/preseason_controller.dart';
 import 'state/theme_controller.dart';
 import 'state/token_storage.dart';
 
-const _apiUrl =
-    String.fromEnvironment('API_URL', defaultValue: 'https://f1pg-backend.onrender.com');
+const _apiUrl = String.fromEnvironment('API_URL',
+    defaultValue: 'https://f1pg-backend.onrender.com');
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -67,7 +68,8 @@ class _BootState extends State<_Boot> {
     return FutureBuilder<void>(
       future: _bootstrap,
       builder: (context, snap) {
-        if (snap.connectionState != ConnectionState.done || _bootError != null) {
+        if (snap.connectionState != ConnectionState.done ||
+            _bootError != null) {
           return SplashScreen(
             onRetry: () async => _start(),
             error: _bootError,
@@ -154,14 +156,28 @@ class _AfterBootState extends State<_AfterBoot> {
     final preseason = PreseasonController(api: widget.api);
     if (widget.auth.isLoggedIn) {
       // Best-effort prefetch; screen calls refresh() on demand if it fails.
-      try { await preseason.refresh(); } catch (_) {}
+      try {
+        await preseason.refresh();
+      } catch (_) {}
     }
+    final homeCache = HomeCacheController(
+      api: widget.api,
+      auth: widget.auth,
+      predictions: preds,
+    );
+    // Auto-clear on logout so the next user doesn't briefly see the
+    // previous user's leaderboard. Also wire to the existing auth listener
+    // below for login-side prefetch.
+    widget.auth.addListener(() {
+      if (!widget.auth.isLoggedIn) homeCache.clear();
+    });
     return _LateState(
       theme: theme,
       predictions: preds,
       preseason: preseason,
       league: league,
       notifications: notifications,
+      homeCache: homeCache,
     );
   }
 
@@ -188,6 +204,7 @@ class _AfterBootState extends State<_AfterBoot> {
           predictions: s.predictions,
           preseason: s.preseason,
           notifications: s.notifications,
+          homeCache: s.homeCache,
         );
       },
     );
@@ -200,11 +217,13 @@ class _LateState {
   final PreseasonController preseason;
   final LeagueController league;
   final NotificationSettingsController notifications;
+  final HomeCacheController homeCache;
   _LateState({
     required this.theme,
     required this.predictions,
     required this.preseason,
     required this.league,
     required this.notifications,
+    required this.homeCache,
   });
 }
