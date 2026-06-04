@@ -187,14 +187,28 @@ class HttpApiClient implements ApiClient {
   }
 
   @override
-  Future<LeagueView> createLeague({required String name}) async {
-    final j = await _request('POST', '/api/leagues', body: {'name': name}) as Map<String, dynamic>;
+  Future<LeagueView> createLeague({required String name, String? password}) async {
+    final body = <String, dynamic>{'name': name};
+    if (password != null && password.isNotEmpty) body['password'] = password;
+    final j = await _request('POST', '/api/leagues', body: body) as Map<String, dynamic>;
     return LeagueView.fromJson(j);
   }
 
   @override
-  Future<LeagueView> joinLeague({required String code}) async {
-    final j = await _request('POST', '/api/leagues/join', body: {'joinCode': code}) as Map<String, dynamic>;
+  Future<LeagueView> joinLeague({required String code, String? password}) async {
+    final body = <String, dynamic>{'joinCode': code};
+    if (password != null && password.isNotEmpty) body['password'] = password;
+    final j = await _request('POST', '/api/leagues/join', body: body) as Map<String, dynamic>;
+    return LeagueView.fromJson(j);
+  }
+
+  @override
+  Future<LeagueView> updateLeague(String id, {String? name, String? password}) async {
+    final body = <String, dynamic>{};
+    if (name != null) body['name'] = name;
+    // null → omit (leave unchanged). Empty string → null on backend (clear).
+    if (password != null) body['password'] = password.isEmpty ? null : password;
+    final j = await _request('PATCH', '/api/leagues/$id', body: body) as Map<String, dynamic>;
     return LeagueView.fromJson(j);
   }
 

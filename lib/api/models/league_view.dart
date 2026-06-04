@@ -5,6 +5,11 @@ class LeagueView {
   final String name;
   final String? joinCode;
   final String role;
+  /// True when the league has a join password set. Drives whether the
+  /// join screen prompts for one and whether settings shows "Change
+  /// password" vs "Set password". Defaults to false for backwards-compat
+  /// when the field is missing (pre-password backends).
+  final bool hasPassword;
   final List<LeagueMember> members;
 
   const LeagueView({
@@ -12,6 +17,7 @@ class LeagueView {
     required this.name,
     required this.role,
     required this.joinCode,
+    required this.hasPassword,
     required this.members,
   });
 
@@ -26,6 +32,7 @@ class LeagueView {
       name: l['name'] as String,
       role: l['role'] as String,
       joinCode: l['joinCode'] as String?,
+      hasPassword: l['hasPassword'] as bool? ?? false,
       members: ms,
     );
   }

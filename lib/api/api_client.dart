@@ -45,8 +45,13 @@ abstract class ApiClient {
   });
 
   // leagues
-  Future<LeagueView> createLeague({required String name});
-  Future<LeagueView> joinLeague({required String code});
+  Future<LeagueView> createLeague({required String name, String? password});
+  Future<LeagueView> joinLeague({required String code, String? password});
+  /// Owner-only. `password` semantics:
+  /// - null  → leave unchanged
+  /// - ''    → clear (league becomes open)
+  /// - any  → set as the new password.
+  Future<LeagueView> updateLeague(String id, {String? name, String? password});
   Future<LeagueView> getLeague(String id);
 
   // predictions

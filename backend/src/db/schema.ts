@@ -139,6 +139,10 @@ export const league = pgTable('league', {
   ownerUserId: uuid('owner_user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
   joinCode: text('join_code').notNull(),
+  // Optional join-gate password (bcrypt hash). Null = open league, joiners
+  // only need the join code. When set, joiners must provide the matching
+  // password alongside the join code or the call 401s.
+  passwordHash: text('password_hash'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
 }, (t) => ({
   ownerUq: uniqueIndex('league_owner_uq').on(t.ownerUserId),

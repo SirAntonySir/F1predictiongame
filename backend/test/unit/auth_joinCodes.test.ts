@@ -5,7 +5,7 @@ describe('joinCodes', () => {
   it('generates a 6-char uppercase-alphanumeric code', () => {
     for (let i = 0; i < 50; i++) {
       const c = generateJoinCode()
-      expect(c).toMatch(/^[A-Z0-9]{6}$/)
+      expect(c).toMatch(/^[A-Z0-9]{8}$/)
     }
   })
 

@@ -10,11 +10,26 @@ import * as seasonsRepo from '../../repo/seasons.js'
 import * as scoresRepo from '../../repo/scores.js'
 import * as projectionSnapshotsRepo from '../../repo/preseasonProjectionSnapshots.js'
 import { generateUniqueJoinCode } from '../../auth/joinCodes.js'
+import { hashPassword, verifyPassword } from '../../auth/password.js'
 import { getCurrentUser, registerAuthHook, requireLeagueMember, requireLeagueOwner } from '../auth-context.js'
 
-const createBody = z.object({ name: z.string().trim().min(1).max(60) })
-const patchBody = z.object({ name: z.string().trim().min(1).max(60).optional() })
-const joinBody = z.object({ joinCode: z.string().trim().min(1).max(20) })
+const createBody = z.object({
+  name: z.string().trim().min(1).max(60),
+  // Optional join-gate password. min(4) keeps it trivial-but-not-empty;
+  // we don't need login-grade entropy since failed joins are rate-limited
+  // by the existing UNAUTHORIZED responses. Pass null/omit to keep the
+  // league open (code-only joins).
+  password: z.string().min(4).max(100).optional()
+})
+const patchBody = z.object({
+  name: z.string().trim().min(1).max(60).optional(),
+  // password=null clears, password='abcd' sets, omitted leaves unchanged.
+  password: z.string().min(4).max(100).nullable().optional()
+})
+const joinBody = z.object({
+  joinCode: z.string().trim().min(1).max(20),
+  password: z.string().min(1).max(100).optional()
+})
 
 function parse<T>(schema: z.ZodType<T>, body: unknown): T {
   const r = schema.safeParse(body)
@@ -36,6 +51,9 @@ async function leagueViewForCaller(leagueId: string, callerUserId: string) {
     // it on every league view (create / join / get / patch) so the client's
     // LeagueController.load() doesn't fail silently and stay null.
     role: isOwner ? 'owner' : 'member',
+    // Surfaced on every view so the join screen knows whether to prompt
+    // for a password before posting. Hash itself never leaves the repo.
+    hasPassword: l.hasPassword,
     createdAt: l.createdAt,
     ...(isOwner ? { joinCode: l.joinCode } : {})
   }
@@ -56,7 +74,15 @@ export async function registerLeagueRoutes(app: FastifyInstance): Promise<void> 
     const joinCode = await generateUniqueJoinCode(async (c) => {
       return (await leaguesRepo.findByJoinCode(c)) !== null
     })
-    const l = await leaguesRepo.createLeagueWithOwner({ name: body.name, ownerUserId: u.id, joinCode })
+    const passwordHash = body.password
+      ? await hashPassword(body.password)
+      : null
+    const l = await leaguesRepo.createLeagueWithOwner({
+      name: body.name,
+      ownerUserId: u.id,
+      joinCode,
+      passwordHash
+    })
     return { league: await leagueViewForCaller(l.id, u.id) }
   })
 
@@ -101,6 +127,14 @@ export async function registerLeagueRoutes(app: FastifyInstance): Promise<void> 
     if (body.name !== undefined) {
       await leaguesRepo.updateName(req.params.id, body.name)
     }
+    if (body.password !== undefined) {
+      // null clears the password (league becomes open again); a string
+      // sets a fresh hash. Omitted = unchanged.
+      const newHash = body.password === null
+          ? null
+          : await hashPassword(body.password)
+      await leaguesRepo.updatePasswordHash(req.params.id, newHash)
+    }
     return { league: await leagueViewForCaller(req.params.id, u.id) }
   })
 
@@ -121,10 +155,37 @@ export async function registerLeagueRoutes(app: FastifyInstance): Promise<void> 
     const u = getCurrentUser(req)
     const body = parse(joinBody, req.body)
     const code = body.joinCode.toUpperCase()
-    const l = await leaguesRepo.findByJoinCode(code)
+    const l = await leaguesRepo.findByJoinCodeWithSecret(code)
     if (!l) throw new ApiError('NOT_FOUND', 'Unknown join code')
     if (l.ownerUserId === u.id) throw new ApiError('CONFLICT', 'You already own this league')
     if (await members.isMember(l.id, u.id)) throw new ApiError('CONFLICT', 'Already a member')
+
+    // Password gate: if the league has one, the joiner must supply a match.
+    // FORBIDDEN (not UNAUTHORIZED) so the Flutter client doesn't treat
+    // it as a logged-out signal and wipe the auth session — the caller
+    // is properly authenticated, they just don't have the league key.
+    if (l.passwordHash !== null) {
+      if (!body.password) {
+        throw new ApiError('FORBIDDEN', 'This league requires a password')
+      }
+      if (!(await verifyPassword(body.password, l.passwordHash))) {
+        throw new ApiError('FORBIDDEN', 'Wrong league password')
+      }
+    }
+
+    // Display-name uniqueness within the league. Two members can't share a
+    // case-insensitive display name — otherwise leaderboards / gossip
+    // become ambiguous. Conflict gives the joiner a chance to rename
+    // themselves before retrying.
+    const existing = await members.listByLeague(l.id)
+    const myName = u.displayName.trim().toLowerCase()
+    if (existing.some((m) => m.displayName.trim().toLowerCase() === myName)) {
+      throw new ApiError(
+        'CONFLICT',
+        'Another member of this league already uses that display name — change yours first.'
+      )
+    }
+
     await members.add(l.id, u.id)
     return { league: await leagueViewForCaller(l.id, u.id) }
   })

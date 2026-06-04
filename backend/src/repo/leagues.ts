@@ -1,12 +1,13 @@
 import { eq, sql } from 'drizzle-orm'
 import { getDb } from '../db/client.js'
 import { league, leagueMember } from '../db/schema.js'
-import type { League } from '../domain/types.js'
+import type { League, LeagueWithSecret } from '../domain/types.js'
 
 export type NewLeague = {
   name: string
   ownerUserId: string
   joinCode: string
+  passwordHash?: string | null
 }
 
 export type LeagueWithRole = League & { role: 'owner' | 'member' }
@@ -17,8 +18,13 @@ function toLeague(row: typeof league.$inferSelect): League {
     ownerUserId: row.ownerUserId,
     name: row.name,
     joinCode: row.joinCode,
+    hasPassword: row.passwordHash !== null,
     createdAt: row.createdAt
   }
+}
+
+function toLeagueWithSecret(row: typeof league.$inferSelect): LeagueWithSecret {
+  return { ...toLeague(row), passwordHash: row.passwordHash };
 }
 
 export async function createLeagueWithOwner(n: NewLeague): Promise<League> {
@@ -27,7 +33,8 @@ export async function createLeagueWithOwner(n: NewLeague): Promise<League> {
     const [row] = await tx.insert(league).values({
       name: n.name,
       ownerUserId: n.ownerUserId,
-      joinCode: n.joinCode
+      joinCode: n.joinCode,
+      passwordHash: n.passwordHash ?? null
     }).returning()
     await tx.insert(leagueMember).values({ leagueId: row!.id, userId: n.ownerUserId })
     return toLeague(row!)
@@ -44,6 +51,20 @@ export async function findByJoinCode(code: string): Promise<League | null> {
   const db = getDb()
   const rows = await db.select().from(league).where(eq(league.joinCode, code)).limit(1)
   return rows[0] ? toLeague(rows[0]) : null
+}
+
+/// Returns the league for the given join code with its bcrypt hash. Used
+/// only by the join route so it can verify the supplied password without
+/// leaking the hash everywhere else.
+export async function findByJoinCodeWithSecret(code: string): Promise<LeagueWithSecret | null> {
+  const db = getDb()
+  const rows = await db.select().from(league).where(eq(league.joinCode, code)).limit(1)
+  return rows[0] ? toLeagueWithSecret(rows[0]) : null
+}
+
+export async function updatePasswordHash(id: string, passwordHash: string | null): Promise<void> {
+  const db = getDb()
+  await db.update(league).set({ passwordHash }).where(eq(league.id, id))
 }
 
 export async function updateName(id: string, name: string): Promise<League> {
@@ -73,6 +94,7 @@ export async function listForUser(userId: string): Promise<LeagueWithRole[]> {
       ownerUserId: league.ownerUserId,
       name: league.name,
       joinCode: league.joinCode,
+      passwordHash: league.passwordHash,
       createdAt: league.createdAt,
       role: sql<'owner' | 'member'>`CASE WHEN ${league.ownerUserId} = ${userId} THEN 'owner' ELSE 'member' END`
     })
@@ -84,6 +106,7 @@ export async function listForUser(userId: string): Promise<LeagueWithRole[]> {
     ownerUserId: r.ownerUserId,
     name: r.name,
     joinCode: r.joinCode,
+    hasPassword: r.passwordHash !== null,
     createdAt: r.createdAt,
     role: r.role
   }))

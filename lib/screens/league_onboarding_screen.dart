@@ -13,7 +13,9 @@ class LeagueOnboardingScreen extends StatefulWidget {
 
 class _LeagueOnboardingScreenState extends State<LeagueOnboardingScreen> {
   final _joinCode = TextEditingController();
+  final _joinPassword = TextEditingController();
   final _createName = TextEditingController();
+  final _createPassword = TextEditingController();
   String? _joinError;
   String? _createError;
   bool _busy = false;
@@ -21,7 +23,9 @@ class _LeagueOnboardingScreenState extends State<LeagueOnboardingScreen> {
   @override
   void dispose() {
     _joinCode.dispose();
+    _joinPassword.dispose();
     _createName.dispose();
+    _createPassword.dispose();
     super.dispose();
   }
 
@@ -34,10 +38,18 @@ class _LeagueOnboardingScreenState extends State<LeagueOnboardingScreen> {
     }
     setState(() { _busy = true; _joinError = null; });
     try {
-      await widget.auth.api.joinLeague(code: code);
+      await widget.auth.api.joinLeague(
+        code: code,
+        password: _joinPassword.text.isEmpty ? null : _joinPassword.text,
+      );
       await widget.auth.refreshMe();
     } on NotFoundException {
       setState(() => _joinError = 'Unknown join code.');
+    } on ForbiddenException catch (e) {
+      // Backend uses FORBIDDEN for password gate failures (missing or
+      // wrong). The session itself is still valid; only the league gate
+      // refused. Surface the backend message verbatim.
+      setState(() => _joinError = e.message);
     } on ConflictException catch (e) {
       setState(() => _joinError = e.message);
     } catch (_) {
@@ -58,9 +70,17 @@ class _LeagueOnboardingScreenState extends State<LeagueOnboardingScreen> {
       setState(() => _createError = 'Max 40 chars');
       return;
     }
+    final pwInput = _createPassword.text;
+    if (pwInput.isNotEmpty && pwInput.length < 4) {
+      setState(() => _createError = 'Password must be at least 4 characters (or leave empty)');
+      return;
+    }
     setState(() { _busy = true; _createError = null; });
     try {
-      await widget.auth.api.createLeague(name: name);
+      await widget.auth.api.createLeague(
+        name: name,
+        password: pwInput.isEmpty ? null : pwInput,
+      );
       await widget.auth.refreshMe();
     } on ConflictException catch (e) {
       setState(() => _createError = e.message);
@@ -104,6 +124,15 @@ class _LeagueOnboardingScreenState extends State<LeagueOnboardingScreen> {
                       TextInputFormatter.withFunction((old, n) => n.copyWith(text: n.text.toUpperCase())),
                     ],
                   ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    key: const Key('onboarding.joinPassword'),
+                    controller: _joinPassword,
+                    obscureText: true,
+                    decoration: const InputDecoration(
+                      labelText: 'League password (if required)',
+                    ),
+                  ),
                   if (_joinError != null) Padding(
                     padding: const EdgeInsets.only(top: 8),
                     child: Text(_joinError!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
@@ -128,6 +157,16 @@ class _LeagueOnboardingScreenState extends State<LeagueOnboardingScreen> {
                     key: const Key('onboarding.createName'),
                     controller: _createName,
                     decoration: const InputDecoration(labelText: 'League name'),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    key: const Key('onboarding.createPassword'),
+                    controller: _createPassword,
+                    obscureText: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Password (optional, gates joins)',
+                      helperText: 'Leave empty for an open league',
+                    ),
                   ),
                   if (_createError != null) Padding(
                     padding: const EdgeInsets.only(top: 8),

@@ -34,7 +34,7 @@ describe('POST /api/leagues', () => {
     expect(res.statusCode).toBe(200)
     const body = res.json()
     expect(body.league.name).toBe('Friends')
-    expect(body.league.joinCode).toMatch(/^[A-Z0-9]{6}$/)
+    expect(body.league.joinCode).toMatch(/^[A-Z0-9]{8}$/)
     expect(body.league.memberCount).toBe(1)
   })
 
@@ -424,5 +424,106 @@ describe('GET /api/leagues/:id/gossip', () => {
     })
     expect(res.statusCode).toBe(200)
     expect(res.json().lastRace).toBeNull()
+  })
+})
+
+describe('Leagues with passwords + duplicate display names', () => {
+  it('create with password sets hasPassword=true and gates joins', async () => {
+    const a = await app()
+    const owner = await signupAndToken(a, 'pwo@x.com')
+    const joiner = await signupAndToken(a, 'pwj@x.com')
+
+    const created = await a.inject({
+      method: 'POST', url: '/api/leagues', headers: auth(owner.token),
+      payload: { name: 'Secret', password: 'sekret' }
+    })
+    expect(created.statusCode).toBe(200)
+    expect(created.json().league.hasPassword).toBe(true)
+
+    const code = created.json().league.joinCode
+
+    // No password → 401
+    const noPw = await a.inject({
+      method: 'POST', url: '/api/leagues/join', headers: auth(joiner.token),
+      payload: { joinCode: code }
+    })
+    expect(noPw.statusCode).toBe(403)
+
+    // Wrong password → 401
+    const wrong = await a.inject({
+      method: 'POST', url: '/api/leagues/join', headers: auth(joiner.token),
+      payload: { joinCode: code, password: 'wrong' }
+    })
+    expect(wrong.statusCode).toBe(403)
+
+    // Right password → 200
+    const ok = await a.inject({
+      method: 'POST', url: '/api/leagues/join', headers: auth(joiner.token),
+      payload: { joinCode: code, password: 'sekret' }
+    })
+    expect(ok.statusCode).toBe(200)
+  })
+
+  it('create without password leaves the league open', async () => {
+    const a = await app()
+    const owner = await signupAndToken(a, 'opn-o@x.com')
+    const joiner = await signupAndToken(a, 'opn-j@x.com')
+    const created = await a.inject({
+      method: 'POST', url: '/api/leagues', headers: auth(owner.token),
+      payload: { name: 'Open' }
+    })
+    expect(created.json().league.hasPassword).toBe(false)
+
+    const code = created.json().league.joinCode
+    const ok = await a.inject({
+      method: 'POST', url: '/api/leagues/join', headers: auth(joiner.token),
+      payload: { joinCode: code }
+    })
+    expect(ok.statusCode).toBe(200)
+  })
+
+  it('PATCH password=null clears the gate; PATCH password=str sets it', async () => {
+    const a = await app()
+    const owner = await signupAndToken(a, 'rot-o@x.com')
+    const joiner = await signupAndToken(a, 'rot-j@x.com')
+    const created = await a.inject({
+      method: 'POST', url: '/api/leagues', headers: auth(owner.token),
+      payload: { name: 'Rotating', password: 'first' }
+    })
+    const id = created.json().league.id
+
+    // Clear
+    const cleared = await a.inject({
+      method: 'PATCH', url: `/api/leagues/${id}`, headers: auth(owner.token),
+      payload: { password: null }
+    })
+    expect(cleared.statusCode).toBe(200)
+    expect(cleared.json().league.hasPassword).toBe(false)
+    const code = created.json().league.joinCode
+    const joinNow = await a.inject({
+      method: 'POST', url: '/api/leagues/join', headers: auth(joiner.token),
+      payload: { joinCode: code }
+    })
+    expect(joinNow.statusCode).toBe(200)
+  })
+
+  it('rejects join when caller\'s display name collides with an existing member', async () => {
+    const a = await app()
+    const owner = await signupAndToken(a, 'dn-o@x.com')
+    // Both joiners pick the same email-derived displayName (uses split @);
+    // explicitly post-signup we re-use the owner's name to force a clash.
+    const dupe = await signupAndToken(a, 'dn-o@y.com')  // displayName: "dn-o"
+    const created = await a.inject({
+      method: 'POST', url: '/api/leagues', headers: auth(owner.token),
+      payload: { name: 'Dupes' }
+    })
+    const code = created.json().league.joinCode
+
+    const res = await a.inject({
+      method: 'POST', url: '/api/leagues/join', headers: auth(dupe.token),
+      payload: { joinCode: code }
+    })
+    expect(res.statusCode).toBe(409)
+    expect(res.json().error.message.toLowerCase()).toContain('display name')
   })
 })

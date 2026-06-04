@@ -104,8 +104,15 @@ export type League = {
   ownerUserId: string
   name: string
   joinCode: string
+  /// Whether the league has a join password set. The hash itself never
+  /// leaves the repo layer.
+  hasPassword: boolean
   createdAt: Date
 }
+
+/// Variant of [League] that includes the bcrypt hash. Repo-internal — only
+/// used by the join route to verify the supplied password.
+export type LeagueWithSecret = League & { passwordHash: string | null }
 
 export type LeagueMember = {
   leagueId: string
