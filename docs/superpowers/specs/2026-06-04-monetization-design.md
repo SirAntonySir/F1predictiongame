@@ -97,6 +97,7 @@ joins to `league` (for seat upgrades) or stands alone (for tips).
 | `league_id` | uuid null fk → league.id | Set for seat-tier upgrades; null for tips. |
 | `amount_minor_units` | integer not null | Price the user paid in the store's smallest currency unit (cents for EUR/USD, pence for GBP, etc.). Pulled from the receipt so price changes never rewrite history. |
 | `currency_code` | text not null | ISO 4217, e.g. `EUR`, `USD`, `GBP`. |
+| `refunded_at` | timestamptz null | Set by the refund-notification handler (see below). Once set, the entitlement no longer counts when the backend re-derives `league.max_seats` from the purchase log. |
 
 Unique index on `(store, store_transaction_id)` to make `POST
 /api/purchases/validate` idempotent — a duplicate submission is a no-op.
@@ -202,15 +203,194 @@ returned transactions through `POST /api/purchases/validate`.
   ask the owner to upgrade." The owner, on next opening Settings, sees
   a one-off banner "Your league is at capacity. Upgrade to grow it."
 
+## Refund handling (store-initiated)
+
+Apple and Google both refund without asking us. They notify our server
+asynchronously; we must revoke the entitlement and mark the row
+refunded. Without this the user keeps the seat upgrade after getting
+their money back — bad faith on our side and an audit risk.
+
+### `POST /api/purchases/webhook/apple`
+
+Receives **App Store Server Notifications v2** (`REFUND` /
+`REFUND_REVERSED` / `REFUND_DECLINED` notification types). The body is
+a JWS-signed payload from Apple.
+
+Flow:
+
+1. Verify the JWS signature against Apple's published certificate
+   chain. Reject if invalid. Use the official
+   [`app-store-server-library`](https://github.com/apple/app-store-server-library-node)
+   helper rather than rolling our own JWS parser.
+2. Decode the inner transaction payload, pull the
+   `originalTransactionId`.
+3. Look up the matching `purchase` row by `(store='apple',
+   store_transaction_id=originalTransactionId)`. If missing, log + 200
+   (Apple retries hard; we mustn't 500 on a notification we don't
+   recognise).
+4. On `REFUND`: set `refunded_at = now()`, then recompute and write
+   `league.max_seats` (see "Recomputing seat caps" below). For tips:
+   just set `refunded_at`, no entitlement change.
+5. On `REFUND_REVERSED` (refund was reversed back to charged): clear
+   `refunded_at`, recompute seats again.
+6. Always return `200 OK` so Apple stops retrying.
+
+### `POST /api/purchases/webhook/google`
+
+Receives **Real-time Developer Notifications** from Google via Pub/Sub
+push subscription. Body shape differs — wraps a base64-encoded
+`subscriptionNotification` / `oneTimeProductNotification`.
+
+Flow:
+
+1. Verify the request is from Google Cloud Pub/Sub (the push
+   subscription includes an OIDC token in the `Authorization` header
+   we can verify against Google's JWKS).
+2. Decode the inner notification, pull `purchaseToken`.
+3. Look up `purchase` by `(store='google',
+   store_transaction_id=purchaseToken)`.
+4. On `notificationType=VOIDED_PURCHASE` (revoked / refunded): same
+   handling as Apple's `REFUND`.
+5. Return `204 No Content` so Pub/Sub acks the message.
+
+### Recomputing seat caps
+
+A league's `max_seats` is **the maximum of all non-refunded purchases'
+seat values** that point at it, floored at 3 (Free tier).
+
+```
+maxSeats(league) = max(
+  3,                                  -- Free baseline
+  max(productSeats(p)                 -- highest tier still active
+      for p in league.purchases
+      where p.refunded_at is null)
+)
+```
+
+This single derivation handles every edge case: refund of the only
+upgrade drops the cap back to 3; refund of an older tier when a newer
+one is still active leaves the cap on the newer one; a downstream
+`REFUND_REVERSED` restores it. Implemented as a function on the
+purchase repo, called from both `POST /api/purchases/validate` and the
+two webhook handlers.
+
+### Operational notes
+
+- Both webhooks need to be **idempotent**. Apple and Google both retry,
+  sometimes deliver out of order, sometimes deliver the same
+  notification twice.
+- Configure the webhook URLs on the respective consoles
+  (App Store Connect → App → App Information → App Store Server
+  Notifications V2; Play Console → Monetization Setup → Real-time
+  developer notifications). URLs land in env vars on Render so they
+  can be rotated without a code change.
+
+## Account deletion
+
+Apple **requires** in-app account deletion for every app that supports
+account creation (App Store Review Guideline 5.1.1(v), enforced since
+mid-2022). Submitting the paid version without this guarantees
+rejection. Google doesn't formally require it but already mandates a
+**publicly accessible account-deletion URL** disclosed in the Play
+Console listing, which we'll point at the same backend endpoint.
+
+### `DELETE /api/users/me`
+
+Authenticated. Hard-deletes the caller's user record, which cascades
+to:
+
+- All their predictions + picks
+- All their preseason picks + standings
+- All their score rows (session + preseason)
+- All their projection snapshots
+- League memberships
+- Sessions (auth tokens)
+- Purchase history — see "Purchase retention" below
+
+For leagues the caller **owns**: the existing `league.ownerUserId →
+user.id` FK uses `ON DELETE CASCADE`, so the league itself goes too,
+which in turn cascades to every other member's data tied to that
+league. That's the desired behaviour — an owner deleting their account
+takes the league with them, and members are surfaced an empty
+home-screen state with the existing onboarding flow on their next
+launch.
+
+### Purchase retention (legal requirement)
+
+We **cannot delete** `purchase` rows when a user deletes their account.
+German tax law (AO §147) requires us to retain payment records for
+**10 years**. The compromise:
+
+1. On `DELETE /api/users/me`, set `purchase.user_id` to a sentinel
+   "deleted user" row (`00000000-0000-0000-0000-000000000000`) so the
+   FK survives without revealing identity.
+2. Null out the `store_receipt` blob (it contains PII like the user's
+   App Store ID).
+3. Keep `store`, `product_id`, `store_transaction_id`, `amount_*`,
+   `validated_at`, `refunded_at` — the financial trail.
+4. Document this exception clearly in the Privacy Policy.
+
+### UI
+
+New row in `Settings → ACCOUNT`, below "Change password":
+
+> **Delete account**
+> Removes your profile, picks, scores, and any leagues you own.
+> *Required to keep payment records for 10 years (German tax law).
+> Everything else is wiped.*
+
+Tapping it opens a confirmation dialog with two stages:
+
+1. **First stage**: "This deletes your account permanently. Continue?"
+   with Cancel / Continue.
+2. **Second stage**: free-text "Type DELETE to confirm" + final red
+   Delete button. Guards against accidental taps and meets the
+   "informed action" bar Apple looks for in review.
+
+On success, the client clears its local auth, drops cached state,
+routes to `/login` with a `?deleted=1` flag that surfaces a one-time
+snackbar: "Account deleted. Sorry to see you go."
+
+### Edge case: caller owns a league with paid upgrades
+
+The account deletion still proceeds and cascades the league away.
+Other members lose access to that league's predictions but keep their
+own user account. The owner's purchases are anonymised per the
+retention rules above; no refund is automatically issued (the user
+chose to delete, not request a refund).
+
+The confirmation dialog's second-stage text gets an extra line when
+this applies:
+
+> **Heads up:** You own *<League name>*. Deleting your account also
+> deletes the league for everyone in it (N members). Any seat
+> upgrades you bought for this league cannot be transferred.
+
 ## Testing
 
-- Backend: unit tests for the receipt-verification helper (mocked
-  Apple/Google responses), integration tests for `POST /purchases/validate`
-  covering happy path, idempotency, non-owner-for-seat-purchase, and
-  full-league join refusal.
-- Flutter: widget tests for the seat-tier picker and the tip jar.
+- Backend unit tests for:
+  - Receipt-verification helper (mocked Apple/Google responses).
+  - `recomputeMaxSeats(leagueId)` covering: no purchases → 3; one
+    active upgrade → its tier; refund of only upgrade → 3; refund of
+    older when a newer is active → still newer; reversal restores.
+  - Webhook signature verification (Apple JWS, Google OIDC).
+- Backend integration tests for:
+  - `POST /api/purchases/validate` — happy path, idempotent re-submit,
+    non-owner-for-seat-purchase, wrong-receipt rejection, full-league
+    join refusal.
+  - `POST /api/purchases/webhook/apple` — REFUND drops the cap,
+    REFUND_REVERSED restores it, unknown transaction returns 200.
+  - `POST /api/purchases/webhook/google` — VOIDED_PURCHASE drops the
+    cap, OIDC failure returns 401, unknown token returns 204.
+  - `DELETE /api/users/me` — cascades data, anonymises purchase rows
+    (user_id sentinel, receipt nulled), 200s on the auth `/me` after
+    deletion → 401.
+- Flutter widget tests for the seat-tier picker, the tip jar, and the
+  two-stage account-deletion confirmation.
 - Manual: sandbox accounts on both stores walk through Mate / Crew /
-  Paddock + each tip + Restore.
+  Paddock + each tip + Restore + a sandbox refund (Apple's TestFlight
+  has a refund-request flow built in; Google requires the Play
+  Console).
 
 ## Economics, expected break-even
 
