@@ -1,5 +1,6 @@
 // ignore_for_file: deprecated_member_use
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../../api/models/leaderboard_row.dart';
 import '../../api/models/league_gossip.dart';
 import '../../api/models/my_score.dart';
@@ -143,19 +144,36 @@ class _InsightsTabState extends State<InsightsTab> {
             _h('TRAJECTORY'),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
-              child: AppCard(
-                child: trajectorySeries.isEmpty
-                    ? Padding(
-                        padding: const EdgeInsets.all(Spacing.lg),
-                        child: Text(
-                          'No scored rounds yet.',
-                          style: AppText.body(12, color: t.colorScheme.onSurface.withOpacity(0.6)),
+              child: InkWell(
+                borderRadius: const BorderRadius.all(Radius.circular(14)),
+                onTap: trajectorySeries.isEmpty
+                    ? null
+                    : () => context.push('/insights/trajectory', extra: d.sessions),
+                child: AppCard(
+                  child: trajectorySeries.isEmpty
+                      ? Padding(
+                          padding: const EdgeInsets.all(Spacing.lg),
+                          child: Text(
+                            'No scored rounds yet.',
+                            style: AppText.body(12, color: t.colorScheme.onSurface.withOpacity(0.6)),
+                          ),
+                        )
+                      : Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            TrajectoryChart(
+                              series: trajectorySeries,
+                              xLabels: trajectoryLabels,
+                            ),
+                            const SizedBox(height: 6),
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: Text('Tap to expand ›',
+                                  style: AppText.label(9, color: t.colorScheme.onSurface.withOpacity(0.5))),
+                            ),
+                          ],
                         ),
-                      )
-                    : TrajectoryChart(
-                        series: trajectorySeries,
-                        xLabels: trajectoryLabels,
-                      ),
+                ),
               ),
             ),
             if (facts.isNotEmpty) ...[

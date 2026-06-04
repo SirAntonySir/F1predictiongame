@@ -12,7 +12,10 @@ import 'preseason_tab.dart';
 
 class StandingsScreen extends StatefulWidget {
   final String subTab;
-  const StandingsScreen({super.key, this.subTab = 'league'});
+  /// Forwarded to [LeagueTab.initialMetric] so the Home cards' `?sort=` query
+  /// param picks the right view. Ignored for non-league sub-tabs.
+  final String? leagueSort;
+  const StandingsScreen({super.key, this.subTab = 'league', this.leagueSort});
 
   @override
   State<StandingsScreen> createState() => _StandingsScreenState();
@@ -84,7 +87,7 @@ class _StandingsScreenState extends State<StandingsScreen> {
               'f1' => const F1Tab(),
               'insights' => const InsightsTab(),
               'preseason' => const PreseasonTab(),
-              _ => const LeagueTab(),
+              _ => LeagueTab(initialMetric: widget.leagueSort),
             }),
           ],
         ),

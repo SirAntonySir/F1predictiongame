@@ -27,7 +27,11 @@ extension on _Metric {
 }
 
 class LeagueTab extends StatefulWidget {
-  const LeagueTab({super.key});
+  /// Initial metric the tab should highlight + sort by. Parsed from a router
+  /// query string (`?sort=total|inseason`) so the Home cards can deep-link to
+  /// the matching view. Defaults to in-season.
+  final String? initialMetric;
+  const LeagueTab({super.key, this.initialMetric});
 
   @override
   State<LeagueTab> createState() => _LeagueTabState();
@@ -35,7 +39,10 @@ class LeagueTab extends StatefulWidget {
 
 class _LeagueTabState extends State<LeagueTab> {
   Future<List<LeaderboardRow>>? _data;
-  _Metric _metric = _Metric.inSeason;
+  late _Metric _metric = switch (widget.initialMetric) {
+    'total' => _Metric.total,
+    _ => _Metric.inSeason,
+  };
 
   @override
   void didChangeDependencies() {

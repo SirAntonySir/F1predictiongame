@@ -32,6 +32,11 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   Future<_HomeData>? _data;
+  /// When non-null the hero countdown targets this session instead of the
+  /// chronologically-next one. Set by tapping a chip on the hero card. Reset
+  /// implicitly whenever `_data` reloads (state is keyed to the current
+  /// event so picking a stale id is harmless — the resolver falls back).
+  int? _heroSessionOverride;
 
   @override
   void didChangeDependencies() {
@@ -134,6 +139,21 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  /// Resolve which session the hero should target. Default: `d.next` (the
+  /// backend's / locally-computed next session). If the user tapped a chip,
+  /// the override wins — provided the chosen session still belongs to the
+  /// current `nextEvent`. Stale overrides (e.g. after `_data` refreshes onto
+  /// a new event) silently fall back to `d.next`.
+  Session _resolveHeroSession(_HomeData d) {
+    final override = _heroSessionOverride;
+    if (override != null && d.nextEvent != null) {
+      for (final s in d.nextEvent!.sessions) {
+        if (s.id == override) return s;
+      }
+    }
+    return d.next!;
+  }
+
   Session? _computeNextSession(List<Event> events, {required bool pickableOnly}) {
     bool isPickable(SessionType t) =>
         t == SessionType.qualifying ||
@@ -192,7 +212,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 _topbar(leagueName, memberCount),
                 const SizedBox(height: Spacing.xs),
                 if (d.next != null && d.nextEvent != null)
-                  _hero(d.next!, d.nextEvent!, t)
+                  _hero(_resolveHeroSession(d), d.nextEvent!, t)
                 else
                   _noNextHero(t),
                 if (d.next != null) ...[
@@ -220,9 +240,9 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ],
                 _section('$leagueName · In-season',
-                    onTap: () => context.go('/standings/league')),
+                    onTap: () => context.go('/standings/league?sort=inseason')),
                 InkWell(
-                  onTap: () => context.go('/standings/league'),
+                  onTap: () => context.go('/standings/league?sort=inseason'),
                   child: _leagueCard(
                     d.leaderboard,
                     scope.auth.currentUserId,
@@ -231,9 +251,9 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
                 _section('$leagueName · Total',
-                    onTap: () => context.go('/standings/league')),
+                    onTap: () => context.go('/standings/league?sort=total')),
                 InkWell(
-                  onTap: () => context.go('/standings/league'),
+                  onTap: () => context.go('/standings/league?sort=total'),
                   child: _leagueCard(
                     d.leaderboard,
                     scope.auth.currentUserId,
@@ -423,11 +443,22 @@ class _HomeScreenState extends State<HomeScreen> {
     return [
       for (final t in order)
         if (nextEvent.sessions.any((s) => s.type == t))
-          SessionChip(label: labels[t]!, state: nextEvent.sessions
-              .firstWhere((s) => s.type == t).status == SessionStatus.finished
-              ? ChipState.done
-              : (next.id == nextEvent.sessions.firstWhere((s) => s.type == t).id
-                  ? ChipState.next : ChipState.idle))
+          () {
+            final session = nextEvent.sessions.firstWhere((s) => s.type == t);
+            final isFinished = session.status == SessionStatus.finished;
+            return SessionChip(
+              label: labels[t]!,
+              state: isFinished
+                  ? ChipState.done
+                  : (next.id == session.id ? ChipState.next : ChipState.idle),
+              // Tapping retargets the hero's countdown at this session.
+              // Finished sessions stay non-interactive — there's nothing
+              // to count down to.
+              onTap: isFinished
+                  ? null
+                  : () => setState(() => _heroSessionOverride = session.id),
+            );
+          }(),
     ];
   }
 

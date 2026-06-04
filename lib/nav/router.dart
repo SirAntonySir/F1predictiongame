@@ -11,6 +11,8 @@ import '../screens/session_results_screen.dart';
 import '../screens/settings_screen.dart';
 import '../screens/signup_screen.dart';
 import '../screens/standings/standings_screen.dart';
+import '../screens/trajectory_fullscreen_screen.dart';
+import '../api/models/session_leaderboard_row.dart';
 import '../state/auth_controller.dart';
 import 'app_shell.dart';
 
@@ -61,9 +63,9 @@ GoRouter buildRouter(AuthController auth) {
           ),
           GoRoute(
             path: '/standings',
-            builder: (_, __) => const StandingsScreen(subTab: 'league'),
+            builder: (_, s) => StandingsScreen(subTab: 'league', leagueSort: s.uri.queryParameters['sort']),
             routes: [
-              GoRoute(path: 'league',   builder: (_, __) => const StandingsScreen(subTab: 'league')),
+              GoRoute(path: 'league',   builder: (_, s) => StandingsScreen(subTab: 'league', leagueSort: s.uri.queryParameters['sort'])),
               GoRoute(path: 'f1',       builder: (_, __) => const StandingsScreen(subTab: 'f1')),
               GoRoute(path: 'insights', builder: (_, __) => const StandingsScreen(subTab: 'insights')),
             ],
@@ -78,6 +80,16 @@ GoRouter buildRouter(AuthController auth) {
         ),
       ),
       GoRoute(path: '/settings', builder: (_, __) => const SettingsScreen()),
+      // Trajectory full-screen. Data arrives via `extra` (passed by the
+      // insights tab); if it's missing (deep link, hot restart) we render the
+      // screen with an empty session list — it falls back to a "no data" view.
+      GoRoute(
+        path: '/insights/trajectory',
+        builder: (_, s) {
+          final data = s.extra as List<SessionLeaderboardRow>?;
+          return TrajectoryFullscreenScreen(sessions: data ?? const []);
+        },
+      ),
       GoRoute(
         path: '/preseason',
         builder: (_, __) => const PreseasonScreen(),
