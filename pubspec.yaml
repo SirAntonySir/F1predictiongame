@@ -23,6 +23,7 @@ dependencies:
   timezone: ^0.11.0
   flutter_timezone: ^5.1.0
   skeletonizer: ^2.1.3
+  font_awesome_flutter: ^11.0.0
 
 dev_dependencies:
   flutter_test:

@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../theme/tokens.dart';
 import '../theme/typography.dart';
 import 'app_card.dart';
 
 class FactCard extends StatelessWidget {
-  final String emblem;
+  final FaIconData emblem;
   final String text;
   const FactCard({super.key, required this.emblem, required this.text});
 
@@ -22,7 +23,7 @@ class FactCard extends StatelessWidget {
               borderRadius: BorderRadius.all(Radius.circular(6)),
             ),
             alignment: Alignment.center,
-            child: Text(emblem, style: AppText.display(14, color: Colors.white)),
+            child: FaIcon(emblem, size: 15, color: Colors.white),
           ),
           const SizedBox(width: Spacing.md),
           Expanded(child: Text(text, style: AppText.body(12))),

@@ -1,6 +1,7 @@
 // ignore_for_file: deprecated_member_use
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../theme/app_theme.dart';
 import '../theme/tokens.dart';
 import '../theme/typography.dart';
@@ -14,7 +15,10 @@ import '../theme/typography.dart';
 /// When [onDark] is null (the default), the field follows the current
 /// theme: white-or-near-black border + onSurface text. Pass `false` on
 /// cream tickets, `true` on red surfaces.
-class BrandedField extends StatelessWidget {
+///
+/// When [obscure] is true the box grows a tappable show/hide eye in its
+/// suffix; the reveal state is local to the field.
+class BrandedField extends StatefulWidget {
   final String label;
   final TextEditingController controller;
   final bool obscure;
@@ -44,6 +48,15 @@ class BrandedField extends StatelessWidget {
   });
 
   @override
+  State<BrandedField> createState() => _BrandedFieldState();
+}
+
+class _BrandedFieldState extends State<BrandedField> {
+  /// Obscured password fields start hidden; the eye toggle flips this.
+  /// Irrelevant (and the eye is absent) when [BrandedField.obscure] is false.
+  bool _reveal = false;
+
+  @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
     // Three colour modes — separates the label (sits on the surrounding
@@ -62,12 +75,12 @@ class BrandedField extends StatelessWidget {
     final Color boxBorder;
     final Color boxFill;
     final Color boxText;
-    if (onDark == null) {
+    if (widget.onDark == null) {
       labelColor = t.colorScheme.onSurface.withOpacity(0.75);
       boxBorder = t.strokeColor;
       boxFill = t.mutedSurface;
       boxText = t.colorScheme.onSurface;
-    } else if (onDark == false) {
+    } else if (widget.onDark == false) {
       labelColor = Colors.black.withOpacity(0.75);
       boxBorder = Colors.black;
       boxFill = Colors.white.withOpacity(0.55);
@@ -79,16 +92,16 @@ class BrandedField extends StatelessWidget {
       boxText = Colors.black;
     }
     final Widget input = TextField(
-      key: fieldKey,
-      controller: controller,
-      obscureText: obscure,
-      keyboardType: keyboardType,
-      inputFormatters: inputFormatters,
-      readOnly: readOnly,
+      key: widget.fieldKey,
+      controller: widget.controller,
+      obscureText: widget.obscure && !_reveal,
+      keyboardType: widget.keyboardType,
+      inputFormatters: widget.inputFormatters,
+      readOnly: widget.readOnly,
       cursorColor: boxText,
       style: AppText.body(14, weight: FontWeight.w700, color: boxText),
       decoration: InputDecoration(
-        hintText: hint,
+        hintText: widget.hint,
         hintStyle: AppText.body(13, color: boxText.withOpacity(0.45)),
         isDense: true,
         border: InputBorder.none,
@@ -96,12 +109,28 @@ class BrandedField extends StatelessWidget {
         focusedBorder: InputBorder.none,
         contentPadding:
             const EdgeInsets.symmetric(horizontal: Spacing.md, vertical: 12),
+        suffixIcon: widget.obscure
+            ? IconButton(
+                onPressed: () => setState(() => _reveal = !_reveal),
+                splashRadius: 18,
+                tooltip: _reveal ? 'Hide password' : 'Show password',
+                icon: FaIcon(
+                  _reveal
+                      ? FontAwesomeIcons.solidEyeSlash
+                      : FontAwesomeIcons.solidEye,
+                  size: 16,
+                  color: boxText.withOpacity(0.6),
+                ),
+              )
+            : null,
+        suffixIconConstraints:
+            const BoxConstraints(minWidth: 40, minHeight: 40),
       ),
     );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: AppText.label(10, color: labelColor)),
+        Text(widget.label, style: AppText.label(10, color: labelColor)),
         const SizedBox(height: 6),
         Container(
           decoration: BoxDecoration(

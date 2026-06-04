@@ -1,5 +1,6 @@
 // ignore_for_file: deprecated_member_use
 import 'package:flutter/material.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:go_router/go_router.dart';
 import '../../api/models/leaderboard_row.dart';
 import '../../api/models/league_gossip.dart';
@@ -99,7 +100,7 @@ class _InsightsTabState extends State<InsightsTab> {
                   const SizedBox(height: 6),
                   Row(
                     children: [
-                      Expanded(child: _stat(t, 'HIT RATE', stats.hitRateLabel, stats.hitRateSub)),
+                      Expanded(child: _stat(t, 'HIT RATE', stats.hitRateLabel, stats.hitRateSub, icon: FontAwesomeIcons.check)),
                       const SizedBox(width: 6),
                       Expanded(child: _stat(t, 'BEST ROUND', stats.bestLabel, stats.bestSub)),
                     ],
@@ -113,7 +114,8 @@ class _InsightsTabState extends State<InsightsTab> {
                           t,
                           'PRESEASON Δ',
                           stats.projectionDeltaLabel,
-                          stats.projectionDeltaSub)),
+                          stats.projectionDeltaSub,
+                          icon: FontAwesomeIcons.chartLine)),
                     ],
                   ),
                   const SizedBox(height: 6),
@@ -177,7 +179,7 @@ class _InsightsTabState extends State<InsightsTab> {
               ),
             ),
             if (facts.isNotEmpty) ...[
-              _h('LEAGUE GOSSIP'),
+              _h('LEAGUE GOSSIP', icon: FontAwesomeIcons.comments, iconColor: t.colorScheme.onSurface),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
                 child: Column(
@@ -436,14 +438,14 @@ class _InsightsTabState extends State<InsightsTab> {
       final sorted = [...lb]..sort((a, b) => b.pointsTotal.compareTo(a.pointsTotal));
       final leader = sorted.first;
       if (leader.pointsTotal > 0 && leader.userId != d.myUserId) {
-        facts.add(_Fact('★', '${leader.displayName} leads the league with ${leader.pointsTotal} pts.'));
+        facts.add(_Fact(FontAwesomeIcons.one, '${leader.displayName} leads the league with ${leader.pointsTotal} pts.'));
       } else if (leader.userId == d.myUserId && leader.pointsTotal > 0) {
-        facts.add(_Fact('★', "You're leading the league with ${leader.pointsTotal} pts."));
+        facts.add(_Fact(FontAwesomeIcons.one, "You're leading the league with ${leader.pointsTotal} pts."));
       }
       if (sorted.length >= 2) {
         final gap = sorted[0].pointsTotal - sorted[1].pointsTotal;
         if (gap > 0) {
-          facts.add(_Fact('≈', '$gap-point gap between 1st and 2nd.'));
+          facts.add(_Fact(FontAwesomeIcons.angleUp, '$gap-point gap between 1st and 2nd.'));
         }
       }
     }
@@ -459,7 +461,7 @@ class _InsightsTabState extends State<InsightsTab> {
       if (g.bestPlayer != null) {
         final p = g.bestPlayer!;
         facts.add(_Fact(
-            '🏆',
+            FontAwesomeIcons.flagCheckered,
             "${name(p)} topped ${race.name} with +${p.points} pts."));
       }
       if (g.worstPlayers.isNotEmpty) {
@@ -467,32 +469,32 @@ class _InsightsTabState extends State<InsightsTab> {
         final namesList = tied.map(name).join(' & ');
         final pts = tied.first.points ?? 0;
         facts.add(_Fact(
-            '✗',
+            FontAwesomeIcons.xmark,
             "$namesList ${tied.length == 1 ? 'finished last' : 'tied for last'} at ${race.name} with +$pts pts."));
       }
       if (g.noShowPlayers.isNotEmpty) {
         final namesList = g.noShowPlayers.map(name).join(', ');
         final verb = g.noShowPlayers.length == 1 ? 'forgot' : 'forgot';
         facts.add(_Fact(
-            '✕',
+            FontAwesomeIcons.clock,
             "$namesList $verb to pick for ${race.name}."));
       }
       if (g.driverGained != null) {
         final dg = g.driverGained!;
         facts.add(_Fact(
-            '↑',
+            FontAwesomeIcons.anglesUp,
             "${dg.driverCode} was the league's best call at ${race.name} — +${dg.points} pts across all picks."));
       }
       if (g.driverCost != null) {
         final dc = g.driverCost!;
         facts.add(_Fact(
-            '↓',
+            FontAwesomeIcons.anglesDown,
             "${dc.driverCode} cost the league ${dc.count} ${dc.count == 1 ? 'pick' : 'picks'} at ${race.name}."));
       }
     }
 
     if (facts.isEmpty && d.scores.isEmpty) {
-      facts.add(const _Fact('?', 'No scored sessions yet — once a race finishes, stats land here.'));
+      facts.add(const _Fact(FontAwesomeIcons.info, 'No scored sessions yet — once a race finishes, stats land here.'));
     }
     return facts;
   }
@@ -509,12 +511,24 @@ class _InsightsTabState extends State<InsightsTab> {
 
   // -------- UI helpers --------
 
-  Widget _h(String s) => Padding(
+  Widget _h(String s, {FaIconData? icon, Color? iconColor}) => Padding(
         padding: const EdgeInsets.fromLTRB(Spacing.lg, Spacing.lg, Spacing.lg, Spacing.xs),
-        child: Text(s, style: AppText.label(11)),
+        child: icon == null
+            ? Text(s, style: AppText.label(11))
+            : Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  FaIcon(icon, size: 12, color: iconColor),
+                  const SizedBox(width: 7),
+                  Text(s, style: AppText.label(11)),
+                ],
+              ),
       );
 
-  Widget _stat(ThemeData t, String label, String value, String extra, {bool accent = false}) {
+  Widget _stat(ThemeData t, String label, String value, String extra, {bool accent = false, FaIconData? icon}) {
+    final labelColor = accent
+        ? Colors.white.withOpacity(0.9)
+        : t.colorScheme.onSurface.withOpacity(0.55);
     return Container(
       padding: const EdgeInsets.fromLTRB(Spacing.md, Spacing.sm, Spacing.md, Spacing.sm),
       decoration: BoxDecoration(
@@ -525,14 +539,13 @@ class _InsightsTabState extends State<InsightsTab> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            label,
-            style: AppText.label(
-              9,
-              color: accent
-                  ? Colors.white.withOpacity(0.9)
-                  : t.colorScheme.onSurface.withOpacity(0.55),
-            ),
+          Row(
+            children: [
+              Expanded(
+                child: Text(label, style: AppText.label(9, color: labelColor)),
+              ),
+              if (icon != null) FaIcon(icon, size: 11, color: labelColor),
+            ],
           ),
           const SizedBox(height: 4),
           Text(
@@ -609,7 +622,7 @@ class _Stats {
 }
 
 class _Fact {
-  final String emblem;
+  final FaIconData emblem;
   final String text;
   const _Fact(this.emblem, this.text);
 }

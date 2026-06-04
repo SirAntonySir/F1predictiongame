@@ -22,16 +22,20 @@ glyphs (`🏆 ✗ ✕ ↑ ↓ ★ ≈ ?`) and Material lock icons. Also add a pa
 Add `font_awesome_flutter` to `pubspec.yaml` (latest compatible with Dart `^3.5.4`;
 exact version resolved at install).
 
-## Rendering convention
+## Rendering convention (font_awesome_flutter 11.0.0, FA 7.2.0)
 
-- New code renders via `FaIcon(glyph, size: …, color: …)`.
-- Modern `font_awesome_flutter` `IconData` carries its own `fontFamily`/`fontPackage`,
-  so **existing** `Icon(...)` / `_ActionPill(icon:)` sites can take an FA constant
-  directly. Switch those to `FaIcon` only if the installed version needs it —
-  `flutter analyze` + a visual pass are the safety net.
-- The **FA glyphs below (by CSS class) are the source of truth.** Exact Dart symbol
-  names (solid vs regular prefixing; `fa-1` → numeral constant) are resolved against
-  the installed package and verified by `flutter analyze`.
+- Icons are typed **`FaIconData`** — a standalone wrapper, **not** an `IconData`
+  subclass — and render **only** via **`FaIcon`**. The package deliberately blocks
+  the plain `Icon` widget (it would clip non-square glyphs). So every icon-carrying
+  field (`FactCard.emblem`, `_h`, `_stat`) is typed `FaIconData`, and the existing
+  lock `Icon(...)` sites become `FaIcon(...)`.
+- `_ActionPill` also carries a Material `Icons.edit`, so it keeps an `IconData? icon`
+  path alongside a new `FaIconData? faIcon` (assert one is set) rather than forcing
+  `edit` to FA — honouring the "Material elsewhere stays" non-goal.
+- The **FA glyphs in the mapping (by CSS class) are the source of truth.** Confirmed
+  Dart constants against the installed package: `one` (fa-1), regular `clock` /
+  `comments`, `solidEye` / `solidEyeSlash`, `lockOpen`, `anglesUp/Down`, etc.
+  `flutter analyze` is the safety net.
 
 ## Mapping
 
@@ -86,11 +90,12 @@ across two surfaces).
      `LEAGUE GOSSIP` header (`fa-comments`). Other `_h` headers unchanged.
    - `_stat()` — add optional `IconData? icon`; used on `HIT RATE` (`fa-check`) and
      `PRESEASON Δ` (`fa-chart-line`). The other 6 tiles pass nothing and are unchanged.
-4. **`lib/components/countdown.dart`** — add an opt-in leading-icon flag (default
-   **off**, so home / preseason / session-results / card usages stay identical);
-   render `FaIcon(fa-clock)` when enabled.
-5. **`lib/screens/predict_screen.dart`** — enable the countdown clock; `LOCK PICK`
-   `_ActionPill` icon → `fa-lock`.
+4. **Tipping countdown** — the live countdown on the Tipping screen is the inline
+   "LOCKS IN …" pill in `predict_screen.dart`, **not** the shared `Countdown` widget.
+   The clock goes there; `countdown.dart` and the home / preseason / results usages
+   are left untouched (cleaner than the opt-in flag originally assumed).
+5. **`lib/screens/predict_screen.dart`** — add `FaIcon(fa-clock)` to the "LOCKS IN"
+   pill; `LOCK PICK` `_ActionPill` → `faIcon: fa-lock` (EDIT pill stays Material).
 6. **`lib/screens/settings_screen.dart`** — two lock `Icon` sites → `fa-lock` /
    `fa-lock-open`; the Set/Change league-password `AlertDialog` (already stateful)
    gains a `_reveal` flag + `fa-eye` / `fa-eye-slash` `suffixIcon`.

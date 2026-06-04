@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:predictiongame/components/fact_card.dart';
 import 'package:predictiongame/components/league_row.dart';
 import 'package:predictiongame/components/score_banner.dart';
@@ -34,9 +35,9 @@ void main() {
     expect(find.text('Your score'), findsOneWidget);
   });
 
-  testWidgets('FactCard shows emblem + text', (tester) async {
-    await tester.pumpWidget(_frame(const FactCard(emblem: '★', text: 'Lukas won 4')));
-    expect(find.text('★'), findsOneWidget);
+  testWidgets('FactCard shows emblem icon + text', (tester) async {
+    await tester.pumpWidget(_frame(const FactCard(emblem: FontAwesomeIcons.one, text: 'Lukas won 4')));
+    expect(find.byIcon(FontAwesomeIcons.one.data), findsOneWidget);
     expect(find.text('Lukas won 4'), findsOneWidget);
   });
 
