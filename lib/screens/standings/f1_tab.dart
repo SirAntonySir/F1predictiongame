@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../api/models/standing.dart';
 import '../../components/app_card.dart';
 import '../../components/error_view.dart';
+import '../../components/standings_skeleton.dart';
 import '../../state/app_state.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/team_colors.dart';
@@ -69,7 +70,7 @@ class _F1TabState extends State<F1Tab> {
         future: _drivers,
         builder: (_, snap) {
           if (snap.connectionState != ConnectionState.done) {
-            return const SizedBox.shrink();
+            return const StandingsListSkeleton();
           }
           if (snap.hasError) {
             return ErrorView(
@@ -135,7 +136,7 @@ class _F1TabState extends State<F1Tab> {
         future: _constructors,
         builder: (_, snap) {
           if (snap.connectionState != ConnectionState.done) {
-            return const SizedBox.shrink();
+            return const StandingsListSkeleton();
           }
           if (snap.hasError) {
             return ErrorView(

@@ -4,6 +4,7 @@ import '../../api/models/league_preseason_view.dart';
 import '../../api/models/standing.dart';
 import '../../components/app_card.dart';
 import '../../components/error_view.dart';
+import '../../components/standings_skeleton.dart';
 import '../../domain/preseason.dart';
 import '../../state/app_state.dart';
 import '../../theme/app_theme.dart';
@@ -80,7 +81,7 @@ class _PreseasonTabState extends State<PreseasonTab> {
       future: _data,
       builder: (_, snap) {
         if (snap.connectionState != ConnectionState.done) {
-          return const Center(child: CircularProgressIndicator());
+          return const StandingsListSkeleton();
         }
         if (snap.hasError) {
           return ErrorView(

@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:go_router/go_router.dart';
+import 'package:skeletonizer/skeletonizer.dart';
 import '../../api/models/leaderboard_row.dart';
 import '../../api/models/league_gossip.dart';
 import '../../api/models/my_score.dart';
@@ -66,7 +67,7 @@ class _InsightsTabState extends State<InsightsTab> {
       future: _data,
       builder: (_, snap) {
         if (snap.connectionState != ConnectionState.done) {
-          return const Center(child: CircularProgressIndicator());
+          return _skeleton(t);
         }
         if (snap.hasError) {
           return ErrorView(
@@ -518,12 +519,45 @@ class _InsightsTabState extends State<InsightsTab> {
             : Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  FaIcon(icon, size: 12, color: iconColor),
-                  const SizedBox(width: 7),
                   Text(s, style: AppText.label(11)),
+                  const SizedBox(width: 7),
+                  FaIcon(icon, size: 12, color: iconColor),
                 ],
               ),
       );
+
+  /// First-load skeleton — the YOUR SEASON stat grid + a trajectory block,
+  /// bone-ified by the global Skeletonizer pulse config.
+  Widget _skeleton(ThemeData t) {
+    Widget tile(String label) => _stat(t, label, '00', 'loading');
+    return Skeletonizer(
+      child: ListView(
+        padding: const EdgeInsets.only(bottom: Spacing.xxl),
+        children: [
+          _h('YOUR SEASON'),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
+            child: Column(
+              children: [
+                Row(children: [Expanded(child: tile('TOTAL POINTS')), const SizedBox(width: 6), Expanded(child: tile('AVERAGE / ROUND'))]),
+                const SizedBox(height: 6),
+                Row(children: [Expanded(child: tile('HIT RATE')), const SizedBox(width: 6), Expanded(child: tile('BEST ROUND'))]),
+                const SizedBox(height: 6),
+                Row(children: [Expanded(child: tile('WORST ROUND')), const SizedBox(width: 6), Expanded(child: tile('PRESEASON Δ'))]),
+                const SizedBox(height: 6),
+                Row(children: [Expanded(child: tile('TOP EARNER')), const SizedBox(width: 6), Expanded(child: tile('BIGGEST MISS'))]),
+              ],
+            ),
+          ),
+          _h('TRAJECTORY'),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: Spacing.lg),
+            child: AppCard(child: SizedBox(height: 150)),
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _stat(ThemeData t, String label, String value, String extra, {bool accent = false, FaIconData? icon}) {
     final labelColor = accent
