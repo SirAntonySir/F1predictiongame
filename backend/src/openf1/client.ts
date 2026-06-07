@@ -26,4 +26,8 @@ export class OpenF1Client {
   getSessionResult(sessionKey: number) {
     return this.getJson(`/session_result?session_key=${sessionKey}`)
   }
+
+  getPosition(sessionKey: number) {
+    return this.getJson(`/position?session_key=${sessionKey}`)
+  }
 }

@@ -57,4 +57,17 @@ describe('OpenF1Client', () => {
     const c = new OpenF1Client('https://api.openf1.org/v1', fetchFn)
     await expect(c.getSessions(2026)).rejects.toThrow(/OpenF1 502/)
   })
+
+  it('GET /position?session_key=K', async () => {
+    const { fetchFn, calls } = fakeFetch({
+      'https://api.openf1.org/v1/position?session_key=9876': {
+        status: 200,
+        body: [{ driver_number: 1, position: 1, date: '2026-06-07T13:00:00Z' }]
+      }
+    })
+    const c = new OpenF1Client('https://api.openf1.org/v1', fetchFn)
+    const out = await c.getPosition(9876)
+    expect(out).toEqual([{ driver_number: 1, position: 1, date: '2026-06-07T13:00:00Z' }])
+    expect(calls).toEqual(['https://api.openf1.org/v1/position?session_key=9876'])
+  })
 })
