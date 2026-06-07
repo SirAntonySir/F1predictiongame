@@ -29,27 +29,19 @@ function parse<T>(schema: z.ZodType<T>, body: unknown): T {
 }
 
 /**
- * Lock time for predictions on a given session. The whole weekend's picks
- * lock when the *event's* first scheduled session begins (typically FP1) —
- * not when each individual session starts. That way a user can still adjust
- * their Sunday race picks up to Friday morning if they want.
+ * Predictions for a session lock when that session itself is scheduled to
+ * start. Each session is independent — the race stays open until the race
+ * begins, even after practice and qualifying have already run.
  */
-async function eventLockAt(eventId: number): Promise<Date | null> {
-  const all = await sessionsRepo.listForEvent(eventId)
-  if (all.length === 0) return null
-  let earliest = all[0]!.scheduledStart
-  for (const s of all) {
-    if (s.scheduledStart < earliest) earliest = s.scheduledStart
-  }
-  return earliest
+function sessionLocked(s: { scheduledStart: Date }): boolean {
+  return s.scheduledStart.getTime() <= Date.now()
 }
 
 async function requireSessionUnlocked(sessionId: number) {
   const s = await sessionsRepo.getById(sessionId)
   if (!s) throw new ApiError('NOT_FOUND', 'Session not found')
-  const lockAt = await eventLockAt(s.eventId)
-  if (lockAt && lockAt.getTime() <= Date.now()) {
-    throw new ApiError('CONFLICT', 'Predictions for this event are locked')
+  if (sessionLocked(s)) {
+    throw new ApiError('CONFLICT', 'Predictions for this session are locked')
   }
   return s
 }
@@ -57,8 +49,7 @@ async function requireSessionUnlocked(sessionId: number) {
 async function requireSessionLocked(sessionId: number) {
   const s = await sessionsRepo.getById(sessionId)
   if (!s) throw new ApiError('NOT_FOUND', 'Session not found')
-  const lockAt = await eventLockAt(s.eventId)
-  if (!lockAt || lockAt.getTime() > Date.now()) {
+  if (!sessionLocked(s)) {
     throw new ApiError('FORBIDDEN', 'Other users\' predictions are visible only after lock')
   }
   return s
@@ -128,13 +119,12 @@ export async function registerPredictionRoutes(app: FastifyInstance): Promise<vo
     const p = await predictionsRepo.getByUserAndSession(u.id, sessionId)
     if (!p) throw new ApiError('NOT_FOUND', 'No prediction for this session')
     const picks = await picksRepo.listForPrediction(p.id)
-    const lockAt = await eventLockAt(s.eventId)
     return {
       prediction: {
         sessionId,
         picks,
         updatedAt: p.updatedAt,
-        isLocked: lockAt !== null && lockAt.getTime() <= Date.now()
+        isLocked: sessionLocked(s)
       }
     }
   })
@@ -164,11 +154,6 @@ export async function registerPredictionRoutes(app: FastifyInstance): Promise<vo
     const upcoming: any[] = []
     for (const ev of events) {
       const allSessions = await sessionsRepo.listForEvent(ev.id)
-      // Compute the event-level lock once per event (earliest session start).
-      let lockAt: Date | null = null
-      for (const s of allSessions) {
-        if (lockAt === null || s.scheduledStart < lockAt) lockAt = s.scheduledStart
-      }
       for (const s of allSessions) {
         if (!isScorableSessionType(s.type)) continue
         const myPrediction = await predictionsRepo.getByUserAndSession(u.id, s.id)
@@ -177,8 +162,8 @@ export async function registerPredictionRoutes(app: FastifyInstance): Promise<vo
           session: { id: s.id, type: s.type },
           event: { id: ev.id, round: ev.round, name: ev.name, country: ev.country },
           picksRequired: picksRequiredFor(s.type)!,
-          locksAt: lockAt ?? s.scheduledStart,
-          isLocked: lockAt !== null && lockAt.getTime() <= Date.now(),
+          locksAt: s.scheduledStart,
+          isLocked: sessionLocked(s),
           myPicks
         })
       }

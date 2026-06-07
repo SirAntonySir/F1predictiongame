@@ -9,9 +9,9 @@ import * as constructors from '../../src/repo/constructors.js'
 
 async function seedScene() {
   await seasons.upsertSeason({ year: 2026, isCurrent: true })
-  // Two separate events so the future-session's event has no sessions in the
-  // past (and vice versa). With per-event locking, mixing past + future
-  // sessions in one event would mark the future session locked too.
+  // Two separate events keeps each scene minimal. Predictions lock per session
+  // at the session's own start, so a past session no longer affects a future
+  // session (see the per-session locking test below).
   const ev = await events.upsertEvent({
     seasonYear: 2026, round: 1, name: 'Bahrain', circuitName: 'BIC', country: 'B', hasSprint: false
   })
@@ -250,5 +250,40 @@ describe('GET /api/predictions/upcoming', () => {
     const after = await app.inject({ method: 'GET', url: '/api/predictions/upcoming', headers: auth(token) })
     const entry2 = after.json().upcoming.find((u: any) => u.session.id === futureSession.id)
     expect(entry2.myPicks).toHaveLength(5)
+  })
+})
+
+describe('per-session locking (a started FP1 must not lock the race)', () => {
+  it('keeps the future race editable after the event\'s FP1 has started', async () => {
+    const { ev, futureSession } = await seedScene()
+    // Add a PAST fp1 to the SAME event as the future race. Under the old
+    // event-level lock (earliest session start) this locked the race too.
+    await sessions.upsertSession({
+      eventId: ev.id, type: 'fp1',
+      scheduledStart: new Date(Date.now() - 60 * 60 * 1000),
+      scheduledEnd: new Date(Date.now() - 30 * 60 * 1000),
+      status: 'scheduled', openf1SessionKey: null
+    })
+    const { app, token } = await buildAndUser()
+
+    // Saving the race pick is allowed, and it is not locked.
+    const put = await app.inject({
+      method: 'PUT', url: `/api/sessions/${futureSession.id}/my-prediction`,
+      headers: auth(token), payload: { picks: racePicks }
+    })
+    expect(put.statusCode).toBe(200)
+    expect(put.json().prediction.isLocked).toBe(false)
+
+    // GET reflects unlocked.
+    const get = await app.inject({ method: 'GET', url: `/api/sessions/${futureSession.id}/my-prediction`, headers: auth(token) })
+    expect(get.statusCode).toBe(200)
+    expect(get.json().prediction.isLocked).toBe(false)
+
+    // upcoming keys the race lock to its own (future) start, not FP1.
+    const up = await app.inject({ method: 'GET', url: '/api/predictions/upcoming', headers: auth(token) })
+    const entry = up.json().upcoming.find((u: any) => u.session.id === futureSession.id)
+    expect(entry).toBeDefined()
+    expect(entry.isLocked).toBe(false)
+    expect(new Date(entry.locksAt).getTime()).toBeGreaterThan(Date.now())
   })
 })
