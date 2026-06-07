@@ -110,15 +110,15 @@ class _HomeScreenState extends State<HomeScreen> {
                   listenable: scope.predictions,
                   builder: (_, __) => _pickCard(d, scope, t),
                 );
-            final lastRaceHeader = (d.lastEvent == null)
-                ? null
-                : _section('Last race · ${d.lastEvent!.name}', onTap: () {
-                    final race = d.lastEvent!.sessions.firstWhere(
-                      (s) => s.type == SessionType.race,
-                      orElse: () => d.lastEvent!.sessions.first,
-                    );
-                    context.push('/race/${d.lastEvent!.round}/${race.id}');
-                  });
+            final lastRaceHeader =
+                (d.lastEvent == null || d.lastRaceSession == null)
+                    ? null
+                    : _section(
+                        'Last ${_sessionTypeLabel(d.lastRaceSession!.type)}'
+                        ' · ${d.lastEvent!.name}', onTap: () {
+                        context.push('/race/${d.lastEvent!.round}'
+                            '/${d.lastRaceSession!.id}');
+                      });
             Widget lastCard() => ListenableBuilder(
                   listenable: scope.predictions,
                   builder: (_, __) => _lastCard(d, scope, t),
@@ -447,16 +447,20 @@ class _HomeScreenState extends State<HomeScreen> {
         if (nextEvent.sessions.any((s) => s.type == t))
           () {
             final session = nextEvent.sessions.firstWhere((s) => s.type == t);
-            final isFinished = session.status == SessionStatus.finished;
+            // "Done" = finished (results in) OR simply past its scheduled end,
+            // so practice sessions — which never get a 'finished' status — also
+            // strike through once they're over.
+            final isDone = session.status == SessionStatus.finished ||
+                session.scheduledEnd.isBefore(DateTime.now());
             return SessionChip(
               label: labels[t]!,
-              state: isFinished
+              state: isDone
                   ? ChipState.done
                   : (next.id == session.id ? ChipState.next : ChipState.idle),
               // Tapping retargets the hero's countdown at this session.
-              // Finished sessions stay non-interactive — there's nothing
-              // to count down to.
-              onTap: isFinished
+              // Past/finished sessions stay non-interactive — nothing to
+              // count down to.
+              onTap: isDone
                   ? null
                   : () => setState(() => _heroSessionOverride = session.id),
             );
@@ -632,10 +636,16 @@ class _HomeScreenState extends State<HomeScreen> {
     // they were asked to predict, not a fixed top-3. Falls back to 3 when
     // there's no session for some reason.
     final topN = lastSession != null ? requiredPicks(lastSession.type) : 3;
-    int score = 0;
+    // Points come from the backend's authoritative score (it includes the team
+    // bonus and DNF/standings logic the client can't reproduce). Null until the
+    // scores load or the session is scored — in which case we show the
+    // exact-count alone rather than recompute with the client's diverging
+    // formula (which would print a wrong figure, e.g. +8 instead of +4).
+    final int? score = lastSession == null
+        ? null
+        : scope.predictions.score(lastSession.id)?.pointsTotal;
     int exactHits = 0;
-    if (picks.isNotEmpty && d.lastResult.isNotEmpty) {
-      score = scoreRace(picks, d.lastResult);
+    if (lastSession != null && picks.isNotEmpty && d.lastResult.isNotEmpty) {
       for (var i = 0; i < picks.length; i++) {
         if (outcomeFor(picks[i], i + 1, d.lastResult, topN) ==
             PickOutcome.exact) {
@@ -669,7 +679,10 @@ class _HomeScreenState extends State<HomeScreen> {
                         color: BrandColors.ok,
                         borderRadius: BorderRadius.all(Radius.circular(6)),
                       ),
-                      child: Text('+$score pts · $exactHits exact',
+                      child: Text(
+                          score != null
+                              ? '+$score pts · $exactHits exact'
+                              : '$exactHits exact',
                           style: AppText.label(9, color: Colors.black)),
                     ),
                 ],

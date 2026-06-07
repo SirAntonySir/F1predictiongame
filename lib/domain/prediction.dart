@@ -1,3 +1,4 @@
+import '../api/models/event.dart';
 import '../api/models/session.dart';
 
 class PredictionEntry {
@@ -56,4 +57,26 @@ int requiredPicks(SessionType t) {
     case SessionType.fp3:
       return 0;
   }
+}
+
+/// The most recent finished *scorable* session (race / qualifying / sprint /
+/// sprint-quali — anything with [requiredPicks] > 0) across [events], chosen by
+/// latest [Session.scheduledStart]. Finished practice sessions are ignored.
+/// Returns null when no scorable session has finished yet.
+({Event event, Session session})? selectLastScorableSession(
+    List<Event> events) {
+  Event? bestEvent;
+  Session? best;
+  for (final e in events) {
+    for (final s in e.sessions) {
+      if (s.status != SessionStatus.finished) continue;
+      if (requiredPicks(s.type) <= 0) continue;
+      if (best == null || s.scheduledStart.isAfter(best.scheduledStart)) {
+        best = s;
+        bestEvent = e;
+      }
+    }
+  }
+  if (best == null || bestEvent == null) return null;
+  return (event: bestEvent, session: best);
 }

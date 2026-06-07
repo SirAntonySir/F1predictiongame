@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import '../api/api_client.dart';
 import '../api/models/event.dart';
+import '../domain/prediction.dart';
 import '../api/models/leaderboard_row.dart';
 import '../api/models/session.dart';
 import '../api/models/session_result.dart';
@@ -158,6 +159,11 @@ class HomeCacheController extends ChangeNotifier {
     // loads. Idempotent — the service cancels-then-reschedules.
     // ignore: discarded_futures
     predictions.refreshUpcoming().catchError((_) {});
+    // Load the user's per-session scores so the last-session card can show the
+    // backend's authoritative points instead of a client recomputation.
+    // Best-effort; the card falls back to the exact-count until they arrive.
+    // ignore: discarded_futures
+    predictions.refreshScores().catchError((_) {});
     final leagues = auth.leagues;
     List<LeaderboardRow> leaderboard = const [];
     if (leagues.isNotEmpty) {
@@ -201,31 +207,29 @@ class HomeCacheController extends ChangeNotifier {
         // Non-fatal — pick card falls back to "no picks yet"
       }
     }
-    final finishedRace = events.lastWhere(
-      (e) => e.sessions.any((s) =>
-          s.type == SessionType.race && s.status == SessionStatus.finished),
-      orElse: () => const Event(
-        round: 0,
-        name: '',
-        country: '',
-        circuitName: '',
-        hasSprint: false,
-        sessions: [],
-      ),
-    );
     Event? lastEvent;
+    // Holds the last finished *scorable* session (race / quali / sprint), not
+    // only races — so on a race weekend the home card surfaces e.g. yesterday's
+    // qualifying instead of the previous Grand Prix. Field name kept for
+    // continuity.
     Session? lastRaceSession;
     List<SessionResult> lastResult = const [];
-    if (finishedRace.sessions.isNotEmpty) {
-      lastEvent = finishedRace;
-      lastRaceSession = finishedRace.sessions.firstWhere(
-        (s) => s.type == SessionType.race,
-        orElse: () => finishedRace.sessions.first,
-      );
+    final lastScorable = selectLastScorableSession(events);
+    if (lastScorable != null) {
+      lastEvent = lastScorable.event;
+      lastRaceSession = lastScorable.session;
       try {
         lastResult = await api.sessionResults(lastRaceSession.id);
       } on NotFoundException {
         lastResult = const [];
+      }
+      // Also load the user's prediction for this session so the card shows
+      // their score on first paint. Without it the score only appears once
+      // some other screen happens to fetch this prediction. Best-effort.
+      try {
+        await predictions.fetchPrediction(lastRaceSession.id);
+      } catch (_) {
+        // Non-fatal — the card falls back to result-only (no score badge).
       }
     }
     return HomeData(

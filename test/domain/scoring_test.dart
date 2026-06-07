@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:predictiongame/api/models/session.dart';
 import 'package:predictiongame/api/models/session_result.dart';
 import 'package:predictiongame/domain/scoring.dart';
 
@@ -75,6 +76,27 @@ void main() {
     });
     test('not in top-N', () {
       expect(outcomeFor('VER', 1, result, 5), PickOutcome.miss);
+    });
+  });
+
+  group('scoreSession dispatches by session type', () {
+    test('race scores like a Top-5 race', () {
+      expect(scoreSession(SessionType.race, ['NOR', 'PIA', 'LEC', 'TSU', 'RUS'],
+          result), 40);
+    });
+    test('qualifying scores like Top-2', () {
+      expect(scoreSession(SessionType.qualifying, ['NOR', 'PIA'], result), 16);
+    });
+    test('sprint scores like Top-3', () {
+      expect(scoreSession(SessionType.sprint, ['NOR', 'PIA', 'LEC'], result), 24);
+    });
+    test('sprint quali scores like Top-1', () {
+      expect(scoreSession(SessionType.sprint_quali, ['NOR'], result), 8);
+    });
+    test('practice sessions are not scorable', () {
+      expect(scoreSession(SessionType.fp1, ['NOR', 'PIA'], result), 0);
+      expect(scoreSession(SessionType.fp2, ['NOR'], result), 0);
+      expect(scoreSession(SessionType.fp3, ['NOR'], result), 0);
     });
   });
 }

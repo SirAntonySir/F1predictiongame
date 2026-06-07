@@ -1,3 +1,4 @@
+import '../api/models/session.dart';
 import '../api/models/session_result.dart';
 
 class ScoringRules {
@@ -50,3 +51,27 @@ int scoreSprintQualifying(List<String> picks, List<SessionResult> result) =>
 
 int scoreSprint(List<String> picks, List<SessionResult> result) =>
     _scoreOrdered(picks, result, 3);
+
+/// Scores a set of picks against a session result, dispatching to the scorer
+/// for the session's type. Practice sessions (fp1–3) are not scorable and
+/// always return 0. Mirrors the pick depth used by [requiredPicks].
+int scoreSession(
+  SessionType type,
+  List<String> picks,
+  List<SessionResult> result,
+) {
+  switch (type) {
+    case SessionType.qualifying:
+      return scoreQualifying(picks, result);
+    case SessionType.sprint_quali:
+      return scoreSprintQualifying(picks, result);
+    case SessionType.sprint:
+      return scoreSprint(picks, result);
+    case SessionType.race:
+      return scoreRace(picks, result);
+    case SessionType.fp1:
+    case SessionType.fp2:
+    case SessionType.fp3:
+      return 0;
+  }
+}

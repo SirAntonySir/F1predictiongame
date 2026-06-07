@@ -379,18 +379,7 @@ class _Body extends StatelessWidget {
     // rescore not run, etc.).
     final backend = payload.backendScore;
     if (backend != null) return backend;
-    switch (session.type) {
-      case SessionType.qualifying:
-        return scoreQualifying(payload.picks, payload.result);
-      case SessionType.sprint_quali:
-        return scoreSprintQualifying(payload.picks, payload.result);
-      case SessionType.sprint:
-        return scoreSprint(payload.picks, payload.result);
-      case SessionType.race:
-        return scoreRace(payload.picks, payload.result);
-      default:
-        return 0;
-    }
+    return scoreSession(session.type, payload.picks, payload.result);
   }
 
   @override
