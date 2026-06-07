@@ -1,11 +1,14 @@
 // ignore_for_file: deprecated_member_use
 import 'package:flutter/material.dart';
+import '../domain/race_phase.dart';
 import '../theme/colors.dart';
 import '../theme/tokens.dart';
 import '../theme/typography.dart';
 import 'app_card.dart';
 
-enum RaceState { past, next, live, future }
+// RaceState lives in the domain layer (so the calendar's pure classifier can
+// produce it); re-exported here for existing importers of this component.
+export '../domain/race_phase.dart' show RaceState;
 
 class RaceTile extends StatelessWidget {
   final int round;

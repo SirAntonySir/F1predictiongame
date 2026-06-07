@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:skeletonizer/skeletonizer.dart';
 import '../api/models/event.dart';
 import '../api/models/session.dart';
+import '../domain/race_phase.dart';
 import '../components/cached_view.dart';
 import '../components/race_tile.dart';
 import '../state/app_state.dart';
@@ -22,8 +23,8 @@ class CalendarScreen extends StatefulWidget {
 class _CalendarScreenState extends State<CalendarScreen> {
   late final AsyncCache<_CalData> _cache = AsyncCache<_CalData>(_fetch);
   final ScrollController _scroll = ScrollController();
-  // GlobalKey attached to whichever tile holds RaceState.next so we can
-  // jump-scroll to it on first load.
+  // GlobalKey attached to the live tile (or the next race when nothing is
+  // live) so we can jump-scroll to it on first load.
   final GlobalKey _nextRaceKey = GlobalKey();
   bool _scrolledToNext = false;
   bool _kickedOffRefresh = false;
@@ -106,12 +107,16 @@ class _CalendarScreenState extends State<CalendarScreen> {
               ),
             ];
             final now = DateTime.now();
-            final firstFutureRound = events
-                .where(
-                    (e) => e.sessions.any((s) => s.scheduledStart.isAfter(now)))
-                .map((e) => e.round)
-                .fold<int?>(null,
-                    (prev, r) => prev == null ? r : (r < prev ? r : prev));
+            final phases = classifyCalendar(events, now);
+            // Scroll target: the live event if there is one, otherwise the next
+            // race — derived from the same classification the tiles render.
+            int? liveRound;
+            int? nextRound;
+            phases.forEach((round, st) {
+              if (st == RaceState.live) liveRound = round;
+              if (st == RaceState.next) nextRound = round;
+            });
+            final scrollRound = liveRound ?? nextRound;
 
             // Bucket events by month so the layout builder can pair tiles
             // within each month on wide viewports (iPad → 2-up rows).
@@ -128,14 +133,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 byMonth[month] = <Widget>[];
               }
 
-              final RaceState raceState;
-              if (race.scheduledStart.isAfter(now)) {
-                raceState = e.round == firstFutureRound
-                    ? RaceState.next
-                    : RaceState.future;
-              } else {
-                raceState = RaceState.past;
-              }
+              final raceState = phases[e.round] ?? RaceState.future;
 
               final pts = raceState == RaceState.past
                   ? (data.pointsByRound[e.round] ?? 0)
@@ -144,7 +142,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
               byMonth[month]!.add(RaceTile(
                 // Tag the next race's tile so the post-frame callback below
                 // can scroll the list to it.
-                key: raceState == RaceState.next ? _nextRaceKey : null,
+                key: e.round == scrollRound ? _nextRaceKey : null,
                 round: e.round,
                 country: () {
                   final flag = flagFor(e.country);
@@ -222,7 +220,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
             // mount; subsequent rebuilds (e.g. on scroll) skip the jump so
             // the user can scroll freely past it. Skipped while we're still
             // showing the placeholder data — would scroll to fake content.
-            if (!_scrolledToNext && firstFutureRound != null && _cache.data != null) {
+            if (!_scrolledToNext && scrollRound != null && _cache.data != null) {
               _scrolledToNext = true;
               WidgetsBinding.instance.addPostFrameCallback((_) {
                 final ctx = _nextRaceKey.currentContext;
