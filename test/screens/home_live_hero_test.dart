@@ -1,15 +1,34 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:predictiongame/api/models/event.dart';
 import 'package:predictiongame/api/models/live_snapshot.dart';
+import 'package:predictiongame/api/models/session.dart';
 import 'package:predictiongame/api/models/session_result.dart';
 import 'package:predictiongame/screens/home_screen.dart' show LiveHeroCard;
 
+Event _ev() => const Event(
+      round: 6,
+      name: 'Monaco Grand Prix',
+      country: 'Monaco',
+      circuitName: 'Monte Carlo',
+      hasSprint: false,
+      sessions: [],
+    );
+
+Session _sess() => Session(
+      id: 30,
+      type: SessionType.race,
+      scheduledStart: DateTime.utc(2026, 6, 7, 13),
+      scheduledEnd: DateTime.utc(2026, 6, 7, 15),
+      status: SessionStatus.scheduled,
+    );
+
 void main() {
   testWidgets(
-      'LiveHeroCard shows LIVE, event/session, top order and my projected points',
+      'LiveHeroCard shows LIVE·RACE, event title, top order (with names) and projected',
       (tester) async {
     const snap = LiveSnapshot(
-      sessionId: 5,
+      sessionId: 30,
       state: LiveState.live,
       order: [
         SessionResult(
@@ -31,21 +50,19 @@ void main() {
     );
     await tester.pumpWidget(MaterialApp(
         home: Scaffold(
-            body: LiveHeroCard(
-                eventName: 'Spanish GP',
-                sessionLabel: 'RACE',
-                snap: snap,
-                onTap: () {}))));
-    expect(find.text('LIVE'), findsOneWidget);
-    expect(find.textContaining('Spanish GP'), findsOneWidget);
+            body: ListView(children: [
+      LiveHeroCard(event: _ev(), session: _sess(), snap: snap, onTap: () {}),
+    ]))));
+    expect(find.text('LIVE · RACE'), findsOneWidget);
+    expect(find.text('MONACO GRAND PRIX'), findsOneWidget);
     expect(find.text('VER'), findsOneWidget);
+    expect(find.text('Max Verstappen'), findsOneWidget);
     expect(find.text('+8'), findsOneWidget);
   });
 
-  testWidgets('LiveHeroCard shows PROVISIONAL badge past session end',
-      (tester) async {
+  testWidgets('LiveHeroCard shows the PROVISIONAL badge', (tester) async {
     const snap = LiveSnapshot(
-      sessionId: 5,
+      sessionId: 30,
       state: LiveState.provisional,
       order: [],
       myPointsTotal: null,
@@ -53,11 +70,9 @@ void main() {
     );
     await tester.pumpWidget(MaterialApp(
         home: Scaffold(
-            body: LiveHeroCard(
-                eventName: 'Spanish GP',
-                sessionLabel: 'RACE',
-                snap: snap,
-                onTap: () {}))));
-    expect(find.text('PROVISIONAL'), findsOneWidget);
+            body: ListView(children: [
+      LiveHeroCard(event: _ev(), session: _sess(), snap: snap, onTap: () {}),
+    ]))));
+    expect(find.text('PROVISIONAL · RACE'), findsOneWidget);
   });
 }

@@ -179,8 +179,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       final sess = ev.sessions
                           .firstWhere((s) => s.id == live.liveSessionId);
                       return LiveHeroCard(
-                        eventName: ev.name,
-                        sessionLabel: sess.type.name.toUpperCase(),
+                        event: ev,
+                        session: sess,
                         snap: snap,
                         onTap: () => context
                             .go('/race/${ev.round}/${live.liveSessionId}'),
@@ -816,76 +816,161 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-/// Compact live-session card shown on Home in place of the next/countdown hero
-/// while a scorable session is in progress. Tapping opens the full live results.
+/// Live-session card shown on Home in place of the next/countdown hero while a
+/// scorable session is in progress. Branded red shell (matching the normal
+/// hero — racing stripes, flag, big event title, LIVE pulse) with a readable
+/// inner panel for the live top-5 + projected points.
 class LiveHeroCard extends StatelessWidget {
-  final String eventName;
-  final String sessionLabel;
+  final Event event;
+  final Session session;
   final LiveSnapshot snap;
   final VoidCallback onTap;
   const LiveHeroCard({
     super.key,
-    required this.eventName,
-    required this.sessionLabel,
+    required this.event,
+    required this.session,
     required this.snap,
     required this.onTap,
   });
 
+  String get _typeLabel {
+    switch (session.type) {
+      case SessionType.race:
+        return 'RACE';
+      case SessionType.qualifying:
+        return 'QUALIFYING';
+      case SessionType.sprint:
+        return 'SPRINT';
+      case SessionType.sprint_quali:
+        return 'SPRINT QUALI';
+      case SessionType.fp1:
+      case SessionType.fp2:
+      case SessionType.fp3:
+        return session.type.name.toUpperCase();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
-    final top = snap.order.take(3).toList();
+    final flag = flagFor(event.country);
+    final top = snap.order.take(5).toList();
     final pts = snap.myPointsTotal;
     final badge = snap.state == LiveState.provisional ? 'PROVISIONAL' : 'LIVE';
-    return InkWell(
-      onTap: onTap,
-      child: AppCard(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(children: [
-              Container(
-                  width: 8,
-                  height: 8,
-                  decoration: const BoxDecoration(
-                      color: BrandColors.accent, shape: BoxShape.circle)),
-              const SizedBox(width: 6),
-              Text(badge, style: AppText.label(11, color: BrandColors.accent)),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text('$eventName · $sessionLabel',
-                    overflow: TextOverflow.ellipsis,
-                    style: AppText.label(11,
-                        color: t.colorScheme.onSurface.withOpacity(0.6))),
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(Spacing.lg, Spacing.xs, Spacing.lg, 0),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: const BorderRadius.all(Radius.circular(14)),
+        child: AppCard(
+          background: BrandColors.accent,
+          padding: EdgeInsets.zero,
+          child: Stack(
+            children: [
+              const Positioned.fill(
+                child: IgnorePointer(
+                  child: CustomPaint(painter: RacingStripesPainter()),
+                ),
               ),
-            ]),
-            const SizedBox(height: Spacing.sm),
-            for (final r in top)
               Padding(
-                padding: const EdgeInsets.symmetric(vertical: 3),
-                child: Row(children: [
-                  SizedBox(
-                      width: 18,
-                      child:
-                          Text('${r.position}', style: AppText.display(13))),
-                  Container(
-                      width: 3,
-                      height: 16,
-                      color:
-                          teamColor(r.constructorId, fallbackHex: r.teamColour)),
-                  const SizedBox(width: Spacing.sm),
-                  Text(r.driverCode,
-                      style: AppText.body(13, weight: FontWeight.w800)),
-                ]),
+                padding: const EdgeInsets.all(Spacing.lg),
+                child: DefaultTextStyle.merge(
+                  style: const TextStyle(color: Colors.white),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              '${flag != null ? '$flag  ' : ''}${event.country.toUpperCase()} · ROUND ${event.round}',
+                              style: AppText.label(10,
+                                  color: Colors.white.withOpacity(0.85)),
+                            ),
+                          ),
+                          const SizedBox(width: Spacing.sm),
+                          Container(
+                              width: 7,
+                              height: 7,
+                              decoration: const BoxDecoration(
+                                  color: Colors.white, shape: BoxShape.circle)),
+                          const SizedBox(width: 5),
+                          Text('$badge · $_typeLabel',
+                              style: AppText.label(10, color: Colors.white)),
+                        ],
+                      ),
+                      const SizedBox(height: Spacing.sm),
+                      Text(event.name.toUpperCase(),
+                          style: AppText.display(24, color: Colors.white)),
+                      const SizedBox(height: Spacing.md),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: t.colorScheme.surface,
+                          borderRadius:
+                              const BorderRadius.all(Radius.circular(12)),
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: Spacing.md, vertical: Spacing.sm),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            for (final r in top)
+                              Padding(
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 4),
+                                child: Row(children: [
+                                  SizedBox(
+                                      width: 20,
+                                      child: Text('${r.position}',
+                                          style: AppText.display(13,
+                                              color: t.colorScheme.onSurface))),
+                                  Container(
+                                      width: 3,
+                                      height: 16,
+                                      color: teamColor(r.constructorId,
+                                          fallbackHex: r.teamColour)),
+                                  const SizedBox(width: Spacing.sm),
+                                  SizedBox(
+                                      width: 42,
+                                      child: Text(r.driverCode,
+                                          style: AppText.body(12,
+                                              weight: FontWeight.w800,
+                                              color: t.colorScheme.onSurface))),
+                                  Expanded(
+                                      child: Text(r.driverName,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: AppText.body(12,
+                                              color: t.colorScheme.onSurface
+                                                  .withOpacity(0.7)))),
+                                ]),
+                              ),
+                          ],
+                        ),
+                      ),
+                      if (pts != null) ...[
+                        const SizedBox(height: Spacing.md),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.baseline,
+                          textBaseline: TextBaseline.alphabetic,
+                          children: [
+                            Text('YOUR PROJECTED',
+                                style: AppText.label(10,
+                                    color: Colors.white.withOpacity(0.85))),
+                            const SizedBox(width: Spacing.sm),
+                            Text('+$pts',
+                                style:
+                                    AppText.display(26, color: Colors.white)),
+                          ],
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
               ),
-            if (pts != null) ...[
-              const SizedBox(height: Spacing.sm),
-              Text('YOUR PROJECTED',
-                  style: AppText.label(9,
-                      color: t.colorScheme.onSurface.withOpacity(0.55))),
-              Text('+$pts', style: AppText.display(22)),
             ],
-          ],
+          ),
         ),
       ),
     );

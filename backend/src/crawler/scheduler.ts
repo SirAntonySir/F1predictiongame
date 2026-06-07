@@ -23,8 +23,9 @@ export class Scheduler {
   ) {}
 
   start(): void {
-    // Every 15 minutes
-    this.tickJob = cron.schedule('*/15 * * * *', () => { void this.tickOnce() })
+    // Every 5 minutes — keeps post-race result ingestion/scoring snappy
+    // (results land within ~5 min of a session becoming eligible).
+    this.tickJob = cron.schedule('*/5 * * * *', () => { void this.tickOnce() })
     // Mondays 03:00 UTC
     this.weeklyJob = cron.schedule('0 3 * * 1', () => { void this.weeklyOnce() }, { timezone: 'UTC' })
     // Daily 04:00 UTC — delete expired sessions
