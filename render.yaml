@@ -1,13 +1,13 @@
 databases:
   - name: f1pg-db
-    plan: free
+    plan: basic-256mb
     postgresMajorVersion: 16
 
 services:
   - type: web
     name: f1pg-backend
     runtime: node
-    plan: free
+    plan: starter
     rootDir: backend
     # --include=dev so the build can see @types/node-cron + xlsx (devDeps).
     # NODE_ENV=production would otherwise make npm skip them.
