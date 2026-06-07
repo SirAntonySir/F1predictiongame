@@ -4,6 +4,10 @@ class SessionResult {
   final String driverName;
   final String constructorId;
   final String constructorName;
+  /// Hex (no leading `#`) team colour from OpenF1, used as a fallback when the
+  /// constructorId isn't in the curated colour map (e.g. new teams). Null for
+  /// stored results (which rely on the curated map).
+  final String? teamColour;
   final String? raceTime;
   final String? status;
   final int? points;
@@ -20,6 +24,7 @@ class SessionResult {
     required this.driverName,
     required this.constructorId,
     required this.constructorName,
+    this.teamColour,
     this.raceTime,
     this.status,
     this.points,
@@ -37,6 +42,7 @@ class SessionResult {
         driverName: j['driverName'] as String,
         constructorId: j['constructorId'] as String,
         constructorName: j['constructorName'] as String,
+        teamColour: j['teamColour'] as String?,
         raceTime: j['raceTime'] as String?,
         status: j['status'] as String?,
         points: j['points'] as int?,
