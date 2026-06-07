@@ -7,6 +7,7 @@ import 'state/auth_controller.dart';
 import 'state/league_controller.dart';
 import 'services/reminder_service.dart';
 import 'state/home_cache_controller.dart';
+import 'state/live_session_controller.dart';
 import 'state/notification_settings_controller.dart';
 import 'state/predictions_controller.dart';
 import 'state/preseason_controller.dart';
@@ -160,10 +161,12 @@ class _AfterBootState extends State<_AfterBoot> {
         await preseason.refresh();
       } catch (_) {}
     }
+    final live = LiveSessionController(api: widget.api);
     final homeCache = HomeCacheController(
       api: widget.api,
       auth: widget.auth,
       predictions: preds,
+      live: live,
     );
     // Auto-clear on logout so the next user doesn't briefly see the
     // previous user's leaderboard. Also wire to the existing auth listener
@@ -178,6 +181,7 @@ class _AfterBootState extends State<_AfterBoot> {
       league: league,
       notifications: notifications,
       homeCache: homeCache,
+      live: live,
     );
   }
 
@@ -205,6 +209,7 @@ class _AfterBootState extends State<_AfterBoot> {
           preseason: s.preseason,
           notifications: s.notifications,
           homeCache: s.homeCache,
+          live: s.live,
         );
       },
     );
@@ -218,6 +223,7 @@ class _LateState {
   final LeagueController league;
   final NotificationSettingsController notifications;
   final HomeCacheController homeCache;
+  final LiveSessionController live;
   _LateState({
     required this.theme,
     required this.predictions,
@@ -225,5 +231,6 @@ class _LateState {
     required this.league,
     required this.notifications,
     required this.homeCache,
+    required this.live,
   });
 }

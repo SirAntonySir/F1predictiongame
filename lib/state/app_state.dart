@@ -3,6 +3,7 @@ import '../api/api_client.dart';
 import 'auth_controller.dart';
 import 'home_cache_controller.dart';
 import 'league_controller.dart';
+import 'live_session_controller.dart';
 import 'notification_settings_controller.dart';
 import 'predictions_controller.dart';
 import 'preseason_controller.dart';
@@ -17,6 +18,7 @@ class AppState extends StatefulWidget {
   final PreseasonController preseason;
   final NotificationSettingsController notifications;
   final HomeCacheController homeCache;
+  final LiveSessionController live;
   final Widget child;
 
   const AppState({
@@ -29,6 +31,7 @@ class AppState extends StatefulWidget {
     required this.preseason,
     required this.notifications,
     required this.homeCache,
+    required this.live,
     required this.child,
   });
 
@@ -55,6 +58,7 @@ class _AppStateState extends State<AppState> {
         preseason: widget.preseason,
         notifications: widget.notifications,
         homeCache: widget.homeCache,
+        live: widget.live,
         child: widget.child,
       );
 }
@@ -68,6 +72,7 @@ class _AppStateScope extends InheritedWidget {
   final PreseasonController preseason;
   final NotificationSettingsController notifications;
   final HomeCacheController homeCache;
+  final LiveSessionController live;
 
   const _AppStateScope({
     required this.api,
@@ -78,6 +83,7 @@ class _AppStateScope extends InheritedWidget {
     required this.preseason,
     required this.notifications,
     required this.homeCache,
+    required this.live,
     required super.child,
   });
 

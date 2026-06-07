@@ -6,6 +6,7 @@ import '../api/models/leaderboard_row.dart';
 import '../api/models/session.dart';
 import '../api/models/session_result.dart';
 import 'auth_controller.dart';
+import 'live_session_controller.dart';
 import 'predictions_controller.dart';
 
 /// Snapshot of everything the home screen renders. Held by [HomeCacheController]
@@ -99,11 +100,13 @@ class HomeCacheController extends ChangeNotifier {
     required this.api,
     required this.auth,
     required this.predictions,
+    this.live,
   });
 
   final ApiClient api;
   final AuthController auth;
   final PredictionsController predictions;
+  final LiveSessionController? live;
 
   HomeData? _data;
   Object? _error;
@@ -129,6 +132,8 @@ class HomeCacheController extends ChangeNotifier {
       _data = await _fetch();
       _error = null;
       _stack = null;
+      live?.update(_data!.events, DateTime.now(),
+          leagueId: auth.leagues.isEmpty ? null : auth.leagues.first.id);
     } catch (e, st) {
       _error = e;
       _stack = st;

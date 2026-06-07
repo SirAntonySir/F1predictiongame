@@ -6,6 +6,7 @@ import 'state/app_state.dart';
 import 'state/auth_controller.dart';
 import 'state/home_cache_controller.dart';
 import 'state/league_controller.dart';
+import 'state/live_session_controller.dart';
 import 'state/notification_settings_controller.dart';
 import 'state/predictions_controller.dart';
 import 'state/preseason_controller.dart';
@@ -21,6 +22,7 @@ class F1PgApp extends StatefulWidget {
   final PreseasonController preseason;
   final NotificationSettingsController notifications;
   final HomeCacheController homeCache;
+  final LiveSessionController live;
 
   const F1PgApp({
     super.key,
@@ -32,6 +34,7 @@ class F1PgApp extends StatefulWidget {
     required this.preseason,
     required this.notifications,
     required this.homeCache,
+    required this.live,
   });
 
   @override
@@ -52,6 +55,7 @@ class _F1PgAppState extends State<F1PgApp> {
       preseason: widget.preseason,
       notifications: widget.notifications,
       homeCache: widget.homeCache,
+      live: widget.live,
       child: ListenableBuilder(
         listenable: widget.theme,
         builder: (_, __) => MaterialApp.router(
