@@ -12,6 +12,13 @@
 
 **Prerequisite (DONE):** Render web service is on Starter (always-on). Confirm `f1pg-db` is on `basic-256mb` so the live endpoint isn't racing the free-DB expiry. No further infra work in this plan.
 
+> **Execution revision (2026-06-07): team colours.** The 2026 grid includes teams with no curated frontend
+> colour (Audi, Cadillac) and slugs that don't match the colour map (red_bull_racing, haas_f1_team,
+> racing_bulls) — 5 of 11 teams would render grey. Fix: the backend passes OpenF1's per-driver `teamColour`
+> (hex) through on each live order row, and the frontend uses it as `teamColor(constructorId, fallbackHex:)`
+> (the existing, intended mechanism). So: Task 2's `parseLivePositions` output rows carry `teamColour`;
+> Task 5's `SessionResult` model gains an optional `teamColour`; Tasks 10/11 pass `fallbackHex: r.teamColour`.
+
 ---
 
 ## File Structure
