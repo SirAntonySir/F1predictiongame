@@ -12,7 +12,7 @@ type OpenF1Client = {
  *  join with the drivers lookup, and emit SessionResultRow[] sorted by position.
  *  Drivers missing from the lookup are skipped. raceTime/points/q* are null
  *  (live order carries no times or championship points). */
-export function parseLivePositions(raw: unknown, drivers: OpenF1DriverLookup[]): SessionResultRow[] {
+export function parseLivePositions(raw: unknown, drivers: OpenF1DriverLookup[]): Array<SessionResultRow & { teamColour: string | null }> {
   const byNumber = new Map(drivers.map((d) => [d.driverNumber, d]))
   const latest = new Map<number, { position: number; date: string }>()
   for (const r of (raw as any[]) ?? []) {
@@ -21,7 +21,7 @@ export function parseLivePositions(raw: unknown, drivers: OpenF1DriverLookup[]):
     const prev = latest.get(num)
     if (!prev || date > prev.date) latest.set(num, { position: Number(r.position), date })
   }
-  const out: SessionResultRow[] = []
+  const out: Array<SessionResultRow & { teamColour: string | null }> = []
   for (const [num, { position }] of latest) {
     const drv = byNumber.get(num)
     if (!drv) continue
@@ -34,7 +34,8 @@ export function parseLivePositions(raw: unknown, drivers: OpenF1DriverLookup[]):
       constructorName: drv.teamName,
       raceTime: null, status: null, points: null,
       fastestLap: null, fastestLapTime: null, fastestLapSpeed: null,
-      q1: null, q2: null, q3: null
+      q1: null, q2: null, q3: null,
+      teamColour: drv.teamColour
     })
   }
   out.sort((a, b) => a.position - b.position)

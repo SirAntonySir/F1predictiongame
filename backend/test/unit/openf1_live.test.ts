@@ -4,7 +4,7 @@ import type { OpenF1DriverLookup } from '../../src/openf1/parsers.js'
 import type { StoredSession } from '../../src/repo/sessions.js'
 
 const drivers: OpenF1DriverLookup[] = [
-  { driverNumber: 1, code: 'VER', givenName: 'Max', familyName: 'Verstappen', teamName: 'Red Bull Racing', headshotUrl: null, teamColour: null },
+  { driverNumber: 1, code: 'VER', givenName: 'Max', familyName: 'Verstappen', teamName: 'Red Bull Racing', headshotUrl: null, teamColour: '3671c6' },
   { driverNumber: 16, code: 'LEC', givenName: 'Charles', familyName: 'Leclerc', teamName: 'Ferrari', headshotUrl: null, teamColour: null }
 ]
 
@@ -18,7 +18,7 @@ describe('parseLivePositions', () => {
     ]
     const out = parseLivePositions(raw, drivers)
     expect(out.map((r) => [r.position, r.driverCode])).toEqual([[1, 'VER'], [2, 'LEC']])
-    expect(out[0]).toMatchObject({ constructorId: 'red_bull_racing', constructorName: 'Red Bull Racing', driverName: 'Max Verstappen' })
+    expect(out[0]).toMatchObject({ constructorId: 'red_bull_racing', constructorName: 'Red Bull Racing', driverName: 'Max Verstappen', teamColour: '3671c6' })
   })
 
   it('skips drivers not present in the lookup and tolerates empty input', () => {
