@@ -19,6 +19,7 @@ import '../domain/preseason.dart';
 import 'models/season.dart';
 import 'models/session.dart';
 import 'models/session_leaderboard_row.dart';
+import 'models/live_snapshot.dart';
 import 'models/session_result.dart';
 import 'models/standing.dart';
 import 'models/upcoming_prediction.dart';
@@ -119,6 +120,13 @@ class HttpApiClient implements ApiClient {
           .cast<Map<String, dynamic>>()
           .map(SessionResult.fromJson)
           .toList();
+
+  @override
+  Future<LiveSnapshot> sessionLive(int id, {String? leagueId}) async {
+    final q = leagueId == null ? '' : '?leagueId=$leagueId';
+    final j = await _request('GET', '/api/sessions/$id/live$q');
+    return LiveSnapshot.fromJson(j as Map<String, dynamic>);
+  }
 
   @override
   Future<Session> nextSession() async =>

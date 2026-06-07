@@ -17,6 +17,7 @@ import 'models/season.dart';
 import 'models/session.dart';
 import 'models/session_leaderboard_row.dart';
 import 'models/session_result.dart';
+import 'models/live_snapshot.dart';
 import 'models/standing.dart';
 import 'models/upcoming_prediction.dart';
 
@@ -27,6 +28,7 @@ abstract class ApiClient {
   Future<Event> event(int round);
   Future<Session> session(int id);
   Future<List<SessionResult>> sessionResults(int id);
+  Future<LiveSnapshot> sessionLive(int id, {String? leagueId});
   Future<Session> nextSession();
   Future<List<DriverStanding>> driverStandings();
   Future<List<ConstructorStanding>> constructorStandings();
