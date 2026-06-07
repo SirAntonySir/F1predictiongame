@@ -6,6 +6,7 @@ import 'package:skeletonizer/skeletonizer.dart';
 import '../api/models/event.dart';
 import '../api/models/leaderboard_row.dart';
 import '../api/models/prediction_view.dart';
+import '../api/models/live_snapshot.dart';
 import '../api/models/session.dart';
 import '../api/models/session_result.dart';
 import '../components/app_card.dart';
@@ -22,6 +23,7 @@ import '../state/home_cache_controller.dart';
 import '../theme/app_theme.dart';
 import '../theme/colors.dart';
 import '../theme/country_flags.dart';
+import '../theme/team_colors.dart';
 import '../theme/tokens.dart';
 import '../theme/typography.dart';
 
@@ -161,10 +163,35 @@ class _HomeScreenState extends State<HomeScreen> {
               children: [
                 _topbar(leagueName, memberCount),
                 const SizedBox(height: Spacing.xs),
-                if (d.next != null && d.nextEvent != null)
-                  _hero(_resolveHeroSession(d), d.nextEvent!, t)
-                else
-                  _noNextHero(t),
+                ListenableBuilder(
+                  listenable: scope.live,
+                  builder: (_, __) {
+                    final live = scope.live;
+                    final snap = live.snapshot;
+                    if (live.liveSessionId != null &&
+                        snap != null &&
+                        snap.state != LiveState.finalised) {
+                      final ev = d.events.firstWhere(
+                        (e) =>
+                            e.sessions.any((s) => s.id == live.liveSessionId),
+                        orElse: () => d.nextEvent ?? d.events.first,
+                      );
+                      final sess = ev.sessions
+                          .firstWhere((s) => s.id == live.liveSessionId);
+                      return LiveHeroCard(
+                        eventName: ev.name,
+                        sessionLabel: sess.type.name.toUpperCase(),
+                        snap: snap,
+                        onTap: () => context
+                            .go('/race/${ev.round}/${live.liveSessionId}'),
+                      );
+                    }
+                    if (d.next != null && d.nextEvent != null) {
+                      return _hero(_resolveHeroSession(d), d.nextEvent!, t);
+                    }
+                    return _noNextHero(t);
+                  },
+                ),
                 LayoutBuilder(
                   builder: (ctx, constraints) {
                     final twoCol = constraints.maxWidth >= 700;
@@ -783,6 +810,82 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             );
           }),
+        ),
+      ),
+    );
+  }
+}
+
+/// Compact live-session card shown on Home in place of the next/countdown hero
+/// while a scorable session is in progress. Tapping opens the full live results.
+class LiveHeroCard extends StatelessWidget {
+  final String eventName;
+  final String sessionLabel;
+  final LiveSnapshot snap;
+  final VoidCallback onTap;
+  const LiveHeroCard({
+    super.key,
+    required this.eventName,
+    required this.sessionLabel,
+    required this.snap,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Theme.of(context);
+    final top = snap.order.take(3).toList();
+    final pts = snap.myPointsTotal;
+    final badge = snap.state == LiveState.provisional ? 'PROVISIONAL' : 'LIVE';
+    return InkWell(
+      onTap: onTap,
+      child: AppCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(children: [
+              Container(
+                  width: 8,
+                  height: 8,
+                  decoration: const BoxDecoration(
+                      color: BrandColors.accent, shape: BoxShape.circle)),
+              const SizedBox(width: 6),
+              Text(badge, style: AppText.label(11, color: BrandColors.accent)),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text('$eventName · $sessionLabel',
+                    overflow: TextOverflow.ellipsis,
+                    style: AppText.label(11,
+                        color: t.colorScheme.onSurface.withOpacity(0.6))),
+              ),
+            ]),
+            const SizedBox(height: Spacing.sm),
+            for (final r in top)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 3),
+                child: Row(children: [
+                  SizedBox(
+                      width: 18,
+                      child:
+                          Text('${r.position}', style: AppText.display(13))),
+                  Container(
+                      width: 3,
+                      height: 16,
+                      color:
+                          teamColor(r.constructorId, fallbackHex: r.teamColour)),
+                  const SizedBox(width: Spacing.sm),
+                  Text(r.driverCode,
+                      style: AppText.body(13, weight: FontWeight.w800)),
+                ]),
+              ),
+            if (pts != null) ...[
+              const SizedBox(height: Spacing.sm),
+              Text('YOUR PROJECTED',
+                  style: AppText.label(9,
+                      color: t.colorScheme.onSurface.withOpacity(0.55))),
+              Text('+$pts', style: AppText.display(22)),
+            ],
+          ],
         ),
       ),
     );
