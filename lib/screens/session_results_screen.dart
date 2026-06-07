@@ -6,6 +6,7 @@ import '../api/api_client.dart';
 import '../api/models/event.dart';
 import '../api/models/member_prediction.dart';
 import '../api/models/session.dart';
+import '../api/models/live_snapshot.dart';
 import '../api/models/session_result.dart';
 import '../components/app_card.dart';
 import '../components/countdown.dart';
@@ -202,25 +203,55 @@ class _SessionResultsScreenState extends State<SessionResultsScreen> {
                             .toList(),
                       ),
                     ),
-                    FutureBuilder<_SessionPayload>(
-                      future: _payloadFor(active.id),
-                      builder: (_, payloadSnap) {
-                        if (payloadSnap.connectionState != ConnectionState.done) {
-                          return const Padding(
-                            padding: EdgeInsets.all(Spacing.lg),
-                            child: SizedBox.shrink(),
+                    ListenableBuilder(
+                      listenable: Listenable.merge([
+                        AppState.of(context).live,
+                        AppState.of(context).predictions,
+                      ]),
+                      builder: (_, __) {
+                        final scope = AppState.of(context);
+                        final live = scope.live;
+                        final snap = live.snapshot;
+                        if (live.isLiveFor(active.id) &&
+                            snap != null &&
+                            snap.state != LiveState.finalised) {
+                          // Lazy + idempotent: load my picks so live rows tint.
+                          // ignore: discarded_futures
+                          scope.predictions.fetchPrediction(active.id);
+                          final myPicks = scope.predictions
+                                  .prediction(active.id)
+                                  ?.picks
+                                  .map((p) => p.driverCode)
+                                  .toList() ??
+                              const <String>[];
+                          return LiveResultsBody(
+                            sessionType: active.type,
+                            myPicks: myPicks,
+                            snap: snap,
                           );
                         }
-                        if (payloadSnap.hasError) {
-                          return Padding(
-                            padding: const EdgeInsets.all(Spacing.lg),
-                            child: Text('${payloadSnap.error}'),
-                          );
-                        }
-                        return _Body(
-                          event: event,
-                          session: active,
-                          payload: payloadSnap.data!,
+                        return FutureBuilder<_SessionPayload>(
+                          future: _payloadFor(active.id),
+                          builder: (_, payloadSnap) {
+                            if (payloadSnap.connectionState !=
+                                ConnectionState.done) {
+                              return const Padding(
+                                padding: EdgeInsets.all(Spacing.lg),
+                                child: SizedBox.shrink(),
+                              );
+                            }
+                            if (payloadSnap.hasError) {
+                              return Padding(
+                                padding: const EdgeInsets.all(Spacing.lg),
+                                child: Text('${payloadSnap.error}'),
+                              );
+                            }
+                            return _Body(
+                              event: event,
+                              session: active,
+                              payload: payloadSnap.data!,
+                            );
+                          },
                         );
                       },
                     ),
@@ -932,5 +963,125 @@ class _MemberPickChip extends StatelessWidget {
             style: AppText.body(14, weight: FontWeight.w800, color: Colors.black)),
       ],
     );
+  }
+}
+
+/// Live/provisional rendering of a session's results screen body. Mirrors the
+/// finished-session layout but fed a live order + backend-projected points.
+/// Row tinting uses the position-based [outcomeFor]; point totals come from the
+/// backend (no on-device scoring). Team colours fall back to OpenF1's hex.
+class LiveResultsBody extends StatelessWidget {
+  final SessionType sessionType;
+  final List<String> myPicks;
+  final LiveSnapshot snap;
+  const LiveResultsBody({
+    super.key,
+    required this.sessionType,
+    required this.myPicks,
+    required this.snap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Theme.of(context);
+    final topN = requiredPicks(sessionType);
+    final order = snap.order;
+    final badge = snap.state == LiveState.provisional
+        ? 'PROVISIONAL · OFFICIAL PENDING'
+        : 'LIVE';
+    final myPts = snap.myPointsTotal;
+    final members = [...snap.league]
+      ..sort((a, b) => (b.pointsTotal ?? -1).compareTo(a.pointsTotal ?? -1));
+
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
+        child: _YourScoreTicket(
+          score: myPts ?? 0,
+          subtitle: myPts == null
+              ? 'No picks for this session'
+              : 'projected · $badge',
+        ),
+      ),
+      Padding(
+        padding:
+            const EdgeInsets.fromLTRB(Spacing.lg, Spacing.lg, Spacing.lg, Spacing.xs),
+        child: Row(children: [
+          Container(
+              width: 8,
+              height: 8,
+              decoration: const BoxDecoration(
+                  color: BrandColors.accent, shape: BoxShape.circle)),
+          const SizedBox(width: 6),
+          Text(badge, style: AppText.label(11, color: BrandColors.accent)),
+        ]),
+      ),
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
+        child: AppCard(
+          padding: EdgeInsets.zero,
+          child: Column(
+            children: order.map((r) {
+              final slot = myPicks.indexOf(r.driverCode);
+              final pickedSlot = slot == -1 ? null : slot + 1;
+              final outcome = pickedSlot == null
+                  ? null
+                  : outcomeFor(r.driverCode, pickedSlot, order, topN);
+              final mine = pickedSlot != null;
+              final rowBg = !mine
+                  ? null
+                  : (outcome == PickOutcome.exact
+                      ? BrandColors.ok.withOpacity(0.18)
+                      : outcome == PickOutcome.inTopN
+                          ? BrandColors.near.withOpacity(0.22)
+                          : t.rowHighlight);
+              return Container(
+                color: rowBg,
+                padding: const EdgeInsets.symmetric(
+                    horizontal: Spacing.md, vertical: 7),
+                child: Row(children: [
+                  SizedBox(
+                      width: 22,
+                      child: Text('${r.position}', style: AppText.display(13))),
+                  Container(
+                      width: 3,
+                      height: 18,
+                      color: teamColor(r.constructorId,
+                          fallbackHex: r.teamColour)),
+                  const SizedBox(width: Spacing.sm),
+                  SizedBox(
+                      width: 44,
+                      child: Text(r.driverCode,
+                          style: AppText.body(12, weight: FontWeight.w800))),
+                  Expanded(
+                      child: Text(r.driverName,
+                          style: AppText.body(12, weight: FontWeight.w500))),
+                  if (pickedSlot != null) ...[
+                    _PickSlotChip(slot: pickedSlot),
+                    const SizedBox(width: 6),
+                  ],
+                  if (outcome != null) _OutcomeTag(outcome: outcome),
+                ]),
+              );
+            }).toList(),
+          ),
+        ),
+      ),
+      if (members.isNotEmpty) ...[
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+              Spacing.lg, Spacing.xl, Spacing.lg, Spacing.xs),
+          child: Text('LEAGUE · PROJECTED',
+              style: AppText.label(11,
+                  color: t.colorScheme.onSurface.withOpacity(0.6))),
+        ),
+        for (final m in members)
+          Padding(
+            padding:
+                const EdgeInsets.fromLTRB(Spacing.lg, 0, Spacing.lg, Spacing.sm),
+            child: _MemberPickTicket(member: m),
+          ),
+      ],
+    ]);
   }
 }
