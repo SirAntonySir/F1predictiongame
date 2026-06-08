@@ -13,6 +13,7 @@ import * as picksRepo from '../../repo/preseasonPicks.js'
 import * as preseasonStandingsRepo from '../../repo/preseasonStandings.js'
 import * as truthRepo from '../../repo/subjectiveTruth.js'
 import * as scoresRepo from '../../repo/scores.js'
+import { resolveSeason } from '../season-query.js'
 import type { PreseasonCategory } from '../../domain/types.js'
 
 const CATEGORIES: PreseasonCategory[] = ['surprise', 'disappointment', 'dnf', 'poles', 'fastest_lap', 'wdc_wcc']
@@ -91,9 +92,9 @@ async function validateSinglePick(seasonYear: number, body: { driverCode?: strin
 export async function registerPreseasonRoutes(app: FastifyInstance): Promise<void> {
   registerAuthHook(app)
 
-  app.get('/api/preseason/my', async (req) => {
+  app.get<{ Querystring: { season?: string } }>('/api/preseason/my', async (req) => {
     const u = getCurrentUser(req)
-    const year = await getCurrentSeasonYear()
+    const year = await resolveSeason(req.query)
     const lockAt = await getPreseasonLockTime(year)
     const allPicks = await picksRepo.listForUser(u.id, year)
     const byCategory = new Map(allPicks.map((p) => [p.category, p]))
@@ -221,10 +222,10 @@ export async function registerPreseasonRoutes(app: FastifyInstance): Promise<voi
     return { scores, seasonYear: year }
   })
 
-  app.get<{ Params: { id: string } }>('/api/leagues/:id/preseason', async (req) => {
+  app.get<{ Params: { id: string }; Querystring: { season?: string } }>('/api/leagues/:id/preseason', async (req) => {
     const u = getCurrentUser(req)
     await requireLeagueMember(req, req.params.id)
-    const year = await getCurrentSeasonYear()
+    const year = await resolveSeason(req.query)
     return await buildLeaguePreseasonView(req.params.id, u.id, year)
   })
 }

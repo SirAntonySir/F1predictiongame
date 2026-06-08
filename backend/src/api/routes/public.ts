@@ -7,6 +7,7 @@ import * as standingsRepo from '../../repo/standings.js'
 import * as driversRepo from '../../repo/drivers.js'
 import * as constructorsRepo from '../../repo/constructors.js'
 import { ApiError } from '../errors.js'
+import { resolveSeason } from '../season-query.js'
 
 export async function registerPublicRoutes(app: FastifyInstance): Promise<void> {
   app.get('/api/seasons/current', async () => {
@@ -14,6 +15,8 @@ export async function registerPublicRoutes(app: FastifyInstance): Promise<void> 
     if (!s) throw new ApiError('NOT_FOUND', 'No current season')
     return s
   })
+
+  app.get('/api/seasons', async () => seasonsRepo.list())
 
   app.get('/api/events', async () => {
     const cur = await seasonsRepo.getCurrent()
@@ -55,20 +58,18 @@ export async function registerPublicRoutes(app: FastifyInstance): Promise<void> 
     return s
   })
 
-  app.get('/api/standings/drivers', async () => {
-    const cur = await seasonsRepo.getCurrent()
-    if (!cur) return []
-    const standings = await standingsRepo.listDriverStandings(cur.year)
+  app.get<{ Querystring: { season?: string } }>('/api/standings/drivers', async (req) => {
+    const year = await resolveSeason(req.query)
+    const standings = await standingsRepo.listDriverStandings(year)
     return Promise.all(standings.map(async (s) => {
       const d = await driversRepo.getByCode(s.driverCode)
       return { ...s, driver: d ? { ...d, image: d.imageUrlOverride ?? d.headshotUrl ?? d.imageUrl } : null }
     }))
   })
 
-  app.get('/api/standings/constructors', async () => {
-    const cur = await seasonsRepo.getCurrent()
-    if (!cur) return []
-    const standings = await standingsRepo.listConstructorStandings(cur.year)
+  app.get<{ Querystring: { season?: string } }>('/api/standings/constructors', async (req) => {
+    const year = await resolveSeason(req.query)
+    const standings = await standingsRepo.listConstructorStandings(year)
     return Promise.all(standings.map(async (s) => {
       const c = await constructorsRepo.getById(s.constructorId)
       return { ...s, constructor: c ? { ...c, image: c.imageUrlOverride ?? c.imageUrl } : null }

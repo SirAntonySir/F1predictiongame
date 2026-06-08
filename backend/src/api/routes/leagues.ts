@@ -12,6 +12,7 @@ import * as projectionSnapshotsRepo from '../../repo/preseasonProjectionSnapshot
 import { generateUniqueJoinCode } from '../../auth/joinCodes.js'
 import { hashPassword, verifyPassword } from '../../auth/password.js'
 import { getCurrentUser, registerAuthHook, requireLeagueMember, requireLeagueOwner } from '../auth-context.js'
+import { resolveSeason } from '../season-query.js'
 
 const createBody = z.object({
   name: z.string().trim().min(1).max(60),
@@ -214,17 +215,16 @@ export async function registerLeagueRoutes(app: FastifyInstance): Promise<void> 
   // weekend, who bottomed out, who forgot to pick, and which drivers were
   // the league's best/worst calls. All derived from the per-member
   // session scores + breakdowns we already store.
-  app.get<{ Params: { id: string } }>(
+  app.get<{ Params: { id: string }; Querystring: { season?: string } }>(
     '/api/leagues/:id/gossip',
     async (req) => {
       const u = getCurrentUser(req)
       await requireLeagueMember(req, req.params.id)
 
-      const cur = await seasonsRepo.getCurrent()
-      if (!cur) return { lastRace: null, myProjection: null }
+      const season = await resolveSeason(req.query)
 
-      // Find the most recent finished race in the current season.
-      const events = await eventsRepo.listForSeason(cur.year)
+      // Find the most recent finished race in the season.
+      const events = await eventsRepo.listForSeason(season)
       let lastRace: { id: number; scheduledStart: Date } | null = null
       let lastEvent: { round: number; name: string } | null = null
       for (const ev of events) {
@@ -243,7 +243,7 @@ export async function registerLeagueRoutes(app: FastifyInstance): Promise<void> 
       // the preseason rescorer. If only one snapshot exists, we can show
       // current but not the delta.
       const recent = await projectionSnapshotsRepo.listRecentForUser(
-        u.id, cur.year, 2
+        u.id, season, 2
       )
       const myProjection = recent.length === 0
         ? null

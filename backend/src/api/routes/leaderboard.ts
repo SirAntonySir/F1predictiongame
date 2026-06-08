@@ -3,14 +3,7 @@ import { ApiError } from '../errors.js'
 import { getCurrentUser, registerAuthHook, requireLeagueMember } from '../auth-context.js'
 import * as scoresRepo from '../../repo/scores.js'
 import * as seasonsRepo from '../../repo/seasons.js'
-
-function seasonFromQuery(q: unknown, fallback: number): number {
-  const s = (q as any)?.season
-  if (s === undefined) return fallback
-  const n = Number(s)
-  if (!Number.isFinite(n)) throw new ApiError('BAD_REQUEST', 'season must be a number')
-  return n
-}
+import { seasonFromQuery } from '../season-query.js'
 
 export async function registerLeaderboardRoutes(app: FastifyInstance): Promise<void> {
   registerAuthHook(app)
