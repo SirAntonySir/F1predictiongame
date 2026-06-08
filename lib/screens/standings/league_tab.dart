@@ -104,12 +104,21 @@ class _LeagueTabState extends State<LeagueTab> {
         return ListView(
           padding: const EdgeInsets.only(bottom: Spacing.xxl),
           children: [
+            // League identity pill — moved here from the Standings header so
+            // the header is just the screen title + season switcher.
+            Skeleton.keep(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(
+                    Spacing.lg, Spacing.md, Spacing.lg, Spacing.sm),
+                child: Align(alignment: Alignment.centerLeft, child: _leaguePill(context)),
+              ),
+            ),
             // Toggle is a fixed control — Skeleton.keep so users can still
             // switch metrics even before the leaderboard lands.
             Skeleton.keep(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(
-                    Spacing.lg, Spacing.md, Spacing.lg, Spacing.sm),
+                    Spacing.lg, 0, Spacing.lg, Spacing.sm),
                 child: _MetricToggle(
                   metric: _metric,
                   onChanged: (m) => setState(() => _metric = m),
@@ -153,6 +162,24 @@ class _LeagueTabState extends State<LeagueTab> {
           ],
         );
       },
+    );
+  }
+
+  Widget _leaguePill(BuildContext context) {
+    final t = Theme.of(context);
+    final league = AppState.of(context).league.league;
+    final label = league == null ? 'No league' : '${league.name} · ${league.members.length}';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: Spacing.md, vertical: 5),
+      decoration: BoxDecoration(
+        border: Border.all(color: t.strokeColor, width: 1.5),
+        borderRadius: const BorderRadius.all(Radius.circular(999)),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Container(width: 8, height: 8, decoration: const BoxDecoration(color: BrandColors.accent, shape: BoxShape.circle)),
+        const SizedBox(width: 6),
+        Text(label, style: AppText.label(11, color: t.colorScheme.onSurface)),
+      ]),
     );
   }
 }

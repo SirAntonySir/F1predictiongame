@@ -310,21 +310,26 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
           const Spacer(),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: Spacing.md, vertical: 5),
-            decoration: BoxDecoration(
-              // strokeColor adapts per theme — matches every other pill
-              // border in the app (settings, standings tabs, etc.).
-              border: Border.all(color: t.strokeColor, width: 1.5),
-              borderRadius: const BorderRadius.all(Radius.circular(999)),
-            ),
-            child: Row(mainAxisSize: MainAxisSize.min, children: [
-              Skeleton.keep(
-                child: Container(width: 8, height: 8, decoration: const BoxDecoration(color: BrandColors.accent, shape: BoxShape.circle)),
+          // Tapping the league pill jumps to the league standings tab.
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => context.go('/standings/league'),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: Spacing.md, vertical: 5),
+              decoration: BoxDecoration(
+                // strokeColor adapts per theme — matches every other pill
+                // border in the app (settings, standings tabs, etc.).
+                border: Border.all(color: t.strokeColor, width: 1.5),
+                borderRadius: const BorderRadius.all(Radius.circular(999)),
               ),
-              const SizedBox(width: 6),
-              Text('$leagueName · $memberCount', style: AppText.label(11)),
-            ]),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Skeleton.keep(
+                  child: Container(width: 8, height: 8, decoration: const BoxDecoration(color: BrandColors.accent, shape: BoxShape.circle)),
+                ),
+                const SizedBox(width: 6),
+                Text('$leagueName · $memberCount', style: AppText.label(11)),
+              ]),
+            ),
           ),
           const SizedBox(width: Spacing.sm),
           Skeleton.keep(

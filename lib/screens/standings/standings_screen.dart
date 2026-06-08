@@ -1,6 +1,7 @@
 // ignore_for_file: deprecated_member_use
 import 'package:flutter/material.dart';
 import '../../api/models/season.dart';
+import '../../components/branded_sheet.dart';
 import '../../state/app_state.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/colors.dart';
@@ -48,11 +49,6 @@ class _StandingsScreenState extends State<StandingsScreen> {
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
-    final scope = AppState.of(context);
-    final league = scope.league.league;
-    final leagueLabel = league == null
-        ? 'No league'
-        : '${league.name} · ${league.members.length}';
     return Scaffold(
       backgroundColor: t.colorScheme.surface,
       body: SafeArea(
@@ -66,28 +62,7 @@ class _StandingsScreenState extends State<StandingsScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text('Standings'.toUpperCase(), style: AppText.display(28)),
-                  Row(mainAxisSize: MainAxisSize.min, children: [
-                    if (_seasons.length > 1) ...[_seasonSwitcher(), const SizedBox(width: 8)],
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: Spacing.md, vertical: 5),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: t.strokeColor, width: 1.5),
-                        borderRadius: const BorderRadius.all(Radius.circular(999)),
-                      ),
-                      child: Row(mainAxisSize: MainAxisSize.min, children: [
-                        Container(
-                          width: 8,
-                          height: 8,
-                          decoration: const BoxDecoration(color: BrandColors.accent, shape: BoxShape.circle),
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          leagueLabel,
-                          style: AppText.label(11, color: t.colorScheme.onSurface),
-                        ),
-                      ]),
-                    ),
-                  ]),
+                  if (_seasons.length > 1) _seasonSwitcher(),
                 ],
               ),
             ),
@@ -122,34 +97,87 @@ class _StandingsScreenState extends State<StandingsScreen> {
   Widget _seasonSwitcher() {
     final t = Theme.of(context);
     final selected = _selectedSeason ?? _currentYear;
-    return PopupMenuButton<int>(
-      tooltip: 'Season',
-      position: PopupMenuPosition.under,
-      onSelected: (year) =>
-          setState(() => _selectedSeason = year == _currentYear ? null : year),
-      itemBuilder: (_) => [
-        for (final s in _seasons)
-          PopupMenuItem<int>(
-            value: s.year,
-            child: Text(
-              s.isCurrent ? '${s.year} · current' : '${s.year}',
-              style: AppText.body(13,
-                  weight: s.year == selected ? FontWeight.w800 : FontWeight.w500),
-            ),
-          ),
-      ],
+    final past = _selectedSeason != null;
+    return GestureDetector(
+      onTap: _openSeasonSheet,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: Spacing.md, vertical: 5),
         decoration: BoxDecoration(
           // Tint the pill when viewing a past (non-current) season.
-          color: _selectedSeason != null ? BrandColors.accent.withOpacity(0.15) : null,
-          border: Border.all(color: t.strokeColor, width: 1.5),
+          color: past ? BrandColors.accent.withOpacity(0.15) : null,
+          border: Border.all(color: past ? BrandColors.accent : t.strokeColor, width: 1.5),
           borderRadius: const BorderRadius.all(Radius.circular(999)),
         ),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           Text('$selected', style: AppText.label(11, color: t.colorScheme.onSurface)),
           const SizedBox(width: 3),
           Icon(Icons.expand_more, size: 14, color: t.colorScheme.onSurface),
+        ]),
+      ),
+    );
+  }
+
+  Future<void> _openSeasonSheet() async {
+    final picked = await showBrandedSheet<int>(
+      context,
+      builder: (ctx) {
+        final t = Theme.of(ctx);
+        final selected = _selectedSeason ?? _currentYear;
+        return SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(Spacing.lg, Spacing.sm, Spacing.lg, Spacing.lg),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: Spacing.md),
+                    decoration: BoxDecoration(
+                      color: t.colorScheme.onSurface.withOpacity(0.2),
+                      borderRadius: const BorderRadius.all(Radius.circular(999)),
+                    ),
+                  ),
+                ),
+                Text('Season', style: AppText.display(24, color: t.colorScheme.onSurface)),
+                const SizedBox(height: Spacing.md),
+                for (final s in _seasons) ...[
+                  _seasonOption(ctx, s, isSelected: s.year == selected),
+                  const SizedBox(height: Spacing.sm),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
+    );
+    if (picked != null && mounted) {
+      setState(() => _selectedSeason = picked == _currentYear ? null : picked);
+    }
+  }
+
+  Widget _seasonOption(BuildContext ctx, Season s, {required bool isSelected}) {
+    final t = Theme.of(ctx);
+    return GestureDetector(
+      onTap: () => Navigator.of(ctx).pop(s.year),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: Spacing.lg, vertical: 14),
+        decoration: BoxDecoration(
+          color: isSelected ? BrandColors.accent.withOpacity(0.12) : null,
+          border: Border.all(color: isSelected ? BrandColors.accent : t.strokeColor, width: 1.5),
+          borderRadius: const BorderRadius.all(Radius.circular(12)),
+        ),
+        child: Row(children: [
+          Text('${s.year}', style: AppText.display(18, color: t.colorScheme.onSurface)),
+          if (s.isCurrent) ...[
+            const SizedBox(width: Spacing.sm),
+            Text('CURRENT', style: AppText.label(9, color: t.colorScheme.onSurface.withOpacity(0.5))),
+          ],
+          const Spacer(),
+          if (isSelected) const Icon(Icons.check, size: 18, color: BrandColors.accent),
         ]),
       ),
     );
