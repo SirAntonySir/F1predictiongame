@@ -94,11 +94,20 @@ class HttpApiClient implements ApiClient {
     return null;
   }
 
+  String _seasonQ(int? season) => season == null ? '' : '?season=$season';
+
   // -------- existing read methods (refactored through _request) --------
 
   @override
   Future<Season> currentSeason() async =>
       Season.fromJson(await _request('GET', '/api/seasons/current') as Map<String, dynamic>);
+
+  @override
+  Future<List<Season>> seasons() async =>
+      ((await _request('GET', '/api/seasons')) as List)
+          .cast<Map<String, dynamic>>()
+          .map(Season.fromJson)
+          .toList();
 
   @override
   Future<List<Event>> events() async => ((await _request('GET', '/api/events')) as List)
@@ -133,15 +142,15 @@ class HttpApiClient implements ApiClient {
       Session.fromJson(await _request('GET', '/api/next-session') as Map<String, dynamic>);
 
   @override
-  Future<List<DriverStanding>> driverStandings() async =>
-      ((await _request('GET', '/api/standings/drivers')) as List)
+  Future<List<DriverStanding>> driverStandings({int? season}) async =>
+      ((await _request('GET', '/api/standings/drivers${_seasonQ(season)}')) as List)
           .cast<Map<String, dynamic>>()
           .map(DriverStanding.fromJson)
           .toList();
 
   @override
-  Future<List<ConstructorStanding>> constructorStandings() async =>
-      ((await _request('GET', '/api/standings/constructors')) as List)
+  Future<List<ConstructorStanding>> constructorStandings({int? season}) async =>
+      ((await _request('GET', '/api/standings/constructors${_seasonQ(season)}')) as List)
           .cast<Map<String, dynamic>>()
           .map(ConstructorStanding.fromJson)
           .toList();
@@ -286,8 +295,8 @@ class HttpApiClient implements ApiClient {
   }
 
   @override
-  Future<LeagueGossip> leagueGossip(String leagueId) async {
-    final j = await _request('GET', '/api/leagues/$leagueId/gossip')
+  Future<LeagueGossip> leagueGossip(String leagueId, {int? season}) async {
+    final j = await _request('GET', '/api/leagues/$leagueId/gossip${_seasonQ(season)}')
         as Map<String, dynamic>;
     return LeagueGossip.fromJson(j);
   }
@@ -334,8 +343,8 @@ class HttpApiClient implements ApiClient {
   }
 
   @override
-  Future<LeaguePreseasonView> leaguePreseason(String leagueId) async {
-    final j = await _request('GET', '/api/leagues/$leagueId/preseason') as Map<String, dynamic>;
+  Future<LeaguePreseasonView> leaguePreseason(String leagueId, {int? season}) async {
+    final j = await _request('GET', '/api/leagues/$leagueId/preseason${_seasonQ(season)}') as Map<String, dynamic>;
     return LeaguePreseasonView.fromJson(j);
   }
 }

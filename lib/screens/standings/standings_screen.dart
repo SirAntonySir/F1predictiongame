@@ -1,5 +1,6 @@
 // ignore_for_file: deprecated_member_use
 import 'package:flutter/material.dart';
+import '../../api/models/season.dart';
 import '../../state/app_state.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/colors.dart';
@@ -23,6 +24,26 @@ class StandingsScreen extends StatefulWidget {
 
 class _StandingsScreenState extends State<StandingsScreen> {
   late String _subTab = widget.subTab;
+  // null = the current season (no explicit ?season param). A non-null year
+  // routes every tab's fetches to that past season.
+  int? _selectedSeason;
+  List<Season> _seasons = const [];
+  bool _loadedSeasons = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_loadedSeasons) return;
+    _loadedSeasons = true;
+    // ignore: discarded_futures
+    AppState.of(context).api.seasons().then((s) {
+      if (mounted) setState(() => _seasons = s);
+    }).catchError((_) {/* leave empty → no switcher shown */});
+  }
+
+  int get _currentYear => _seasons.isEmpty
+      ? 0
+      : _seasons.firstWhere((s) => s.isCurrent, orElse: () => _seasons.first).year;
 
   @override
   Widget build(BuildContext context) {
@@ -45,25 +66,28 @@ class _StandingsScreenState extends State<StandingsScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text('Standings'.toUpperCase(), style: AppText.display(28)),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: Spacing.md, vertical: 5),
-                    decoration: BoxDecoration(
-                      border: Border.all(color: t.strokeColor, width: 1.5),
-                      borderRadius: const BorderRadius.all(Radius.circular(999)),
+                  Row(mainAxisSize: MainAxisSize.min, children: [
+                    if (_seasons.length > 1) ...[_seasonSwitcher(), const SizedBox(width: 8)],
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: Spacing.md, vertical: 5),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: t.strokeColor, width: 1.5),
+                        borderRadius: const BorderRadius.all(Radius.circular(999)),
+                      ),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        Container(
+                          width: 8,
+                          height: 8,
+                          decoration: const BoxDecoration(color: BrandColors.accent, shape: BoxShape.circle),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          leagueLabel,
+                          style: AppText.label(11, color: t.colorScheme.onSurface),
+                        ),
+                      ]),
                     ),
-                    child: Row(mainAxisSize: MainAxisSize.min, children: [
-                      Container(
-                        width: 8,
-                        height: 8,
-                        decoration: const BoxDecoration(color: BrandColors.accent, shape: BoxShape.circle),
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        leagueLabel,
-                        style: AppText.label(11, color: t.colorScheme.onSurface),
-                      ),
-                    ]),
-                  ),
+                  ]),
                 ],
               ),
             ),
@@ -84,13 +108,49 @@ class _StandingsScreenState extends State<StandingsScreen> {
               ]),
             ),
             Expanded(child: switch (_subTab) {
-              'f1' => const F1Tab(),
-              'insights' => const InsightsTab(),
-              'preseason' => const PreseasonTab(),
-              _ => LeagueTab(initialMetric: widget.leagueSort),
+              'f1' => F1Tab(key: ValueKey(_selectedSeason), season: _selectedSeason),
+              'insights' => InsightsTab(key: ValueKey(_selectedSeason), season: _selectedSeason),
+              'preseason' => PreseasonTab(key: ValueKey(_selectedSeason), season: _selectedSeason),
+              _ => LeagueTab(key: ValueKey(_selectedSeason), initialMetric: widget.leagueSort, season: _selectedSeason),
             }),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _seasonSwitcher() {
+    final t = Theme.of(context);
+    final selected = _selectedSeason ?? _currentYear;
+    return PopupMenuButton<int>(
+      tooltip: 'Season',
+      position: PopupMenuPosition.under,
+      onSelected: (year) =>
+          setState(() => _selectedSeason = year == _currentYear ? null : year),
+      itemBuilder: (_) => [
+        for (final s in _seasons)
+          PopupMenuItem<int>(
+            value: s.year,
+            child: Text(
+              s.isCurrent ? '${s.year} · current' : '${s.year}',
+              style: AppText.body(13,
+                  weight: s.year == selected ? FontWeight.w800 : FontWeight.w500),
+            ),
+          ),
+      ],
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: Spacing.md, vertical: 5),
+        decoration: BoxDecoration(
+          // Tint the pill when viewing a past (non-current) season.
+          color: _selectedSeason != null ? BrandColors.accent.withOpacity(0.15) : null,
+          border: Border.all(color: t.strokeColor, width: 1.5),
+          borderRadius: const BorderRadius.all(Radius.circular(999)),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Text('$selected', style: AppText.label(11, color: t.colorScheme.onSurface)),
+          const SizedBox(width: 3),
+          Icon(Icons.expand_more, size: 14, color: t.colorScheme.onSurface),
+        ]),
       ),
     );
   }

@@ -24,14 +24,15 @@ import 'models/upcoming_prediction.dart';
 abstract class ApiClient {
   // existing read methods
   Future<Season> currentSeason();
+  Future<List<Season>> seasons();
   Future<List<Event>> events();
   Future<Event> event(int round);
   Future<Session> session(int id);
   Future<List<SessionResult>> sessionResults(int id);
   Future<LiveSnapshot> sessionLive(int id, {String? leagueId});
   Future<Session> nextSession();
-  Future<List<DriverStanding>> driverStandings();
-  Future<List<ConstructorStanding>> constructorStandings();
+  Future<List<DriverStanding>> driverStandings({int? season});
+  Future<List<ConstructorStanding>> constructorStandings({int? season});
   Future<Driver> driver(String code);
   Future<Constructor> constructor(String id);
 
@@ -67,7 +68,7 @@ abstract class ApiClient {
   Future<List<LeaderboardRow>>     leagueLeaderboard(String leagueId, {int? season});
   Future<List<SessionLeaderboardRow>> leagueSessionBreakdown(String leagueId, {int? season});
   Future<LeagueSessionPredictions> leagueSessionPredictions(String leagueId, int sessionId);
-  Future<LeagueGossip>             leagueGossip(String leagueId);
+  Future<LeagueGossip>             leagueGossip(String leagueId, {int? season});
 
   // preseason
   Future<PreseasonMine>            getPreseasonMine();
@@ -79,7 +80,7 @@ abstract class ApiClient {
   Future<void>                     deletePreseasonSinglePick(PreseasonCategory category);
   Future<List<PreseasonStandingsDriverPick>> putPreseasonDriverStandings(List<PreseasonStandingsDriverPick> picks);
   Future<List<PreseasonStandingsConstructorPick>> putPreseasonConstructorStandings(List<PreseasonStandingsConstructorPick> picks);
-  Future<LeaguePreseasonView> leaguePreseason(String leagueId);
+  Future<LeaguePreseasonView> leaguePreseason(String leagueId, {int? season});
 }
 
 // Exceptions

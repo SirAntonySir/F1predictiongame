@@ -14,11 +14,13 @@ import '../../theme/tokens.dart';
 import '../../theme/typography.dart';
 
 class PreseasonTab extends StatefulWidget {
-  const PreseasonTab({super.key}) : _injected = null, _injectedMyUserId = null;
+  const PreseasonTab({super.key, this.season}) : _injected = null, _injectedMyUserId = null;
   const PreseasonTab.withView(LeaguePreseasonView view, {super.key, String? myUserId})
       : _injected = view,
-        _injectedMyUserId = myUserId;
+        _injectedMyUserId = myUserId,
+        season = null;
 
+  final int? season;
   final LeaguePreseasonView? _injected;
   final String? _injectedMyUserId;
 
@@ -61,9 +63,9 @@ class _PreseasonTabState extends State<PreseasonTab> {
       throw StateError('No league joined');
     }
     final results = await Future.wait([
-      scope.api.leaguePreseason(leagues.first.id),
-      scope.api.driverStandings(),
-      scope.api.constructorStandings(),
+      scope.api.leaguePreseason(leagues.first.id, season: widget.season),
+      scope.api.driverStandings(season: widget.season),
+      scope.api.constructorStandings(season: widget.season),
     ]);
     final view = results[0] as LeaguePreseasonView;
     final drivers = results[1] as List<DriverStanding>;

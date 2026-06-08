@@ -33,7 +33,8 @@ class LeagueTab extends StatefulWidget {
   /// query string (`?sort=total|inseason`) so the Home cards can deep-link to
   /// the matching view. Defaults to in-season.
   final String? initialMetric;
-  const LeagueTab({super.key, this.initialMetric});
+  final int? season;
+  const LeagueTab({super.key, this.initialMetric, this.season});
 
   @override
   State<LeagueTab> createState() => _LeagueTabState();
@@ -68,7 +69,7 @@ class _LeagueTabState extends State<LeagueTab> {
     final scope = AppState.of(context);
     final leagues = scope.auth.leagues;
     if (leagues.isEmpty) return const [];
-    return scope.api.leagueLeaderboard(leagues.first.id);
+    return scope.api.leagueLeaderboard(leagues.first.id, season: widget.season);
   }
 
   static const _placeholder = <LeaderboardRow>[

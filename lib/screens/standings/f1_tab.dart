@@ -11,7 +11,8 @@ import '../../theme/tokens.dart';
 import '../../theme/typography.dart';
 
 class F1Tab extends StatefulWidget {
-  const F1Tab({super.key});
+  final int? season;
+  const F1Tab({super.key, this.season});
 
   @override
   State<F1Tab> createState() => _F1TabState();
@@ -26,8 +27,8 @@ class _F1TabState extends State<F1Tab> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     final api = AppState.of(context).api;
-    _drivers ??= api.driverStandings();
-    _constructors ??= api.constructorStandings();
+    _drivers ??= api.driverStandings(season: widget.season);
+    _constructors ??= api.constructorStandings(season: widget.season);
   }
 
   @override

@@ -17,7 +17,8 @@ import '../../theme/tokens.dart';
 import '../../theme/typography.dart';
 
 class InsightsTab extends StatefulWidget {
-  const InsightsTab({super.key});
+  final int? season;
+  const InsightsTab({super.key, this.season});
 
   @override
   State<InsightsTab> createState() => _InsightsTabState();
@@ -36,18 +37,18 @@ class _InsightsTabState extends State<InsightsTab> {
     final scope = AppState.of(context);
     final myUserId = scope.auth.currentUserId;
     final leagues = scope.auth.leagues;
-    final scores = await scope.api.myScores();
+    final scores = await scope.api.myScores(season: widget.season);
     final leagueId = leagues.isEmpty ? null : leagues.first.id;
     final leaderboard = leagueId == null
         ? const <LeaderboardRow>[]
-        : await scope.api.leagueLeaderboard(leagueId);
+        : await scope.api.leagueLeaderboard(leagueId, season: widget.season);
     final sessions = leagueId == null
         ? const <SessionLeaderboardRow>[]
-        : await scope.api.leagueSessionBreakdown(leagueId);
+        : await scope.api.leagueSessionBreakdown(leagueId, season: widget.season);
     LeagueGossip? gossip;
     if (leagueId != null) {
       try {
-        gossip = await scope.api.leagueGossip(leagueId);
+        gossip = await scope.api.leagueGossip(leagueId, season: widget.season);
       } catch (_) {
         gossip = null;
       }
