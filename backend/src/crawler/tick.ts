@@ -30,7 +30,7 @@ type FetchOutput = {
   constructors: ConstructorLookup[]
 }
 
-async function fetchByType(
+export async function fetchByType(
   client: JolpicaClient,
   openf1: OpenF1Client,
   type: SessionType,
@@ -100,7 +100,7 @@ async function enrichImage(wiki: WikipediaClient, wikipediaUrl: string | null): 
 
 // Upsert lookup rows for genuinely-new drivers and enrich images on first sight.
 // Existing rows keep their fetched image_url and any manual image_url_override.
-async function upsertNewDrivers(drivers: DriverLookup[], wiki: WikipediaClient): Promise<void> {
+export async function upsertNewDrivers(drivers: DriverLookup[], wiki: WikipediaClient): Promise<void> {
   for (const d of drivers) {
     if (await driversRepo.exists(d.code)) continue
     await driversRepo.upsertDriver({ ...d, imageUrl: null, imageUrlOverride: null, headshotUrl: null })
@@ -109,7 +109,7 @@ async function upsertNewDrivers(drivers: DriverLookup[], wiki: WikipediaClient):
   }
 }
 
-async function upsertNewConstructors(constructors: ConstructorLookup[], wiki: WikipediaClient): Promise<void> {
+export async function upsertNewConstructors(constructors: ConstructorLookup[], wiki: WikipediaClient): Promise<void> {
   for (const c of constructors) {
     if (await constructorsRepo.exists(c.id)) continue
     await constructorsRepo.upsertConstructor({ ...c, imageUrl: null, imageUrlOverride: null, teamColour: null })
