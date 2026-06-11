@@ -9,13 +9,16 @@ import { mapSessionsToOpenF1 } from './openf1Mapping.js'
 export async function runBootstrap(
   client: JolpicaClient,
   year: number,
-  openf1?: OpenF1Client
+  openf1?: OpenF1Client,
+  opts: { isCurrent?: boolean } = {}
 ): Promise<void> {
   const raw = await client.getSeasonSchedule(year)
   if (!raw) throw new Error(`Jolpica returned null for season ${year}`)
   const schedule = parseSchedule(raw)
 
-  await seasonsRepo.upsertSeason({ year: schedule.year, isCurrent: true })
+  // Default true (the live current-season refresh). Pass false to pre-load a
+  // future season's calendar without stealing "current" from the active one.
+  await seasonsRepo.upsertSeason({ year: schedule.year, isCurrent: opts.isCurrent ?? true })
 
   for (const ev of schedule.events) {
     const stored = await eventsRepo.upsertEvent({

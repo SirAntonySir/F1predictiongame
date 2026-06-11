@@ -70,6 +70,18 @@ export class Scheduler {
       if (!cur) return
       await runBootstrap(this.jolpica, cur.year, this.openf1)
       console.log('Weekly schedule refresh complete')
+      // Pre-load next season's calendar (non-current) the moment F1 publishes
+      // it, so a new year is ready for an admin to activate. Probe first so an
+      // unpublished year is a clean no-op rather than an error.
+      const next = cur.year + 1
+      try {
+        if (await this.jolpica.getSeasonSchedule(next)) {
+          await runBootstrap(this.jolpica, next, this.openf1, { isCurrent: false })
+          console.log(`Pre-loaded next season ${next} (non-current)`)
+        }
+      } catch (err) {
+        console.error(`Next-season pre-load failed (${next})`, err)
+      }
     } catch (err) {
       console.error('Weekly refresh failed', err)
     } finally {

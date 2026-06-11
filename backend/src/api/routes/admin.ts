@@ -148,4 +148,17 @@ export async function registerAdminRoutes(app: FastifyInstance, deps: AdminDeps)
     const summary = await rescorePreseasonForSeason(year)
     return { ok: true, year, ...summary }
   })
+
+  // Promote a (pre-loaded) season to current. The weekly job pre-loads next
+  // year's calendar as non-current; this flips is_current when you're ready.
+  app.post<{ Params: { year: string } }>('/admin/seasons/:year/activate', async (req) => {
+    const year = Number(req.params.year)
+    if (!Number.isFinite(year)) throw new ApiError('BAD_REQUEST', 'year must be a number')
+    const loaded = (await seasonsRepo.list()).some((s) => s.year === year)
+    if (!loaded) {
+      throw new ApiError('NOT_FOUND', `Season ${year} is not loaded yet — it pre-loads automatically once F1 publishes the calendar (or POST /admin/bootstrap to load it now).`)
+    }
+    await seasonsRepo.upsertSeason({ year, isCurrent: true })
+    return { ok: true, activated: year }
+  })
 }
