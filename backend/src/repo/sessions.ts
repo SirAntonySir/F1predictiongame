@@ -42,17 +42,18 @@ export async function markFinished(id: number): Promise<void> {
 
 export async function listCandidates(): Promise<StoredSession[]> {
   const db = getDb()
-  // Eligible: status=scheduled AND end + 30 min < now AND not practice.
-  // sprint_quali now has a real source (OpenF1) so it follows the same
-  // unbounded-lookback rule as race/qualifying/sprint — past sessions are
-  // picked up after a bootstrap or outage.
+  // Eligible: status=scheduled AND end + 30 min < now.
+  // sprint_quali and fp1/fp2/fp3 are sourced from OpenF1 — they follow the
+  // same unbounded-lookback rule as race/qualifying/sprint so past sessions
+  // are picked up after a bootstrap or outage. Practice has no scorable
+  // picks (EXPECTED_PICKS doesn't include FP), so rescore is a no-op for
+  // those rows — they get classified and stored for reference times only.
   const rows = await db
     .select()
     .from(session)
     .where(
       and(
         eq(session.status, 'scheduled'),
-        sql`${session.type} NOT IN ('fp1','fp2','fp3')`,
         lt(session.scheduledEnd, sql`now() - interval '30 minutes'`)
       )
     )

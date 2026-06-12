@@ -36,8 +36,6 @@ export type BackfillSummary = {
   errors: number
 }
 
-const PRACTICE = new Set(['fp1', 'fp2', 'fp3'])
-
 export async function backfillSeasonData(year: number, deps: Partial<BackfillDeps> = {}): Promise<BackfillSummary> {
   const jolpica = deps.jolpica ?? new JolpicaClient()
   const openf1 = deps.openf1 ?? new OpenF1Client()
@@ -75,12 +73,12 @@ export async function backfillSeasonData(year: number, deps: Partial<BackfillDep
     console.error('OpenF1 mapping failed (backfill continues)', err)
   }
 
-  // 2. Per-session results for every (non-practice) session in the season.
+  // 2. Per-session results for every session in the season (incl. FP1/2/3,
+  // which are non-scorable but stored as reference times for the prediction UI).
   const events = await eventsRepo.listForSeason(year)
   for (const ev of events) {
     const ss = await sessionsRepo.listForEvent(ev.id)
     for (const ses of ss) {
-      if (PRACTICE.has(ses.type)) continue
       try {
         const out = await fetchByType(jolpica, openf1, ses.type, year, ev.round, ses.openf1SessionKey)
         if (out.rows.length === 0) { summary.sessionsSkipped++; continue }

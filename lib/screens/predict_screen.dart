@@ -1,6 +1,7 @@
 // ignore_for_file: deprecated_member_use
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:go_router/go_router.dart';
 import 'package:skeletonizer/skeletonizer.dart';
 import '../api/api_client.dart';
 import '../api/models/event.dart';
@@ -106,21 +107,45 @@ class _PredictScreenState extends State<PredictScreen> {
     // the screen opens in the read-only state and the top EDIT button is the
     // way back into editing.
     _editing = _initialPicks.isEmpty;
-    final finished = events
-        .expand((e) => e.sessions)
-        .where((s) => s.status == SessionStatus.finished)
-        .toList()
-      ..sort((a, b) => b.scheduledStart.compareTo(a.scheduledStart));
+    // Prefer a same-weekend finished session that's chronologically right
+    // before the one being predicted (FP3>FP2>FP1 → quali/sprintQ; Q>SQ →
+    // race/sprint). Falls back to the season-wide most recent finished
+    // session when nothing this weekend has run yet — keeps the driver
+    // grid populated for the first session of the year (pre-FP1) where no
+    // weekend reference exists, just without timing annotations.
+    Session? referenceSession = _pickReferenceSession(upcoming, session.type);
+    if (referenceSession == null) {
+      final finishedSeason = events
+          .expand((e) => e.sessions)
+          .where((s) => s.status == SessionStatus.finished)
+          .toList()
+        ..sort((a, b) => b.scheduledStart.compareTo(a.scheduledStart));
+      if (finishedSeason.isNotEmpty) referenceSession = finishedSeason.first;
+    }
     List<SessionResult> lineup = const [];
-    if (finished.isNotEmpty) {
+    if (referenceSession != null) {
       try {
-        lineup = await scope.api.sessionResults(finished.first.id);
+        lineup = await scope.api.sessionResults(referenceSession.id);
       } on NotFoundException {
         lineup = const [];
       }
     }
     final sorted = [...lineup]
       ..sort((a, b) => a.position.compareTo(b.position));
+    // Only annotate tiles with times when the reference is a same-weekend
+    // session. Cross-event fallback ordering is useful, but its "Q3" or
+    // "race time" would mean something different from session to session.
+    final weekendRef = referenceSession != null &&
+            upcoming.sessions.any((s) => s.id == referenceSession!.id)
+        ? referenceSession
+        : null;
+    final referenceTimes = <String, String>{};
+    if (weekendRef != null) {
+      for (final r in sorted) {
+        final t = _referenceTimeFor(r, weekendRef.type);
+        if (t != null && t.isNotEmpty) referenceTimes[r.driverCode] = t;
+      }
+    }
     // Build the chronological nav list of all upcoming pickable sessions in
     // events whose lock hasn't passed (event lock = earliest session start).
     final chronological = <_NavRef>[];
@@ -144,6 +169,8 @@ class _PredictScreenState extends State<PredictScreen> {
     final next = idx >= 0 && idx < chronological.length - 1 ? chronological[idx + 1] : null;
     return _PredictData(
       event: upcoming, session: session, drivers: sorted, prev: prev, next: next,
+      referenceSession: weekendRef,
+      referenceTimes: referenceTimes,
     );
   }
 
@@ -421,7 +448,18 @@ class _PredictScreenState extends State<PredictScreen> {
                 ),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(Spacing.lg, Spacing.lg, Spacing.lg, Spacing.sm),
-                  child: Text('DRIVERS', style: AppText.label(11, color: t.colorScheme.onSurface.withOpacity(0.6))),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Text('DRIVERS', style: AppText.label(11, color: t.colorScheme.onSurface.withOpacity(0.6))),
+                      const Spacer(),
+                      if (d.referenceSession != null && d.event != null)
+                        _ReferenceSourceChip(
+                          referenceSession: d.referenceSession!,
+                          eventRound: d.event!.round,
+                        ),
+                    ],
+                  ),
                 ),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
@@ -448,6 +486,7 @@ class _PredictScreenState extends State<PredictScreen> {
                             code: r.driverCode,
                             constructorId: r.constructorId,
                             pickedSlot: slot == -1 ? null : slot + 1,
+                            lapTime: d.referenceTimes[r.driverCode],
                             onTap: canEdit ? () => _toggleDriver(r.driverCode) : null,
                           );
                         }).toList(),
@@ -541,13 +580,115 @@ class _PredictData {
   final List<SessionResult> drivers;
   final _NavRef? prev;
   final _NavRef? next;
+  /// The finished session whose classification ordered [drivers] and whose
+  /// times appear under each driver tile. Same-weekend when possible:
+  /// FP3>FP2>FP1 when predicting quali/sprint-quali, Q>SQ when predicting
+  /// race/sprint. Null when no relevant session has run yet (e.g. season
+  /// opener pre-FP1) — drivers then come from the most recent finished
+  /// session season-wide and tiles render without times.
+  final Session? referenceSession;
+  /// driverCode → formatted lap-time string for the reference session
+  /// (e.g. "1:18.234" for an FP best lap, "1:17.234 (Q1)" for a quali driver
+  /// knocked out in Q1). Empty when no useful timing exists.
+  final Map<String, String> referenceTimes;
   _PredictData({
     required this.event,
     required this.session,
     required this.drivers,
     required this.prev,
     required this.next,
+    this.referenceSession,
+    this.referenceTimes = const {},
   });
+}
+
+/// Compact accent-bordered chip that names the reference session whose
+/// classification drives the driver order + tile lap times. Tapping it
+/// pushes to the full results for that session so the user can scan the
+/// rest of the field. Mirrors the LOCKS-IN pill styling.
+class _ReferenceSourceChip extends StatelessWidget {
+  final Session referenceSession;
+  final int eventRound;
+  const _ReferenceSourceChip({required this.referenceSession, required this.eventRound});
+
+  static const _typeLabel = {
+    SessionType.fp1: 'FP1',
+    SessionType.fp2: 'FP2',
+    SessionType.fp3: 'FP3',
+    SessionType.qualifying: 'QUALI',
+    SessionType.sprint_quali: 'SQ',
+    SessionType.sprint: 'SPRINT',
+    SessionType.race: 'RACE',
+  };
+  static const _weekday = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+  @override
+  Widget build(BuildContext context) {
+    final label = '${_typeLabel[referenceSession.type] ?? referenceSession.type.name.toUpperCase()}'
+        ' (${_weekday[referenceSession.scheduledStart.weekday - 1]})';
+    return InkWell(
+      onTap: () => context.push('/race/$eventRound/${referenceSession.id}'),
+      borderRadius: const BorderRadius.all(Radius.circular(999)),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: Spacing.md, vertical: 4),
+        decoration: BoxDecoration(
+          border: Border.all(color: BrandColors.accent, width: 1.5),
+          borderRadius: const BorderRadius.all(Radius.circular(999)),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Text('TIMES · $label', style: AppText.label(10, color: BrandColors.accent)),
+          const SizedBox(width: 4),
+          const Icon(Icons.chevron_right, size: 12, color: BrandColors.accent),
+        ]),
+      ),
+    );
+  }
+}
+
+/// Order to walk same-weekend finished sessions for the reference, given
+/// which session we're predicting. Race and sprint reference quali; quali
+/// and sprint-quali reference the latest available practice.
+const Map<SessionType, List<SessionType>> _referenceOrder = {
+  SessionType.qualifying: [SessionType.fp3, SessionType.fp2, SessionType.fp1],
+  SessionType.sprint_quali: [SessionType.fp3, SessionType.fp2, SessionType.fp1],
+  SessionType.race: [SessionType.qualifying, SessionType.sprint_quali],
+  SessionType.sprint: [SessionType.sprint_quali, SessionType.qualifying],
+};
+
+Session? _pickReferenceSession(Event event, SessionType predicting) {
+  final order = _referenceOrder[predicting];
+  if (order == null) return null;
+  for (final t in order) {
+    for (final s in event.sessions) {
+      if (s.type == t && s.status == SessionStatus.finished) return s;
+    }
+  }
+  return null;
+}
+
+/// Per-driver display time for a reference session.
+///
+/// - Quali / sprint-quali: best non-null of q3/q2/q1; "(Q1)" / "(Q2)" suffix
+///   when the best time is from an earlier knockout (driver eliminated then).
+/// - FP1/FP2/FP3: OpenF1's session_result returns the best lap as
+///   duration[0], which our parser maps into q1 — read q1 unannotated.
+/// - Race / sprint reference (theoretical): raceTime, unannotated.
+String? _referenceTimeFor(SessionResult r, SessionType refType) {
+  switch (refType) {
+    case SessionType.qualifying:
+    case SessionType.sprint_quali:
+      if (r.q3 != null) return r.q3;
+      if (r.q2 != null) return '${r.q2} (Q2)';
+      if (r.q1 != null) return '${r.q1} (Q1)';
+      return null;
+    case SessionType.fp1:
+    case SessionType.fp2:
+    case SessionType.fp3:
+      return r.q1;
+    case SessionType.race:
+    case SessionType.sprint:
+      return r.raceTime;
+  }
 }
 
 /// Layout-stable skeleton shown while the predict screen is fetching the

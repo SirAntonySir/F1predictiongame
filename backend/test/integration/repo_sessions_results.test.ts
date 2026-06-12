@@ -37,7 +37,7 @@ describe('sessions repo', () => {
     expect(fetched?.status).toBe('finished')
   })
 
-  it('lists candidate sessions for tick (scheduled, past end+30min, not practice)', async () => {
+  it('lists candidate sessions for tick (scheduled, past end+30min)', async () => {
     const ev = await seed()
     const past = new Date(Date.now() - 60 * 60 * 1000)        // 1h ago
     const past2 = new Date(Date.now() - 3 * 60 * 60 * 1000)   // 3h ago
@@ -101,13 +101,14 @@ describe('sessions repo', () => {
     expect(await sessions.listCandidates()).toEqual([])
   })
 
-  it('excludes practice sessions from candidates', async () => {
+  it('includes practice sessions whose end is past now+30min (sourced from OpenF1)', async () => {
     const ev = await seed()
     const past = new Date(Date.now() - 60 * 60 * 1000)
     await sessions.upsertSession({ eventId: ev.id, type: 'fp1', scheduledStart: past, scheduledEnd: past, status: 'scheduled', openf1SessionKey: null })
     await sessions.upsertSession({ eventId: ev.id, type: 'fp2', scheduledStart: past, scheduledEnd: past, status: 'scheduled', openf1SessionKey: null })
     await sessions.upsertSession({ eventId: ev.id, type: 'fp3', scheduledStart: past, scheduledEnd: past, status: 'scheduled', openf1SessionKey: null })
-    expect(await sessions.listCandidates()).toEqual([])
+    const types = (await sessions.listCandidates()).map((c) => c.type).sort()
+    expect(types).toEqual(['fp1', 'fp2', 'fp3'])
   })
 
   it('nextScheduled returns soonest future scheduled session', async () => {

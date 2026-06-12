@@ -57,7 +57,10 @@ export async function fetchByType(
       if (!raw) return empty
       rows = parseSprintResults(raw)
       break
-    case 'sprint_quali': {
+    case 'sprint_quali':
+    case 'fp1':
+    case 'fp2':
+    case 'fp3': {
       if (openf1SessionKey == null) return empty
       const sr = await openf1.getSessionResult(openf1SessionKey)
       if (!sr) return empty
@@ -74,8 +77,6 @@ export async function fetchByType(
         constructors: dedupeConstructorsFromOpenF1(openF1Drivers)
       }
     }
-    default:
-      return empty  // FPx — never fetched
   }
   return {
     rows,

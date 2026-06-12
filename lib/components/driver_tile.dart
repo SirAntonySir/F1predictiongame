@@ -11,6 +11,10 @@ class DriverTile extends StatelessWidget {
   final String constructorId;
   final int? pickedSlot;
   final VoidCallback? onTap;
+  /// Optional reference-session lap time (e.g. "1:18.234" from FP3, or
+  /// "1:17.512 (Q1)" for a quali driver knocked out in Q1) shown under the
+  /// driver code. Null → no time row.
+  final String? lapTime;
   const DriverTile({
     super.key,
     required this.code,
@@ -18,6 +22,7 @@ class DriverTile extends StatelessWidget {
     this.number,
     this.pickedSlot,
     this.onTap,
+    this.lapTime,
   });
 
   @override
@@ -49,7 +54,10 @@ class DriverTile extends StatelessWidget {
                 children: [
                   Text(code,
                       style: AppText.display(13, color: picked ? Colors.white : t.colorScheme.onSurface)),
-                  if (number != null)
+                  if (lapTime != null)
+                    Text(lapTime!,
+                        style: AppText.label(9, color: (picked ? Colors.white : t.colorScheme.onSurface).withOpacity(0.65))),
+                  if (number != null && lapTime == null)
                     Text('#$number',
                         style: AppText.label(8, color: (picked ? Colors.white : t.colorScheme.onSurface).withOpacity(0.55))),
                 ],
