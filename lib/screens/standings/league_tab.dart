@@ -145,29 +145,42 @@ class _LeagueTabState extends State<LeagueTab> {
                         ? LeagueRowFocus.inSeason
                         : LeagueRowFocus.total,
                   ),
-                  ...List.generate(sorted.length, (i) {
-                    final r = sorted[i];
-                    final isMe = r.userId == me;
-                    final leagueId = AppState.of(context).league.league?.id;
-                    return InkWell(
-                      onTap: leagueId == null
-                          ? null
-                          : () => context.push('/league/$leagueId/player/${r.userId}'),
+                  // Single outer border around the leaderboard. LeagueRow's
+                  // own per-row border has been swapped for a thin internal
+                  // divider drawn between siblings; the last row passes
+                  // isLast=true to suppress its divider.
+                  Container(
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Theme.of(context).strokeColor, width: Strokes.card),
                       borderRadius: Radii.rLg,
-                      child: LeagueRow(
-                        rank: i + 1,
-                        name: isMe ? '${r.displayName} (you)' : r.displayName,
-                        inSeasonPoints: r.inSeasonPoints,
-                        preseasonPoints: r.preseasonPoints,
-                        pointsTotal: r.pointsTotal,
-                        trend: TrendDirection.equal,
-                        isMe: isMe,
-                        focus: _metric == _Metric.inSeason
-                            ? LeagueRowFocus.inSeason
-                            : LeagueRowFocus.total,
-                      ),
-                    );
-                  }),
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: Column(
+                      children: List.generate(sorted.length, (i) {
+                        final r = sorted[i];
+                        final isMe = r.userId == me;
+                        final leagueId = AppState.of(context).league.league?.id;
+                        return InkWell(
+                          onTap: leagueId == null
+                              ? null
+                              : () => context.push('/league/$leagueId/player/${r.userId}'),
+                          child: LeagueRow(
+                            rank: i + 1,
+                            name: r.displayName,
+                            inSeasonPoints: r.inSeasonPoints,
+                            preseasonPoints: r.preseasonPoints,
+                            pointsTotal: r.pointsTotal,
+                            trend: TrendDirection.equal,
+                            isMe: isMe,
+                            isLast: i == sorted.length - 1,
+                            focus: _metric == _Metric.inSeason
+                                ? LeagueRowFocus.inSeason
+                                : LeagueRowFocus.total,
+                          ),
+                        );
+                      }),
+                    ),
+                  ),
                 ],
               ),
             ),

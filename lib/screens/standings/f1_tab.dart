@@ -89,61 +89,78 @@ class _F1TabState extends State<F1Tab> {
             );
           }
           final t = Theme.of(context);
+          final data = snap.data!;
           return ListView(
             padding: const EdgeInsets.symmetric(horizontal: Spacing.lg, vertical: Spacing.md),
             children: [
               _DriverHeader(t: t),
-              ...snap.data!.map((d) => Padding(
-                padding: const EdgeInsets.only(bottom: Spacing.xs),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: Spacing.sm, vertical: Spacing.xs),
-                  decoration: BoxDecoration(
-                    border: Border.all(color: t.strokeColor, width: Strokes.card),
-                    borderRadius: Radii.rLg,
-                  ),
-                  child: Row(
-                    children: [
-                      SizedBox(width: _kPosCol, child: Text('${d.position}', style: AppText.display(16))),
-                      const SizedBox(width: Spacing.xs),
-                      Container(
-                        width: 5,
-                        height: 28,
-                        decoration: BoxDecoration(
-                          color: teamColor(d.constructorId),
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                      ),
-                      const SizedBox(width: Spacing.sm),
-                      SizedBox(
-                        width: _kCodeCol,
-                        child: Text(d.driverCode, style: AppText.body(13, weight: FontWeight.w800)),
-                      ),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(d.driverName, style: AppText.body(13, weight: FontWeight.w600)),
-                            Text('${d.wins} wins',
-                                style: AppText.body(10, color: t.colorScheme.onSurface.withOpacity(0.5))),
-                          ],
-                        ),
-                      ),
-                      SizedBox(
-                        width: _kPointsCol,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            Text('${d.points}', style: AppText.display(18)),
-                            Text('pts', style: AppText.label(8, color: t.colorScheme.onSurface.withOpacity(0.6))),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
+              // One bordered list, internal dividers between rows.
+              Container(
+                decoration: BoxDecoration(
+                  border: Border.all(color: t.strokeColor, width: Strokes.card),
+                  borderRadius: Radii.rLg,
                 ),
-              )),
+                clipBehavior: Clip.antiAlias,
+                child: Column(
+                  children: List.generate(data.length, (i) {
+                    final d = data[i];
+                    final isLast = i == data.length - 1;
+                    return Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: Spacing.sm, vertical: Spacing.sm),
+                      decoration: BoxDecoration(
+                        border: isLast
+                            ? null
+                            : Border(
+                                bottom: BorderSide(
+                                    color: t.strokeColor.withOpacity(0.25),
+                                    width: 1),
+                              ),
+                      ),
+                      child: Row(
+                        children: [
+                          SizedBox(width: _kPosCol, child: Text('${d.position}', style: AppText.display(16))),
+                          const SizedBox(width: Spacing.xs),
+                          Container(
+                            width: 5,
+                            height: 28,
+                            decoration: BoxDecoration(
+                              color: teamColor(d.constructorId),
+                              borderRadius: BorderRadius.circular(2),
+                            ),
+                          ),
+                          const SizedBox(width: Spacing.sm),
+                          SizedBox(
+                            width: _kCodeCol,
+                            child: Text(d.driverCode, style: AppText.body(13, weight: FontWeight.w800)),
+                          ),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(d.driverName, style: AppText.body(13, weight: FontWeight.w600)),
+                                Text('${d.wins} wins',
+                                    style: AppText.body(10, color: t.colorScheme.onSurface.withOpacity(0.5))),
+                              ],
+                            ),
+                          ),
+                          SizedBox(
+                            width: _kPointsCol,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Text('${d.points}', style: AppText.display(18)),
+                                Text('pts', style: AppText.label(8, color: t.colorScheme.onSurface.withOpacity(0.6))),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
+                ),
+              ),
             ],
           );
         },
@@ -167,48 +184,64 @@ class _F1TabState extends State<F1Tab> {
             );
           }
           final t = Theme.of(context);
+          final data = snap.data!;
           return ListView(
             padding: const EdgeInsets.symmetric(horizontal: Spacing.lg, vertical: Spacing.md),
             children: [
               _ConstructorHeader(t: t),
-              ...snap.data!.map((c) => Padding(
-                padding: const EdgeInsets.only(bottom: Spacing.xs),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: Spacing.sm, vertical: Spacing.xs),
-                  decoration: BoxDecoration(
-                    border: Border.all(color: t.strokeColor, width: Strokes.card),
-                    borderRadius: Radii.rLg,
-                  ),
-                  child: Row(
-                    children: [
-                      SizedBox(width: _kPosCol, child: Text('${c.position}', style: AppText.display(16))),
-                      const SizedBox(width: Spacing.xs),
-                      Container(
-                        width: 5,
-                        height: 28,
-                        decoration: BoxDecoration(
-                          color: teamColor(c.constructorId),
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                      ),
-                      const SizedBox(width: Spacing.sm),
-                      Expanded(
-                        child: Text(
-                          c.constructorName,
-                          style: AppText.body(13, weight: FontWeight.w700),
-                        ),
-                      ),
-                      SizedBox(
-                        width: _kPointsCol,
-                        child: Text('${c.points}',
-                            style: AppText.display(16),
-                            textAlign: TextAlign.right),
-                      ),
-                    ],
-                  ),
+              Container(
+                decoration: BoxDecoration(
+                  border: Border.all(color: t.strokeColor, width: Strokes.card),
+                  borderRadius: Radii.rLg,
                 ),
-              )),
+                clipBehavior: Clip.antiAlias,
+                child: Column(
+                  children: List.generate(data.length, (i) {
+                    final c = data[i];
+                    final isLast = i == data.length - 1;
+                    return Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: Spacing.sm, vertical: Spacing.sm),
+                      decoration: BoxDecoration(
+                        border: isLast
+                            ? null
+                            : Border(
+                                bottom: BorderSide(
+                                    color: t.strokeColor.withOpacity(0.25),
+                                    width: 1),
+                              ),
+                      ),
+                      child: Row(
+                        children: [
+                          SizedBox(width: _kPosCol, child: Text('${c.position}', style: AppText.display(16))),
+                          const SizedBox(width: Spacing.xs),
+                          Container(
+                            width: 5,
+                            height: 28,
+                            decoration: BoxDecoration(
+                              color: teamColor(c.constructorId),
+                              borderRadius: BorderRadius.circular(2),
+                            ),
+                          ),
+                          const SizedBox(width: Spacing.sm),
+                          Expanded(
+                            child: Text(
+                              c.constructorName,
+                              style: AppText.body(13, weight: FontWeight.w700),
+                            ),
+                          ),
+                          SizedBox(
+                            width: _kPointsCol,
+                            child: Text('${c.points}',
+                                style: AppText.display(16),
+                                textAlign: TextAlign.right),
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
+                ),
+              ),
             ],
           );
         },

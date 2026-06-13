@@ -506,93 +506,104 @@ class _Body extends StatelessWidget {
                 // (FP1/FP2/BEST) so the right-side columns are named even
                 // on rows where the badge/glyph happen to be empty.
                 _ClassificationHeader(t: t),
-                ...payload.result.map((r) {
-                  final slot = payload.picks.indexOf(r.driverCode);
-                  final pickedSlot = slot == -1 ? null : slot + 1;
-                  final outcome = pickedSlot == null
-                      ? null
-                      : outcomeFor(
-                          r.driverCode, pickedSlot, payload.result, topN);
-                  final mine = pickedSlot != null;
-                  // Outcome tint stays — green = exact, amber = in-topN,
-                  // neutral highlight = miss. Different from the predict
-                  // screen's flat "picked = red" state because here the color
-                  // *is* the information.
-                  final rowBg = !mine
-                      ? null
-                      : (outcome == PickOutcome.exact
-                          ? BrandColors.ok.withOpacity(0.18)
-                          : outcome == PickOutcome.inTopN
-                              ? BrandColors.near.withOpacity(0.22)
-                              : t.rowHighlight);
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: Spacing.xs),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: Spacing.sm, vertical: Spacing.xs),
-                      decoration: BoxDecoration(
-                        color: rowBg,
-                        border: Border.all(color: t.strokeColor, width: Strokes.card),
-                        borderRadius: Radii.rLg,
-                      ),
-                      child: Row(
-                        children: [
-                          SizedBox(
-                            width: _kPosCol,
-                            child:
-                                Text('${r.position}', style: AppText.display(13)),
-                          ),
-                          const SizedBox(width: Spacing.xs),
-                          // Inset team-color bar — matches the DriverSectorRow
-                          // and the top P-slot anatomy.
-                          Container(
-                            width: 5,
-                            height: 22,
-                            decoration: BoxDecoration(
-                              color: teamColor(r.constructorId),
-                              borderRadius: BorderRadius.circular(2),
+                // Single outer border around the classification, internal
+                // dividers between rows. Outcome tints (green = exact, amber
+                // = in-topN, neutral highlight = miss) survive as row
+                // backgrounds — they carry the information.
+                Container(
+                  decoration: BoxDecoration(
+                    border: Border.all(color: t.strokeColor, width: Strokes.card),
+                    borderRadius: Radii.rLg,
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: Column(
+                    children: List.generate(payload.result.length, (i) {
+                      final r = payload.result[i];
+                      final isLast = i == payload.result.length - 1;
+                      final slot = payload.picks.indexOf(r.driverCode);
+                      final pickedSlot = slot == -1 ? null : slot + 1;
+                      final outcome = pickedSlot == null
+                          ? null
+                          : outcomeFor(
+                              r.driverCode, pickedSlot, payload.result, topN);
+                      final mine = pickedSlot != null;
+                      final rowBg = !mine
+                          ? null
+                          : (outcome == PickOutcome.exact
+                              ? BrandColors.ok.withOpacity(0.18)
+                              : outcome == PickOutcome.inTopN
+                                  ? BrandColors.near.withOpacity(0.22)
+                                  : t.rowHighlight);
+                      return Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: Spacing.sm, vertical: Spacing.sm),
+                        decoration: BoxDecoration(
+                          color: rowBg,
+                          border: isLast
+                              ? null
+                              : Border(
+                                  bottom: BorderSide(
+                                      color: t.strokeColor.withOpacity(0.25),
+                                      width: 1),
+                                ),
+                        ),
+                        child: Row(
+                          children: [
+                            SizedBox(
+                              width: _kPosCol,
+                              child:
+                                  Text('${r.position}', style: AppText.display(13)),
                             ),
-                          ),
-                          const SizedBox(width: Spacing.sm),
-                          SizedBox(
-                            width: _kCodeCol,
-                            child: Text(r.driverCode,
-                                style: AppText.body(12, weight: FontWeight.w800)),
-                          ),
-                          Expanded(
-                            child: Text(r.driverName,
-                                style: AppText.body(12, weight: FontWeight.w500)),
-                          ),
-                          // Fixed-width pick + outcome slots. Empty when not
-                          // applicable so columns line up across rows.
-                          SizedBox(
-                            width: _kPickCol,
-                            child: pickedSlot == null
-                                ? const SizedBox.shrink()
-                                : Center(child: _PickSlotChip(slot: pickedSlot)),
-                          ),
-                          const SizedBox(width: Spacing.xs),
-                          SizedBox(
-                            width: _kOutcomeCol,
-                            child: outcome == null
-                                ? const SizedBox.shrink()
-                                : Center(child: _OutcomeTag(outcome: outcome)),
-                          ),
-                          const SizedBox(width: Spacing.sm),
-                          SizedBox(
-                            width: _kTimeCol,
-                            child: Text(
-                              displayTime(r, session.type),
-                              style: AppText.display(11,
-                                  color: t.colorScheme.onSurface.withOpacity(0.6)),
-                              textAlign: TextAlign.right,
+                            const SizedBox(width: Spacing.xs),
+                            // Inset team-color bar — matches the DriverSectorRow
+                            // and the top P-slot anatomy.
+                            Container(
+                              width: 5,
+                              height: 22,
+                              decoration: BoxDecoration(
+                                color: teamColor(r.constructorId),
+                                borderRadius: BorderRadius.circular(2),
+                              ),
                             ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                }),
+                            const SizedBox(width: Spacing.sm),
+                            SizedBox(
+                              width: _kCodeCol,
+                              child: Text(r.driverCode,
+                                  style: AppText.body(12, weight: FontWeight.w800)),
+                            ),
+                            Expanded(
+                              child: Text(r.driverName,
+                                  style: AppText.body(12, weight: FontWeight.w500)),
+                            ),
+                            SizedBox(
+                              width: _kPickCol,
+                              child: pickedSlot == null
+                                  ? const SizedBox.shrink()
+                                  : Center(child: _PickSlotChip(slot: pickedSlot)),
+                            ),
+                            const SizedBox(width: Spacing.xs),
+                            SizedBox(
+                              width: _kOutcomeCol,
+                              child: outcome == null
+                                  ? const SizedBox.shrink()
+                                  : Center(child: _OutcomeTag(outcome: outcome)),
+                            ),
+                            const SizedBox(width: Spacing.sm),
+                            SizedBox(
+                              width: _kTimeCol,
+                              child: Text(
+                                displayTime(r, session.type),
+                                style: AppText.display(11,
+                                    color: t.colorScheme.onSurface.withOpacity(0.6)),
+                                textAlign: TextAlign.right,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }),
+                  ),
+                ),
               ],
             ),
           ),

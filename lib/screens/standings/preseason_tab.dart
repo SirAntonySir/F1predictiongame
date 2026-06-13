@@ -173,12 +173,24 @@ class PreseasonBodyView extends StatelessWidget {
             child: Column(
               children: [
                 const _LeaderHeader(),
-                for (var i = 0; i < view.leaderboard.length; i++)
-                  _LeaderRow(
-                    rank: i + 1,
-                    row: view.leaderboard[i],
-                    isMe: view.leaderboard[i].userId == myUserId,
+                Container(
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Theme.of(context).strokeColor, width: Strokes.card),
+                    borderRadius: Radii.rLg,
                   ),
+                  clipBehavior: Clip.antiAlias,
+                  child: Column(
+                    children: [
+                      for (var i = 0; i < view.leaderboard.length; i++)
+                        _LeaderRow(
+                          rank: i + 1,
+                          row: view.leaderboard[i],
+                          isMe: view.leaderboard[i].userId == myUserId,
+                          isLast: i == view.leaderboard.length - 1,
+                        ),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),
@@ -275,44 +287,80 @@ class _LeaderRow extends StatelessWidget {
   final int rank;
   final LeaguePreseasonLeaderboardRow row;
   final bool isMe;
-  const _LeaderRow({required this.rank, required this.row, required this.isMe});
+  final bool isLast;
+  const _LeaderRow({
+    required this.rank,
+    required this.row,
+    required this.isMe,
+    this.isLast = false,
+  });
 
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.only(bottom: Spacing.xs),
-      child: Container(
-        padding: const EdgeInsets.symmetric(
-            horizontal: Spacing.sm, vertical: Spacing.xs),
-        decoration: BoxDecoration(
-          color: isMe ? t.rowHighlight : null,
-          border: Border.all(color: t.strokeColor, width: Strokes.card),
-          borderRadius: Radii.rLg,
-        ),
-        child: Row(
-          children: [
-            SizedBox(
-              width: _kLeaderPosCol,
-              child: Text('$rank',
-                  style: AppText.display(15,
-                      color: isMe ? BrandColors.accent : t.colorScheme.onSurface)),
-            ),
-            const SizedBox(width: Spacing.sm),
-            Expanded(
-              child: Text(row.displayName,
-                  style: AppText.body(13, weight: isMe ? FontWeight.w800 : FontWeight.w700)),
-            ),
-            SizedBox(
-              width: _kLeaderPointsCol,
-              child: Text('+${row.preseasonPointsProjected}',
-                  style: AppText.display(15,
-                      color: isMe ? BrandColors.accent : null),
-                  textAlign: TextAlign.right),
-            ),
-          ],
-        ),
+    return Container(
+      padding: const EdgeInsets.symmetric(
+          horizontal: Spacing.sm, vertical: Spacing.sm),
+      decoration: BoxDecoration(
+        border: isLast
+            ? null
+            : Border(
+                bottom: BorderSide(
+                    color: t.strokeColor.withOpacity(0.25), width: 1),
+              ),
       ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: _kLeaderPosCol,
+            child: Text('$rank',
+                style: AppText.display(15,
+                    color: isMe ? BrandColors.accent : t.colorScheme.onSurface)),
+          ),
+          const SizedBox(width: Spacing.sm),
+          Expanded(
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Flexible(
+                  child: Text(row.displayName,
+                      maxLines: 1, overflow: TextOverflow.fade, softWrap: false,
+                      style: AppText.body(13,
+                          weight: isMe ? FontWeight.w800 : FontWeight.w700)),
+                ),
+                if (isMe) ...[
+                  const SizedBox(width: 6),
+                  const _YouBadge(),
+                ],
+              ],
+            ),
+          ),
+          SizedBox(
+            width: _kLeaderPointsCol,
+            child: Text('+${row.preseasonPointsProjected}',
+                style: AppText.display(15,
+                    color: isMe ? BrandColors.accent : null),
+                textAlign: TextAlign.right),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Small red "YOU" pill — used everywhere we previously suffixed `(you)` to
+/// the displayName.
+class _YouBadge extends StatelessWidget {
+  const _YouBadge();
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+      decoration: const BoxDecoration(
+        color: BrandColors.accent,
+        borderRadius: Radii.rSm,
+      ),
+      child: Text('YOU', style: AppText.label(8, color: Colors.white)),
     );
   }
 }

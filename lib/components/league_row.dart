@@ -28,6 +28,9 @@ class LeagueRow extends StatelessWidget {
   final TrendDirection trend;
   final bool isMe;
   final LeagueRowFocus focus;
+  /// When true the row omits its bottom divider — used by the caller to
+  /// suppress the last row's separator inside a single-bordered list.
+  final bool isLast;
 
   const LeagueRow({
     super.key,
@@ -40,20 +43,25 @@ class LeagueRow extends StatelessWidget {
     required this.trend,
     this.isMe = false,
     this.focus = LeagueRowFocus.total,
+    this.isLast = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.only(bottom: Spacing.xs),
-      child: Container(
+    return Container(
         padding: const EdgeInsets.symmetric(
-            horizontal: Spacing.sm, vertical: Spacing.xs),
+            horizontal: Spacing.sm, vertical: Spacing.sm),
         decoration: BoxDecoration(
-          color: isMe ? t.rowHighlight : null,
-          border: Border.all(color: t.strokeColor, width: Strokes.card),
-          borderRadius: Radii.rLg,
+          // No row-highlight bg: per-row tint clipped awkwardly against the
+          // outer rounded-corner border. The YOU badge inside the name row
+          // is the new "this is you" affordance.
+          border: isLast
+              ? null
+              : Border(
+                  bottom: BorderSide(
+                      color: t.strokeColor.withOpacity(0.25), width: 1),
+                ),
         ),
         child: Row(
           children: [
@@ -69,9 +77,21 @@ class LeagueRow extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(name,
-                      style: AppText.body(13,
-                          weight: isMe ? FontWeight.w800 : FontWeight.w700)),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Flexible(
+                        child: Text(name,
+                            maxLines: 1, overflow: TextOverflow.fade, softWrap: false,
+                            style: AppText.body(13,
+                                weight: isMe ? FontWeight.w800 : FontWeight.w700)),
+                      ),
+                      if (isMe) ...[
+                        const SizedBox(width: 6),
+                        const LeagueRowYouBadge(),
+                      ],
+                    ],
+                  ),
                   if (subtitle != null)
                     Padding(
                       padding: const EdgeInsets.only(top: 2),
@@ -107,7 +127,6 @@ class LeagueRow extends StatelessWidget {
             ],
           ],
         ),
-      ),
     );
   }
 
@@ -131,6 +150,24 @@ class LeagueRow extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Small red "YOU" pill rendered next to the current viewer's name on
+/// every league/leaderboard row. Replaces the older "(you)" suffix +
+/// highlighted background (which clipped at rounded list corners).
+class LeagueRowYouBadge extends StatelessWidget {
+  const LeagueRowYouBadge({super.key});
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+      decoration: const BoxDecoration(
+        color: BrandColors.accent,
+        borderRadius: Radii.rSm,
+      ),
+      child: Text('YOU', style: AppText.label(8, color: Colors.white)),
     );
   }
 }

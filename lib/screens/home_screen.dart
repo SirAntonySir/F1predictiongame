@@ -12,6 +12,7 @@ import '../api/models/session_result.dart';
 import '../components/app_card.dart';
 import '../components/circuit_svg.dart';
 import '../components/countdown.dart';
+import '../components/league_row.dart' show LeagueRowYouBadge;
 import '../components/error_view.dart';
 import '../components/pod_tile.dart';
 import '../components/racing_stripes.dart';
@@ -838,58 +839,79 @@ class _HomeScreenState extends State<HomeScreen> {
     final leagueId = AppState.of(context).league.league?.id;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
-      child: Column(
-        children: List.generate(top.length, (i) {
-          final r = top[i];
-          final isMe = r.userId == meId;
-          return Padding(
-            padding: const EdgeInsets.only(bottom: Spacing.xs),
-            child: InkWell(
+      // Single outer border around the whole list — individual rows keep
+      // their inline styling (rank, name, points, isMe row-highlight) but
+      // share one bordered container instead of stacking N bordered cards.
+      child: Container(
+        decoration: BoxDecoration(
+          border: Border.all(color: t.strokeColor, width: Strokes.card),
+          borderRadius: Radii.rLg,
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          children: List.generate(top.length, (i) {
+            final r = top[i];
+            final isMe = r.userId == meId;
+            return InkWell(
               onTap: leagueId == null
                   ? null
                   : () => context.push('/league/$leagueId/player/${r.userId}'),
-              borderRadius: Radii.rLg,
               child: Container(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: Spacing.sm, vertical: Spacing.xs),
-              decoration: BoxDecoration(
-                color: isMe ? t.rowHighlight : null,
-                border: Border.all(color: t.strokeColor, width: Strokes.card),
-                borderRadius: Radii.rLg,
-              ),
-              child: Row(
-                children: [
-                  SizedBox(
-                    width: 22,
-                    child: Text('${i + 1}',
-                        style: AppText.display(13,
-                            color: isMe
-                                ? BrandColors.accent
-                                : t.colorScheme.onSurface)),
-                  ),
-                  const SizedBox(width: Spacing.sm),
-                  Expanded(
-                    child: Text(
-                      isMe ? '${r.displayName} (you)' : r.displayName,
-                      maxLines: 1,
-                      overflow: TextOverflow.fade,
-                      softWrap: false,
-                      style: AppText.body(13,
-                          weight: isMe ? FontWeight.w800 : FontWeight.w600),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: Spacing.sm, vertical: Spacing.sm),
+                decoration: BoxDecoration(
+                  border: i == top.length - 1
+                      ? null
+                      : Border(
+                          bottom: BorderSide(
+                              color: t.strokeColor.withOpacity(0.25),
+                              width: 1),
+                        ),
+                ),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 22,
+                      child: Text('${i + 1}',
+                          style: AppText.display(13,
+                              color: isMe
+                                  ? BrandColors.accent
+                                  : t.colorScheme.onSurface)),
                     ),
-                  ),
-                  SizedBox(
-                    width: 40,
-                    child: Text('${points(r)}',
-                        style: AppText.display(15),
-                        textAlign: TextAlign.right),
-                  ),
-                ],
+                    const SizedBox(width: Spacing.sm),
+                    Expanded(
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Flexible(
+                            child: Text(
+                              r.displayName,
+                              maxLines: 1,
+                              overflow: TextOverflow.fade,
+                              softWrap: false,
+                              style: AppText.body(13,
+                                  weight: isMe ? FontWeight.w800 : FontWeight.w600),
+                            ),
+                          ),
+                          if (isMe) ...[
+                            const SizedBox(width: 6),
+                            const LeagueRowYouBadge(),
+                          ],
+                        ],
+                      ),
+                    ),
+                    SizedBox(
+                      width: 40,
+                      child: Text('${points(r)}',
+                          style: AppText.display(15),
+                          textAlign: TextAlign.right),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            ),
-          );
-        }),
+            );
+          }),
+        ),
       ),
     );
   }

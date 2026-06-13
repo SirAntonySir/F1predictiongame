@@ -12,6 +12,7 @@ import '../../components/error_view.dart';
 import '../../components/fact_card.dart';
 import '../../components/trajectory_chart.dart';
 import '../../state/app_state.dart';
+import '../../theme/app_theme.dart';
 import '../../theme/colors.dart';
 import '../../theme/tokens.dart';
 import '../../theme/typography.dart';
@@ -568,7 +569,7 @@ class _InsightsTabState extends State<InsightsTab> {
       padding: const EdgeInsets.fromLTRB(Spacing.md, Spacing.sm, Spacing.md, Spacing.sm),
       decoration: BoxDecoration(
         color: accent ? BrandColors.accent : null,
-        border: Border.all(color: Colors.black, width: 2),
+        border: Border.all(color: t.strokeColor, width: 2),
         borderRadius: const BorderRadius.all(Radius.circular(12)),
       ),
       child: Column(
