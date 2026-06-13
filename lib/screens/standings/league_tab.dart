@@ -90,7 +90,13 @@ class _LeagueTabState extends State<LeagueTab> {
       placeholder: _placeholder,
       where: 'League standings',
       builder: (_, rows) {
-        if (rows.isEmpty) {
+        final me = scope.auth.currentUserId;
+        final extractor = _metric.extractor;
+        // Hide players who haven't scored in the current metric yet — empty
+        // rows in the podium / table just add noise and break the visual rank.
+        final sorted = [...rows.where((r) => extractor(r) > 0)]
+          ..sort((a, b) => extractor(b).compareTo(extractor(a)));
+        if (sorted.isEmpty) {
           return const Center(
             child: Padding(
               padding: EdgeInsets.all(Spacing.lg),
@@ -98,10 +104,6 @@ class _LeagueTabState extends State<LeagueTab> {
             ),
           );
         }
-        final me = scope.auth.currentUserId;
-        final extractor = _metric.extractor;
-        final sorted = [...rows]
-          ..sort((a, b) => extractor(b).compareTo(extractor(a)));
         return ListView(
           padding: const EdgeInsets.only(bottom: Spacing.xxl),
           children: [

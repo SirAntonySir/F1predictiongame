@@ -384,7 +384,10 @@ class _HomeScreenState extends State<HomeScreen> {
     final typeLabel = _sessionTypeLabel(next.type);
     return Padding(
       padding: const EdgeInsets.fromLTRB(Spacing.lg, Spacing.xs, Spacing.lg, 0),
-      child: AppCard(
+      child: InkWell(
+        onTap: () => context.push('/race/${nextEvent.round}/${next.id}'),
+        borderRadius: const BorderRadius.all(Radius.circular(14)),
+        child: AppCard(
         background: BrandColors.accent,
         padding: EdgeInsets.zero,
         child: Stack(
@@ -500,6 +503,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ],
         ),
+      ),
       ),
     );
   }
@@ -819,7 +823,11 @@ class _HomeScreenState extends State<HomeScreen> {
     ThemeData t, {
     required int Function(LeaderboardRow) points,
   }) {
-    if (rows.isEmpty) {
+    // Hide players who haven't scored in the current metric yet — a row of
+    // zeros adds noise to the home preview without conveying any standing.
+    final preview = [...rows.where((r) => points(r) > 0)]
+      ..sort((a, b) => points(b).compareTo(points(a)));
+    if (preview.isEmpty) {
       return Padding(
         padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
         child: AppCard(
@@ -833,8 +841,6 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       );
     }
-    final preview = [...rows]
-      ..sort((a, b) => points(b).compareTo(points(a)));
     final top = preview.take(4).toList();
     final leagueId = AppState.of(context).league.league?.id;
     return Padding(
