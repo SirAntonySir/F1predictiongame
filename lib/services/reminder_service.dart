@@ -120,6 +120,26 @@ class ReminderService {
     return _plugin.pendingNotificationRequests();
   }
 
+  /// Notifications that have already been delivered and are currently sitting
+  /// in the OS notification tray. Backs the in-app notification center —
+  /// pending (not-yet-fired) reminders are debug-only and not shown there.
+  Future<List<ActiveNotification>> firedNotifications() async {
+    if (!_inited) return const [];
+    try {
+      return await _plugin.getActiveNotifications();
+    } catch (e) {
+      if (kDebugMode) debugPrint('getActiveNotifications failed: $e');
+      return const [];
+    }
+  }
+
+  /// Dismiss a delivered notification from the tray by id. Used when the user
+  /// taps an entry in the in-app notification center.
+  Future<void> dismissDelivered(int id) async {
+    if (!_inited) return;
+    await _plugin.cancel(id: id);
+  }
+
   /// Plain status snapshot for the notification center: `inited` tells us the
   /// plugin booted, `permissionGranted` is what the last `requestPermissions`
   /// call returned (best-effort — the OS can revoke between syncs).

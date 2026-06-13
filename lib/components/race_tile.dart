@@ -71,9 +71,16 @@ class RaceTile extends StatelessWidget {
                     child: IgnorePointer(
                       child: Opacity(
                         opacity: state == RaceState.past ? 0.08 : 0.18,
+                        // 'white' variant = single-color stroked paths.
+                        // The 'black-outline' variant stacks black outline +
+                        // white inner paths; combining that with the srcIn
+                        // color filter collapses to an unrenderable silhouette
+                        // for some circuits (catalunya was the one that
+                        // dropped on device). Home screen uses black-outline
+                        // because it passes no color filter.
                         child: CircuitSvg(
                           event: event!,
-                          variant: 'black-outline',
+                          variant: 'white',
                           width: 90,
                           height: 90,
                           color: t.colorScheme.onSurface,
