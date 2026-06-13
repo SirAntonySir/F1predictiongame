@@ -771,6 +771,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final preview = [...rows]
       ..sort((a, b) => points(b).compareTo(points(a)));
     final top = preview.take(4).toList();
+    final leagueId = AppState.of(context).league.league?.id;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
       child: Column(
@@ -779,7 +780,12 @@ class _HomeScreenState extends State<HomeScreen> {
           final isMe = r.userId == meId;
           return Padding(
             padding: const EdgeInsets.only(bottom: Spacing.xs),
-            child: Container(
+            child: InkWell(
+              onTap: leagueId == null
+                  ? null
+                  : () => context.push('/league/$leagueId/player/${r.userId}'),
+              borderRadius: Radii.rLg,
+              child: Container(
               padding: const EdgeInsets.symmetric(
                   horizontal: Spacing.sm, vertical: Spacing.xs),
               decoration: BoxDecoration(
@@ -816,6 +822,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ],
               ),
+            ),
             ),
           );
         }),

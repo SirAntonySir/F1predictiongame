@@ -16,6 +16,7 @@ import '../domain/preseason.dart';
 import 'models/season.dart';
 import 'models/session.dart';
 import 'models/import_payload.dart';
+import 'models/player_profile.dart';
 import 'models/reference_laps.dart';
 import 'models/session_leaderboard_row.dart';
 import 'models/session_result.dart';
@@ -89,6 +90,9 @@ abstract class ApiClient {
   Future<Map<String, dynamic>> getImportSchema(String leagueId, int seasonYear);
   Future<ImportPreview> previewImport(String leagueId, Map<String, dynamic> body);
   Future<ImportApplyResult> applyImport(String leagueId, Map<String, dynamic> body);
+
+  // Player profile (composite)
+  Future<PlayerProfile> leaguePlayer(String leagueId, String userId, {int? season});
 }
 
 // Exceptions

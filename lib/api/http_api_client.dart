@@ -14,6 +14,7 @@ import 'models/me_result.dart';
 import 'models/my_score.dart';
 import 'models/pick.dart';
 import 'models/import_payload.dart';
+import 'models/player_profile.dart';
 import 'models/prediction_view.dart';
 import 'models/preseason_mine.dart';
 import 'models/reference_laps.dart';
@@ -372,5 +373,13 @@ class HttpApiClient implements ApiClient {
   Future<ImportApplyResult> applyImport(String leagueId, Map<String, dynamic> body) async {
     final j = await _request('POST', '/api/leagues/$leagueId/imports', body: body) as Map<String, dynamic>;
     return ImportApplyResult.fromJson(j);
+  }
+
+  @override
+  Future<PlayerProfile> leaguePlayer(String leagueId, String userId, {int? season}) async {
+    final q = season == null ? '' : '?season=$season';
+    final j = await _request('GET', '/api/leagues/$leagueId/players/$userId$q')
+        as Map<String, dynamic>;
+    return PlayerProfile.fromJson(j);
   }
 }

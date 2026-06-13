@@ -1,5 +1,6 @@
 // ignore_for_file: deprecated_member_use
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:skeletonizer/skeletonizer.dart';
 import '../../api/models/leaderboard_row.dart';
 import '../../components/app_card.dart';
@@ -147,17 +148,24 @@ class _LeagueTabState extends State<LeagueTab> {
                   ...List.generate(sorted.length, (i) {
                     final r = sorted[i];
                     final isMe = r.userId == me;
-                    return LeagueRow(
-                      rank: i + 1,
-                      name: isMe ? '${r.displayName} (you)' : r.displayName,
-                      inSeasonPoints: r.inSeasonPoints,
-                      preseasonPoints: r.preseasonPoints,
-                      pointsTotal: r.pointsTotal,
-                      trend: TrendDirection.equal,
-                      isMe: isMe,
-                      focus: _metric == _Metric.inSeason
-                          ? LeagueRowFocus.inSeason
-                          : LeagueRowFocus.total,
+                    final leagueId = AppState.of(context).league.league?.id;
+                    return InkWell(
+                      onTap: leagueId == null
+                          ? null
+                          : () => context.push('/league/$leagueId/player/${r.userId}'),
+                      borderRadius: Radii.rLg,
+                      child: LeagueRow(
+                        rank: i + 1,
+                        name: isMe ? '${r.displayName} (you)' : r.displayName,
+                        inSeasonPoints: r.inSeasonPoints,
+                        preseasonPoints: r.preseasonPoints,
+                        pointsTotal: r.pointsTotal,
+                        trend: TrendDirection.equal,
+                        isMe: isMe,
+                        focus: _metric == _Metric.inSeason
+                            ? LeagueRowFocus.inSeason
+                            : LeagueRowFocus.total,
+                      ),
                     );
                   }),
                 ],
