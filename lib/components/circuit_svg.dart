@@ -41,14 +41,31 @@ class _CircuitSvgState extends State<CircuitSvg> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _resolve();
+  }
+
+  @override
+  void didUpdateWidget(covariant CircuitSvg old) {
+    super.didUpdateWidget(old);
+    if (old.event.round != widget.event.round ||
+        old.detail != widget.detail ||
+        old.variant != widget.variant) {
+      _resolve();
+    }
+  }
+
+  void _resolve() {
     final id = circuitIdForEvent(
       name: widget.event.name,
       country: widget.event.country,
+      circuitName: widget.event.circuitName,
     );
-    if (id != _circuitId) {
-      _circuitId = id;
-      _svgFuture = id == null ? Future.value(null) : _load(id);
-    }
+    if (id == _circuitId && _svgFuture != null) return;
+    _circuitId = id;
+    // Plain assignment — didChangeDependencies/didUpdateWidget already runs
+    // inside the framework's build cycle; FutureBuilder picks up the new
+    // future on the next build.
+    _svgFuture = id == null ? Future.value(null) : _load(id);
   }
 
   Future<String?> _load(String id) async {

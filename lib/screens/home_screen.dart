@@ -405,7 +405,12 @@ class _HomeScreenState extends State<HomeScreen> {
                   opacity: 0.5,
                   child: CircuitSvg(
                     event: nextEvent,
-                    variant: 'black-outline',
+                    // 'white' (single-color stroked paths) renders reliably
+                    // across every circuit. 'black-outline' is stacked outline
+                    // + inner paths and silently fails to render for some
+                    // circuits (catalunya was the holdout) — see race_tile.dart
+                    // for the same reasoning on the calendar tile.
+                    variant: 'white',
                     width: 150,
                     height: 150,
                   ),
@@ -801,8 +806,10 @@ class _HomeScreenState extends State<HomeScreen> {
   PodMark _markFor(List<String> picks, SessionResult r) {
     if (picks.isEmpty) return PodMark.none;
     final slotIndex = r.position - 1;
-    if (slotIndex >= picks.length) return PodMark.none;
-    return picks[slotIndex] == r.driverCode ? PodMark.exact : PodMark.miss;
+    if (slotIndex < picks.length && picks[slotIndex] == r.driverCode) {
+      return PodMark.exact;
+    }
+    return picks.contains(r.driverCode) ? PodMark.nearMiss : PodMark.miss;
   }
 
   Widget _leagueCard(
@@ -943,6 +950,24 @@ class LiveHeroCard extends StatelessWidget {
               const Positioned.fill(
                 child: IgnorePointer(
                   child: CustomPaint(painter: RacingStripesPainter()),
+                ),
+              ),
+              // Circuit map — red watermark on the live hero. The next-race
+              // hero uses a white tint instead; this one is the LIVE accent.
+              Positioned(
+                top: Spacing.xxl + Spacing.sm,
+                right: Spacing.lg,
+                child: IgnorePointer(
+                  child: Opacity(
+                    opacity: 0.6,
+                    child: CircuitSvg(
+                      event: event,
+                      variant: 'white',
+                      width: 150,
+                      height: 150,
+                      color: BrandColors.accent,
+                    ),
+                  ),
                 ),
               ),
               Padding(

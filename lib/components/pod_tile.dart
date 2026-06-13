@@ -3,7 +3,7 @@ import '../theme/colors.dart';
 import '../theme/team_colors.dart';
 import '../theme/typography.dart';
 
-enum PodMark { none, exact, miss }
+enum PodMark { none, exact, nearMiss, miss }
 
 class PodTile extends StatelessWidget {
   final int position;
@@ -22,50 +22,36 @@ class PodTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final bg = teamColor(constructorId);
     final fg = _readableOn(bg);
-    return Container(
+    final ring = switch (mark) {
+      PodMark.exact => BrandColors.ok,
+      PodMark.nearMiss => BrandColors.near,
+      PodMark.miss || PodMark.none => null,
+    };
+    final tile = Container(
       padding: const EdgeInsets.fromLTRB(6, 10, 6, 8),
       decoration: BoxDecoration(
         color: bg,
         borderRadius: const BorderRadius.all(Radius.circular(10)),
+        border: Border.all(
+          color: ring ?? Colors.transparent,
+          width: 2,
+        ),
+        boxShadow: ring == null
+            ? null
+            : [BoxShadow(color: ring.withOpacity(0.35), blurRadius: 6)],
       ),
-      child: Stack(
-        children: [
-          Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text('P$position', style: AppText.label(9, color: fg)),
-                const SizedBox(height: 2),
-                Text(driverCode, style: AppText.display(13, color: fg)),
-              ],
-            ),
-          ),
-          if (mark != PodMark.none)
-            Positioned(
-              top: 0,
-              right: 0,
-              child: Container(
-                width: 16,
-                height: 16,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: mark == PodMark.exact ? BrandColors.ok : Colors.black,
-                ),
-                child: Center(
-                  child: Text(
-                    mark == PodMark.exact ? '✓' : '✗',
-                    style: TextStyle(
-                      color: mark == PodMark.exact ? Colors.black : Colors.white,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-        ],
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('P$position', style: AppText.label(9, color: fg)),
+            const SizedBox(height: 2),
+            Text(driverCode, style: AppText.display(13, color: fg)),
+          ],
+        ),
       ),
     );
+    return mark == PodMark.miss ? Opacity(opacity: 0.45, child: tile) : tile;
   }
 
   static Color _readableOn(Color bg) =>

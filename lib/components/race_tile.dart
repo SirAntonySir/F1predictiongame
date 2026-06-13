@@ -48,7 +48,6 @@ class RaceTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
-    final stripeColor = state == RaceState.live ? BrandColors.live : null;
     // Past races read as "done": the round + race-info column fade out so
     // the eye is drawn to the score in the right column (which stays full
     // opacity). Live / next / future tiles render at full strength.
@@ -91,8 +90,6 @@ class RaceTile extends StatelessWidget {
                 Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              if (stripeColor != null)
-                Container(width: 5, color: stripeColor),
               Opacity(
                 opacity: pastDim,
                 child: Padding(

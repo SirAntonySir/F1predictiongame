@@ -11,6 +11,11 @@ const Map<String, Color> _teamColors = {
   'rb': Color(0xFF6692FF),
   'haas': Color(0xFFB6BABD),
   'williams': Color(0xFF64C4FF),
+  // New for 2026. Audi uses its OpenF1 brand red; Cadillac gets a brand navy
+  // because OpenF1 currently publishes a placeholder grey (909090) that would
+  // be indistinguishable from the neutral fallback.
+  'audi': Color(0xFFF50537),
+  'cadillac': Color(0xFF1A2B4A),
 };
 
 const Map<String, String> _aliases = {
@@ -19,6 +24,12 @@ const Map<String, String> _aliases = {
   'alfa': 'kick_sauber',
   'alfa_romeo': 'kick_sauber',
   'sauber': 'kick_sauber',
+  // The session-results data source uses OpenF1-style team ids, which differ
+  // from the (Ergast-style) ids above. Without these aliases the predict
+  // screen's driver grid falls back to grey for these teams.
+  'red_bull_racing': 'red_bull',
+  'haas_f1_team': 'haas',
+  'racing_bulls': 'rb',
 };
 
 const Color _fallback = Color(0xFF707070);
