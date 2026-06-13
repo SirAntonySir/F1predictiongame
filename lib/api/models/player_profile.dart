@@ -125,28 +125,30 @@ class MostPickedP1 {
       );
 }
 
-class BestSingleSession {
-  final int sessionId;
+class BestWeekend {
+  final int round;
   final String eventName;
-  final String sessionType;
+  /// Total points across every scored session in this weekend (race + sprint
+  /// + sprint quali + qualifying). Sum, not max.
   final int points;
-  const BestSingleSession({
-    required this.sessionId,
+  final int sessions;
+  const BestWeekend({
+    required this.round,
     required this.eventName,
-    required this.sessionType,
     required this.points,
+    required this.sessions,
   });
-  factory BestSingleSession.fromJson(Map<String, dynamic> j) => BestSingleSession(
-        sessionId: (j['sessionId'] as num).toInt(),
+  factory BestWeekend.fromJson(Map<String, dynamic> j) => BestWeekend(
+        round: (j['round'] as num).toInt(),
         eventName: j['eventName'] as String,
-        sessionType: j['sessionType'] as String,
         points: (j['points'] as num).toInt(),
+        sessions: (j['sessions'] as num).toInt(),
       );
 }
 
 class PlayerInsights {
   final MostPickedP1? mostPickedP1;
-  final BestSingleSession? bestSingleSession;
+  final BestWeekend? bestWeekend;
   final double? exactHitRate;
   final double? teamBonusRate;
   final int sessionsScored;
@@ -154,7 +156,7 @@ class PlayerInsights {
   final int exactSlots;
   const PlayerInsights({
     required this.mostPickedP1,
-    required this.bestSingleSession,
+    required this.bestWeekend,
     required this.exactHitRate,
     required this.teamBonusRate,
     required this.sessionsScored,
@@ -165,9 +167,9 @@ class PlayerInsights {
         mostPickedP1: j['mostPickedP1'] == null
             ? null
             : MostPickedP1.fromJson(j['mostPickedP1'] as Map<String, dynamic>),
-        bestSingleSession: j['bestSingleSession'] == null
+        bestWeekend: j['bestWeekend'] == null
             ? null
-            : BestSingleSession.fromJson(j['bestSingleSession'] as Map<String, dynamic>),
+            : BestWeekend.fromJson(j['bestWeekend'] as Map<String, dynamic>),
         exactHitRate: (j['exactHitRate'] as num?)?.toDouble(),
         teamBonusRate: (j['teamBonusRate'] as num?)?.toDouble(),
         sessionsScored: (j['sessionsScored'] as num).toInt(),
@@ -180,15 +182,26 @@ class PreseasonCategoryPick {
   final String category;
   final String? driverCode;
   final String? constructorId;
+  /// Points this pick is currently worth — non-zero means the prediction
+  /// is hitting at this moment (truth either set already or derived from
+  /// in-season aggregates by the preseason rescorer).
+  final int points;
+  /// True when the pick is currently an exact hit (driver and/or
+  /// constructor side of the category's truth matches).
+  final bool exact;
   const PreseasonCategoryPick({
     required this.category,
     required this.driverCode,
     required this.constructorId,
+    required this.points,
+    required this.exact,
   });
   factory PreseasonCategoryPick.fromJson(Map<String, dynamic> j) => PreseasonCategoryPick(
         category: j['category'] as String,
         driverCode: j['driverCode'] as String?,
         constructorId: j['constructorId'] as String?,
+        points: (j['points'] as num?)?.toInt() ?? 0,
+        exact: j['exact'] as bool? ?? false,
       );
 }
 
@@ -233,7 +246,12 @@ class PlayerPreseason {
 class PickLogPick {
   final int position;
   final String driverCode;
-  const PickLogPick({required this.position, required this.driverCode});
+  final String? constructorId;
+  const PickLogPick({
+    required this.position,
+    required this.driverCode,
+    this.constructorId,
+  });
 }
 
 class PickLogResult {
@@ -289,7 +307,8 @@ class PlayerPickLogItem {
             .cast<Map<String, dynamic>>()
             .map((m) => PickLogPick(
                 position: (m['position'] as num).toInt(),
-                driverCode: m['driverCode'] as String))
+                driverCode: m['driverCode'] as String,
+                constructorId: m['constructorId'] as String?))
             .toList(),
         topResults: (j['topResults'] as List)
             .cast<Map<String, dynamic>>()

@@ -79,7 +79,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
         ),
         recentForm: const [],
         insights: const PlayerInsights(
-          mostPickedP1: null, bestSingleSession: null,
+          mostPickedP1: null, bestWeekend: null,
           exactHitRate: null, teamBonusRate: null,
           sessionsScored: 0, totalSlots: 0, exactSlots: 0,
         ),
@@ -335,7 +335,7 @@ class _InsightGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p1 = insights.mostPickedP1;
-    final best = insights.bestSingleSession;
+    final best = insights.bestWeekend;
     final cards = <Widget>[
       _InsightCard(
         label: 'MOST P1',
@@ -345,7 +345,7 @@ class _InsightGrid extends StatelessWidget {
       _InsightCard(
         label: 'BEST GP',
         value: best == null ? '—' : '+${best.points}',
-        sub: best?.eventName,
+        sub: best == null ? null : '${best.eventName} · ${best.sessions} ses.',
       ),
       _InsightCard(
         label: 'EXACT %',
@@ -458,8 +458,14 @@ class _PreseasonCard extends StatelessWidget {
                 ),
                 Text(
                   p.driverCode ?? p.constructorId ?? '—',
-                  style: AppText.body(13, weight: FontWeight.w800),
+                  style: AppText.body(13,
+                      weight: FontWeight.w800,
+                      color: p.exact ? BrandColors.ok : t.colorScheme.onSurface),
                 ),
+                const Spacer(),
+                if (p.exact)
+                  Text('+${p.points}',
+                      style: AppText.display(13, color: BrandColors.ok)),
               ]),
             ),
           if (preseason.driverStandings.isNotEmpty) ...[
@@ -507,6 +513,29 @@ class _PickLogCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = Theme.of(context);
     final resultsByPos = {for (final r in item.topResults) r.position: r};
+
+    // Parse the score breakdown into a per-position lookup so we can render
+    // exact / wrong-pos / miss state and the points each slot was worth.
+    // Keys we care about: { position, exact, wrongPos, points }.
+    final breakdownByPos = <int, _SlotBreakdown>{};
+    bool teamBonusApplied = false;
+    int teamBonusPoints = 0;
+    final bd = item.score?.breakdown;
+    if (bd != null) {
+      final perPosition = (bd['perPosition'] as List?)?.cast<Map<String, dynamic>>() ?? const [];
+      for (final p in perPosition) {
+        final pos = (p['position'] as num).toInt();
+        breakdownByPos[pos] = _SlotBreakdown(
+          exact: p['exact'] as bool? ?? false,
+          wrongPos: p['wrongPos'] as bool? ?? false,
+          points: (p['points'] as num?)?.toInt() ?? 0,
+        );
+      }
+      final tb = bd['teamBonus'] as Map<String, dynamic>?;
+      teamBonusApplied = tb?['applied'] as bool? ?? false;
+      teamBonusPoints = (tb?['points'] as num?)?.toInt() ?? 0;
+    }
+
     return Container(
       padding: const EdgeInsets.all(Spacing.lg),
       decoration: BoxDecoration(
@@ -549,9 +578,31 @@ class _PickLogCard extends StatelessWidget {
             _PickLine(
               pick: pick,
               actual: resultsByPos[pick.position],
-              correctDriver: resultsByPos[pick.position]?.driverCode == pick.driverCode,
+              breakdown: breakdownByPos[pick.position],
             ),
             const SizedBox(height: 2),
+          ],
+          if (teamBonusApplied) ...[
+            const SizedBox(height: Spacing.xs),
+            Row(
+              children: [
+                const SizedBox(width: 26),
+                Container(
+                  width: 5, height: 14,
+                  decoration: BoxDecoration(
+                    color: BrandColors.accent,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(width: Spacing.sm),
+                Text('TEAM BONUS',
+                    style: AppText.label(10,
+                        color: BrandColors.accent)),
+                const Spacer(),
+                Text('+$teamBonusPoints',
+                    style: AppText.display(13, color: BrandColors.accent)),
+              ],
+            ),
           ],
         ],
       ),
@@ -559,21 +610,59 @@ class _PickLogCard extends StatelessWidget {
   }
 }
 
+class _SlotBreakdown {
+  final bool exact;
+  final bool wrongPos;
+  final int points;
+  const _SlotBreakdown({
+    required this.exact,
+    required this.wrongPos,
+    required this.points,
+  });
+}
+
 class _PickLine extends StatelessWidget {
   final PickLogPick pick;
   final PickLogResult? actual;
-  final bool correctDriver;
+  final _SlotBreakdown? breakdown;
   const _PickLine({
     required this.pick,
     required this.actual,
-    required this.correctDriver,
+    required this.breakdown,
   });
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
-    final team = actual == null
-        ? t.colorScheme.onSurface.withOpacity(0.2)
-        : teamColor(actual!.constructorId);
+    // Stripe color = team of the *picked* driver. Falls back to the actual
+    // finisher's team only if the backend didn't send a constructorId for
+    // the pick (older response payloads).
+    final pickedConstructor = pick.constructorId;
+    final team = pickedConstructor != null
+        ? teamColor(pickedConstructor)
+        : (actual == null
+            ? t.colorScheme.onSurface.withOpacity(0.2)
+            : teamColor(actual!.constructorId));
+
+    // Outcome label + color come from the canonical breakdown rather than
+    // string-comparing pick vs. actual — that misses wrong-pos hits, where
+    // the driver finished inside the top-N but at a different slot.
+    final bd = breakdown;
+    String tag;
+    Color tagColor;
+    if (bd == null) {
+      tag = '';
+      tagColor = t.colorScheme.onSurface.withOpacity(0.5);
+    } else if (bd.exact) {
+      tag = 'EXACT';
+      tagColor = BrandColors.ok;
+    } else if (bd.wrongPos) {
+      tag = 'WRONG POS';
+      tagColor = BrandColors.near;
+    } else {
+      tag = 'MISS';
+      tagColor = t.colorScheme.onSurface.withOpacity(0.45);
+    }
+
     return Row(children: [
       SizedBox(
         width: 26,
@@ -596,15 +685,23 @@ class _PickLine extends StatelessWidget {
             style: AppText.body(13, weight: FontWeight.w800)),
       ),
       const Spacer(),
-      if (actual != null && !correctDriver) ...[
-        Text('actual ', style: AppText.label(9, color: t.colorScheme.onSurface.withOpacity(0.5))),
+      // Right side: actual finisher (when the pick wasn't exact), outcome
+      // pill, points pill.
+      if (actual != null && bd != null && !bd.exact) ...[
+        Text('actual ',
+            style: AppText.label(9,
+                color: t.colorScheme.onSurface.withOpacity(0.5))),
         Text(actual!.driverCode,
             style: AppText.body(12,
                 weight: FontWeight.w800,
                 color: t.colorScheme.onSurface.withOpacity(0.7))),
-      ] else if (actual != null) ...[
-        Text('exact',
-            style: AppText.label(9, color: BrandColors.ok)),
+        const SizedBox(width: Spacing.sm),
+      ],
+      Text(tag, style: AppText.label(9, color: tagColor)),
+      if (bd != null) ...[
+        const SizedBox(width: 6),
+        Text(bd.points > 0 ? '+${bd.points}' : '+0',
+            style: AppText.display(12, color: tagColor)),
       ],
     ]);
   }

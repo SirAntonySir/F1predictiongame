@@ -16,7 +16,8 @@ import { getDb } from '../../db/client.js'
 import {
   prediction, predictionPick, session, event, sessionResult,
   leagueMember, user as userTable, preseasonPick, preseasonPickStandingsDriver,
-  preseasonPickStandingsConstructor, preseasonProjectionSnapshot, score
+  preseasonPickStandingsConstructor, preseasonProjectionSnapshot, score,
+  driverStanding
 } from '../../db/schema.js'
 import * as scoresRepo from '../../repo/scores.js'
 import * as seasonsRepo from '../../repo/seasons.js'
@@ -103,28 +104,31 @@ export async function registerPlayerRoutes(app: FastifyInstance): Promise<void> 
       }))
 
       // ---- Insights derived from scored sessions ----
-      let bestSingle: { sessionId: number; eventName: string; sessionType: string; points: number } | null = null
+      // "Best GP" = the weekend (event/round) whose summed scoring sessions
+      // gave the most points. A pure single-session max would hide the
+      // sprint+quali+race combos that the game rewards most heavily.
+      const weekendByRound = new Map<number, { round: number; eventName: string; points: number; sessions: number }>()
       let exactSlots = 0, totalSlots = 0
       let teamBonusEligible = 0, teamBonusApplied = 0
       for (const s of scored) {
         const bd = s.breakdown as StoredBreakdown
-        if (!bestSingle || s.pointsTotal > bestSingle.points) {
-          bestSingle = {
-            sessionId: s.sessionId,
-            eventName: s.eventName,
-            sessionType: s.sessionType,
-            points: s.pointsTotal
-          }
-        }
+        const w = weekendByRound.get(s.eventRound) ?? { round: s.eventRound, eventName: s.eventName, points: 0, sessions: 0 }
+        w.points += s.pointsTotal
+        w.sessions++
+        weekendByRound.set(s.eventRound, w)
+
         for (const p of bd.perPosition) {
           totalSlots++
           if (p.exact) exactSlots++
         }
-        // P1 was picked → team-bonus eligible (a pick of position 1 exists).
         if (bd.perPosition.some((p) => p.position === 1)) {
           teamBonusEligible++
           if (bd.teamBonus.applied) teamBonusApplied++
         }
+      }
+      let bestWeekend: { round: number; eventName: string; points: number; sessions: number } | null = null
+      for (const w of weekendByRound.values()) {
+        if (!bestWeekend || w.points > bestWeekend.points) bestWeekend = w
       }
 
       // Most-picked P1 across all in-season races so far.
@@ -150,7 +154,7 @@ export async function registerPlayerRoutes(app: FastifyInstance): Promise<void> 
 
       const insights = {
         mostPickedP1,
-        bestSingleSession: bestSingle,
+        bestWeekend,
         exactHitRate: totalSlots === 0 ? null : exactSlots / totalSlots,
         teamBonusRate: teamBonusEligible === 0 ? null : teamBonusApplied / teamBonusEligible,
         sessionsScored: scored.length,
@@ -161,6 +165,29 @@ export async function registerPlayerRoutes(app: FastifyInstance): Promise<void> 
       // ---- Preseason ----
       const pPicks = await db.select().from(preseasonPick)
         .where(and(eq(preseasonPick.userId, targetId), eq(preseasonPick.seasonYear, seasonYear)))
+
+      // Per-category score so the UI can paint "exact hit" green. Each
+      // preseason `score` row carries the breakdown's driver.correct /
+      // team.correct flags. We treat a category as 'exact' when either side
+      // is currently correct.
+      const pScoreRows = await db.select({
+        category: score.preseasonCategory,
+        pointsTotal: score.pointsTotal,
+        breakdown: score.breakdown
+      })
+        .from(score)
+        .where(and(
+          eq(score.userId, targetId),
+          eq(score.seasonYear, seasonYear),
+          eq(score.kind, 'preseason')
+        ))
+      const preseasonScoreByCategory = new Map<string, { points: number; exact: boolean }>()
+      for (const r of pScoreRows) {
+        if (!r.category) continue
+        const bd = r.breakdown as { driver?: { correct?: boolean }; team?: { correct?: boolean } }
+        const exact = bd?.driver?.correct === true || bd?.team?.correct === true
+        preseasonScoreByCategory.set(r.category, { points: r.pointsTotal, exact })
+      }
       const pDriverStandings = await db.select({
         position: preseasonPickStandingsDriver.position,
         driverCode: preseasonPickStandingsDriver.driverCode
@@ -187,11 +214,16 @@ export async function registerPlayerRoutes(app: FastifyInstance): Promise<void> 
         .orderBy(desc(preseasonProjectionSnapshot.computedAt))
         .limit(1)
       const preseason = {
-        picks: pPicks.map((p) => ({
-          category: p.category,
-          driverCode: p.driverCode,
-          constructorId: p.constructorId
-        })),
+        picks: pPicks.map((p) => {
+          const s = preseasonScoreByCategory.get(p.category)
+          return {
+            category: p.category,
+            driverCode: p.driverCode,
+            constructorId: p.constructorId,
+            points: s?.points ?? 0,
+            exact: s?.exact ?? false
+          }
+        }),
         driverStandings: pDriverStandings,
         constructorStandings: pConstructorStandings,
         projectedTotal: latestProj?.projectedPoints ?? null
@@ -232,10 +264,27 @@ export async function registerPlayerRoutes(app: FastifyInstance): Promise<void> 
           .from(predictionPick)
           .where(inArray(predictionPick.predictionId, predIds))
           .orderBy(predictionPick.position)
-        const picksByPred = new Map<string, { position: number; driverCode: string }[]>()
+        // Season-wide driver -> constructor lookup so we can color each pick's
+        // team stripe by the *picked* driver's team. Previously the client
+        // colored the stripe by actual finisher's team (a bug: a Verstappen
+        // pick that "wrongPos'd" to Hamilton rendered as Ferrari red).
+        const standingRows = await db.select({
+          driverCode: driverStanding.driverCode,
+          constructorId: driverStanding.constructorId
+        })
+          .from(driverStanding)
+          .where(eq(driverStanding.seasonYear, seasonYear))
+        const constructorByDriver = new Map<string, string>()
+        for (const r of standingRows) constructorByDriver.set(r.driverCode, r.constructorId)
+
+        const picksByPred = new Map<string, { position: number; driverCode: string; constructorId: string | null }[]>()
         for (const p of picks) {
           (picksByPred.get(p.predictionId) ?? picksByPred.set(p.predictionId, []).get(p.predictionId)!)
-            .push({ position: p.position, driverCode: p.driverCode })
+            .push({
+              position: p.position,
+              driverCode: p.driverCode,
+              constructorId: constructorByDriver.get(p.driverCode) ?? null
+            })
         }
         const scoreRows = await db.select({
           sessionId: score.sessionId,
