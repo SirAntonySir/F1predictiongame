@@ -8,10 +8,11 @@ import {
   extractDriversFromStandings, extractConstructorsFromStandings,
   type DriverLookup, type ConstructorLookup
 } from '../jolpica/parsers.js'
-import { parseSessionResult as parseOpenF1SessionResult, parseDrivers as parseOpenF1Drivers, type OpenF1DriverLookup } from '../openf1/parsers.js'
+import { parseSessionResult as parseOpenF1SessionResult, parseDrivers as parseOpenF1Drivers, parseBestLapsPerDriver, type OpenF1DriverLookup } from '../openf1/parsers.js'
 import * as sessionsRepo from '../repo/sessions.js'
 import * as eventsRepo from '../repo/events.js'
 import * as resultsRepo from '../repo/results.js'
+import * as bestLapsRepo from '../repo/bestLaps.js'
 import * as driversRepo from '../repo/drivers.js'
 import * as constructorsRepo from '../repo/constructors.js'
 import * as standingsRepo from '../repo/standings.js'
@@ -181,6 +182,22 @@ export async function runTick(jolpica: JolpicaClient, wiki: WikipediaClient, ope
 
       await resultsRepo.replaceForSession(ses.id!, rowsToPersist.map((r) => ({ ...r, sessionId: ses.id! })))
       await sessionsRepo.markFinished(ses.id!)
+
+      // Best-lap-with-sectors snapshot for the sector-color reference view on
+      // the predict screen. OpenF1-only; skip if the session has no key.
+      // Failures here don't block the tick — the result row is what matters
+      // for scoring; sector data is decorative.
+      if (ses.openf1SessionKey != null) {
+        try {
+          const lapsRaw = await openf1.getLaps(ses.openf1SessionKey)
+          const drvForLaps = openF1Drivers
+            ?? parseOpenF1Drivers(await openf1.getDrivers(ses.openf1SessionKey) ?? [])
+          const best = parseBestLapsPerDriver(lapsRaw, drvForLaps)
+          await bestLapsRepo.replaceForSession(ses.id!, best)
+        } catch (err) {
+          console.warn('Best-lap snapshot failed (session result saved)', { sessionId: ses.id, err })
+        }
+      }
 
       if (openF1Drivers) {
         await enrichDriversAndConstructors(openF1Drivers)

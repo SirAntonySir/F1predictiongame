@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../api/api_client.dart';
 import '../components/big_pill.dart';
 import '../components/branded_field.dart';
+import '../components/branded_toast.dart';
 import '../state/auth_controller.dart';
 import '../theme/colors.dart';
 import '../theme/tokens.dart';
@@ -32,9 +33,8 @@ class _LoginScreenState extends State<LoginScreen> {
       _sessionExpiredShown = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Session expired, please log in again.')),
-        );
+        BrandedToast.show(context, 'Session expired, log in again',
+            tone: ToastTone.error);
       });
     }
   }

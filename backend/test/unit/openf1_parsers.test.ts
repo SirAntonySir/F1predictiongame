@@ -2,7 +2,8 @@ import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import {
-  parseSessionResult, parseDrivers, formatDuration, sessionNameFor
+  parseSessionResult, parseDrivers, formatDuration, sessionNameFor,
+  parseBestLapsPerDriver
 } from '../../src/openf1/parsers.js'
 
 function fx(name: string): unknown {
@@ -87,5 +88,47 @@ describe('parseSessionResult', () => {
     expect(rows[0].q1).toBe('1:30.000')
     expect(rows[0].q2).toBeNull()
     expect(rows[0].q3).toBeNull()
+  })
+})
+
+describe('parseBestLapsPerDriver', () => {
+  // Synthetic driver lookup: numbers 1 and 4 are known, 99 is intentionally not.
+  const drivers = [
+    { driverNumber: 1, code: 'VER', givenName: 'Max', familyName: 'V', teamName: 'Red Bull', headshotUrl: null, teamColour: null },
+    { driverNumber: 4, code: 'NOR', givenName: 'Lando', familyName: 'N', teamName: 'McLaren', headshotUrl: null, teamColour: null }
+  ]
+
+  it('picks the smallest valid flying lap per driver and converts to ms', () => {
+    const out = parseBestLapsPerDriver(fx('laps-sample.json'), drivers)
+    const ver = out.find((b) => b.driverCode === 'VER')!
+    const nor = out.find((b) => b.driverCode === 'NOR')!
+    expect(ver.lapMs).toBe(77999)
+    expect(ver.s1Ms).toBe(23999)
+    expect(ver.s2Ms).toBe(31000)
+    expect(ver.s3Ms).toBe(23000)
+    expect(ver.lapNumber).toBe(3)
+    expect(nor.lapMs).toBe(78500)
+  })
+
+  it('drops pit-out laps and laps without lap_duration', () => {
+    const out = parseBestLapsPerDriver(fx('laps-sample.json'), drivers)
+    // VER lap 1 is pit-out (90.5s) and should be ignored — best is 77.999, not 90.5.
+    const ver = out.find((b) => b.driverCode === 'VER')!
+    expect(ver.lapMs).not.toBe(90500)
+    // NOR lap 2 has null lap_duration; only lap 3 should count.
+    const nor = out.find((b) => b.driverCode === 'NOR')!
+    expect(nor.lapNumber).toBe(3)
+  })
+
+  it('drops drivers not in the lookup', () => {
+    const out = parseBestLapsPerDriver(fx('laps-sample.json'), drivers)
+    expect(out.find((b) => b.driverCode === 'VER')).toBeDefined()
+    expect(out.find((b) => b.driverCode === 'NOR')).toBeDefined()
+    expect(out.length).toBe(2)  // driver 99 has no lookup entry
+  })
+
+  it('returns empty array for null/empty input', () => {
+    expect(parseBestLapsPerDriver(null, drivers)).toEqual([])
+    expect(parseBestLapsPerDriver([], drivers)).toEqual([])
   })
 })

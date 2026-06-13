@@ -8,8 +8,11 @@ import '../api/models/event.dart';
 import '../api/models/pick.dart';
 import '../api/models/session.dart';
 import '../api/models/session_result.dart';
+import '../api/models/reference_laps.dart';
 import '../components/app_card.dart';
 import '../components/branded_sheet.dart';
+import '../components/branded_toast.dart';
+import '../components/driver_sector_row.dart';
 import '../components/driver_tile.dart';
 import '../components/error_view.dart';
 import '../components/slot.dart';
@@ -146,6 +149,15 @@ class _PredictScreenState extends State<PredictScreen> {
         if (t != null && t.isNotEmpty) referenceTimes[r.driverCode] = t;
       }
     }
+    // Sector reference data — backed by OpenF1 /laps via the new endpoint.
+    // Best-effort: empty references just hide the per-driver dot rows, the
+    // screen still works.
+    ReferenceLapsResponse? refLaps;
+    try {
+      refLaps = await scope.api.sessionReferenceLaps(session.id);
+    } catch (_) {
+      refLaps = null;
+    }
     // Build the chronological nav list of all upcoming pickable sessions in
     // events whose lock hasn't passed (event lock = earliest session start).
     final chronological = <_NavRef>[];
@@ -171,6 +183,7 @@ class _PredictScreenState extends State<PredictScreen> {
       event: upcoming, session: session, drivers: sorted, prev: prev, next: next,
       referenceSession: weekendRef,
       referenceTimes: referenceTimes,
+      referenceLaps: refLaps,
     );
   }
 
@@ -243,7 +256,7 @@ class _PredictScreenState extends State<PredictScreen> {
     if (session == null) return;
     if (scope.predictions.prediction(session.id)?.isLocked == true) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Pick already locked')));
+        BrandedToast.show(context, 'Pick already locked', tone: ToastTone.error);
       }
       return;
     }
@@ -259,13 +272,13 @@ class _PredictScreenState extends State<PredictScreen> {
         _initialPicks = List<String>.from(_picks);
         _editing = false;
       });
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Pick saved')));
+      BrandedToast.show(context, 'Pick saved', tone: ToastTone.ok);
     } on ConflictException catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+      if (mounted) BrandedToast.show(context, e.message, tone: ToastTone.error);
     } on ValidationException catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+      if (mounted) BrandedToast.show(context, e.message, tone: ToastTone.error);
     } catch (_) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Couldn't save")));
+      if (mounted) BrandedToast.show(context, "Couldn't save", tone: ToastTone.error);
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -453,7 +466,9 @@ class _PredictScreenState extends State<PredictScreen> {
                     children: [
                       Text('DRIVERS', style: AppText.label(11, color: t.colorScheme.onSurface.withOpacity(0.6))),
                       const Spacer(),
-                      if (d.referenceSession != null && d.event != null)
+                      if (d.referenceLaps != null && d.referenceLaps!.references.isNotEmpty)
+                        _SectorLegend(t: t)
+                      else if (d.referenceSession != null && d.event != null)
                         _ReferenceSourceChip(
                           referenceSession: d.referenceSession!,
                           eventRound: d.event!.round,
@@ -461,39 +476,43 @@ class _PredictScreenState extends State<PredictScreen> {
                     ],
                   ),
                 ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
-                  // Responsive driver grid: target ~95px per tile so iPads
-                  // and other wide viewports get more columns instead of 4
-                  // huge boxes. Phones stay at 4 (their default), tablets
-                  // jump to 6–8, landscape iPad maxes out around 10.
-                  child: LayoutBuilder(
-                    builder: (ctx, constraints) {
-                      const targetTileWidth = 95.0;
-                      final cols = (constraints.maxWidth / targetTileWidth)
-                          .floor()
-                          .clamp(4, 10);
-                      return GridView.count(
-                        crossAxisCount: cols,
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        mainAxisSpacing: 6,
-                        crossAxisSpacing: 6,
-                        childAspectRatio: 1.4,
-                        children: d.drivers.map((r) {
-                          final slot = _picks.indexOf(r.driverCode);
-                          return DriverTile(
-                            code: r.driverCode,
-                            constructorId: r.constructorId,
-                            pickedSlot: slot == -1 ? null : slot + 1,
-                            lapTime: d.referenceTimes[r.driverCode],
-                            onTap: canEdit ? () => _toggleDriver(r.driverCode) : null,
-                          );
-                        }).toList(),
-                      );
-                    },
+                if (d.referenceLaps != null && d.referenceLaps!.references.isNotEmpty)
+                  _SectorReferenceList(
+                    data: d,
+                    picks: _picks,
+                    canEdit: canEdit,
+                    onToggle: _toggleDriver,
+                  )
+                else
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
+                    child: LayoutBuilder(
+                      builder: (ctx, constraints) {
+                        const targetTileWidth = 95.0;
+                        final cols = (constraints.maxWidth / targetTileWidth)
+                            .floor()
+                            .clamp(4, 10);
+                        return GridView.count(
+                          crossAxisCount: cols,
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          mainAxisSpacing: 6,
+                          crossAxisSpacing: 6,
+                          childAspectRatio: 1.4,
+                          children: d.drivers.map((r) {
+                            final slot = _picks.indexOf(r.driverCode);
+                            return DriverTile(
+                              code: r.driverCode,
+                              constructorId: r.constructorId,
+                              pickedSlot: slot == -1 ? null : slot + 1,
+                              lapTime: d.referenceTimes[r.driverCode],
+                              onTap: canEdit ? () => _toggleDriver(r.driverCode) : null,
+                            );
+                          }).toList(),
+                        );
+                      },
+                    ),
                   ),
-                ),
               ],
               ),
             );
@@ -591,6 +610,11 @@ class _PredictData {
   /// (e.g. "1:18.234" for an FP best lap, "1:17.234 (Q1)" for a quali driver
   /// knocked out in Q1). Empty when no useful timing exists.
   final Map<String, String> referenceTimes;
+  /// Per-driver best laps with sector tiers across up to 3 reference sessions
+  /// of the same event. Null when the new endpoint isn't reachable or no
+  /// reference sessions have run yet — list falls back to the legacy
+  /// grid+lap-time view.
+  final ReferenceLapsResponse? referenceLaps;
   _PredictData({
     required this.event,
     required this.session,
@@ -599,6 +623,7 @@ class _PredictData {
     required this.next,
     this.referenceSession,
     this.referenceTimes = const {},
+    this.referenceLaps,
   });
 }
 
@@ -740,6 +765,170 @@ class _PredictSkeleton extends StatelessWidget {
             ),
         ],
       ),
+    );
+  }
+}
+
+/// Column-header strip above the sector-row list. Names the up-to-3 reference
+/// sessions (FP1/FP2/FP3 or Q1/Q2/Q3 etc) and the BEST + star columns. Sits
+/// inset to align with the row internals (skip past team stripe + code col).
+class _SectorReferenceHeader extends StatelessWidget {
+  final ReferenceLapsResponse refs;
+  const _SectorReferenceHeader({required this.refs});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Theme.of(context);
+    final muted = AppText.label(8, color: t.colorScheme.onSurface.withOpacity(0.55));
+    return Padding(
+      padding: const EdgeInsets.only(left: 78, right: Spacing.md, bottom: Spacing.xs),
+      child: Row(
+        children: [
+          Expanded(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                for (final r in refs.references) Text(r.label, style: muted),
+              ],
+            ),
+          ),
+          SizedBox(width: 60, child: Text('BEST', style: muted, textAlign: TextAlign.right)),
+        ],
+      ),
+    );
+  }
+}
+
+/// Reference list: one row per driver who's not currently picked. Sorted by
+/// fastest lap across the available reference sessions (drivers with no lap
+/// fall to the bottom).
+class _SectorReferenceList extends StatelessWidget {
+  final _PredictData data;
+  final List<String> picks;
+  final bool canEdit;
+  final ValueChanged<String> onToggle;
+  const _SectorReferenceList({
+    required this.data,
+    required this.picks,
+    required this.canEdit,
+    required this.onToggle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final refs = data.referenceLaps!;
+    final byDriver = refs.byDriver;
+    final byCode = {for (final r in data.drivers) r.driverCode: r};
+
+    // Build sortable rows for every driver in either the driver list or the
+    // reference data — the reference set is the truth source for who ran on
+    // track this weekend; the SessionResult lookup gives us team color.
+    final allCodes = <String>{...byCode.keys, ...byDriver.keys};
+    final rows = <_DriverSectorRowModel>[];
+    for (final code in allCodes) {
+      if (picks.contains(code)) continue;  // picked → moved to top, hide here
+      final laps = byDriver[code] ?? List<ReferenceLap?>.filled(refs.references.length, null);
+      ReferenceLap? best;
+      var bestIdx = -1;
+      for (var i = 0; i < laps.length; i++) {
+        final l = laps[i];
+        if (l == null) continue;
+        if (best == null || l.lapMs < best.lapMs) { best = l; bestIdx = i; }
+      }
+      final sr = byCode[code];
+      rows.add(_DriverSectorRowModel(
+        driverCode: code,
+        constructorId: sr?.constructorId,
+        teamColorHex: sr?.teamColour,
+        laps: laps,
+        bestLapMs: best?.lapMs,
+        bestSlot: bestIdx >= 0 ? bestIdx : null,
+      ));
+    }
+    // Fastest first, no-laps last.
+    rows.sort((a, b) {
+      if (a.bestLapMs == null && b.bestLapMs == null) return a.driverCode.compareTo(b.driverCode);
+      if (a.bestLapMs == null) return 1;
+      if (b.bestLapMs == null) return -1;
+      return a.bestLapMs!.compareTo(b.bestLapMs!);
+    });
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
+      child: Column(
+        children: [
+          _SectorReferenceHeader(refs: refs),
+          for (final r in rows)
+            Padding(
+              padding: const EdgeInsets.only(bottom: Spacing.xs),
+              child: DriverSectorRow(
+                driverCode: r.driverCode,
+                driverNumber: null,
+                constructorId: r.constructorId,
+                teamColorHex: r.teamColorHex,
+                referenceLaps: r.laps,
+                bestSlot: r.bestSlot,
+                onTap: canEdit ? () => onToggle(r.driverCode) : null,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DriverSectorRowModel {
+  final String driverCode;
+  final String? constructorId;
+  final String? teamColorHex;
+  final List<ReferenceLap?> laps;
+  final int? bestLapMs;
+  final int? bestSlot;
+  _DriverSectorRowModel({
+    required this.driverCode,
+    required this.constructorId,
+    required this.teamColorHex,
+    required this.laps,
+    required this.bestLapMs,
+    required this.bestSlot,
+  });
+}
+
+/// Tiny legend pill explaining the dot colors. Sits where the "TIMES · FP2"
+/// chip used to live so the header strip stays informative without spelling
+/// it out per-row.
+class _SectorLegend extends StatelessWidget {
+  final ThemeData t;
+  const _SectorLegend({required this.t});
+
+  @override
+  Widget build(BuildContext context) {
+    return const Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _LegendDot(color: BrandColors.violet, label: 'BEST'),
+        SizedBox(width: Spacing.sm),
+        _LegendDot(color: BrandColors.ok, label: 'PB'),
+      ],
+    );
+  }
+}
+
+class _LegendDot extends StatelessWidget {
+  final Color color;
+  final String label;
+  const _LegendDot({required this.color, required this.label});
+  @override
+  Widget build(BuildContext context) {
+    final t = Theme.of(context);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(width: 6, height: 6, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+        const SizedBox(width: 3),
+        Text(label,
+            style: AppText.label(9, color: t.colorScheme.onSurface.withOpacity(0.6))),
+      ],
     );
   }
 }

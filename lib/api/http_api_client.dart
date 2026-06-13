@@ -15,6 +15,7 @@ import 'models/my_score.dart';
 import 'models/pick.dart';
 import 'models/prediction_view.dart';
 import 'models/preseason_mine.dart';
+import 'models/reference_laps.dart';
 import '../domain/preseason.dart';
 import 'models/season.dart';
 import 'models/session.dart';
@@ -129,6 +130,12 @@ class HttpApiClient implements ApiClient {
           .cast<Map<String, dynamic>>()
           .map(SessionResult.fromJson)
           .toList();
+
+  @override
+  Future<ReferenceLapsResponse> sessionReferenceLaps(int id) async =>
+      ReferenceLapsResponse.fromJson(
+        await _request('GET', '/api/sessions/$id/reference-laps') as Map<String, dynamic>,
+      );
 
   @override
   Future<LiveSnapshot> sessionLive(int id, {String? leagueId}) async {

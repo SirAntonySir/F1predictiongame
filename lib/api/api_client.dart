@@ -15,6 +15,7 @@ import 'models/preseason_mine.dart';
 import '../domain/preseason.dart';
 import 'models/season.dart';
 import 'models/session.dart';
+import 'models/reference_laps.dart';
 import 'models/session_leaderboard_row.dart';
 import 'models/session_result.dart';
 import 'models/live_snapshot.dart';
@@ -29,6 +30,7 @@ abstract class ApiClient {
   Future<Event> event(int round);
   Future<Session> session(int id);
   Future<List<SessionResult>> sessionResults(int id);
+  Future<ReferenceLapsResponse> sessionReferenceLaps(int id);
   Future<LiveSnapshot> sessionLive(int id, {String? leagueId});
   Future<Session> nextSession();
   Future<List<DriverStanding>> driverStandings({int? season});

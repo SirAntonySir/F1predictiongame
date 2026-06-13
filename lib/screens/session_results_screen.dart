@@ -28,6 +28,10 @@ import '../theme/typography.dart';
 // on the results screen so the actual session classification stays visible from
 // the calendar drill-down. With no picks, the YourScore ticket just reads
 // "No picks for this session" and the FULL CLASSIFICATION renders normally.
+//
+// Practice sessions (FP1/FP2/FP3) follow the same view-only pattern — they
+// have no picks and aren't scored, but the FP results are useful reference
+// material so they get tabs here too.
 const _pickableTypes = {
   SessionType.qualifying,
   SessionType.sprint_quali,
@@ -35,7 +39,20 @@ const _pickableTypes = {
   SessionType.race,
 };
 
+const _displayableTypes = {
+  SessionType.fp1,
+  SessionType.fp2,
+  SessionType.fp3,
+  SessionType.qualifying,
+  SessionType.sprint_quali,
+  SessionType.sprint,
+  SessionType.race,
+};
+
 const _typeLabels = {
+  SessionType.fp1: 'FP1',
+  SessionType.fp2: 'FP2',
+  SessionType.fp3: 'FP3',
   SessionType.qualifying: 'QUALI',
   SessionType.sprint_quali: 'SPRINT QUALI',
   SessionType.sprint: 'SPRINT',
@@ -86,11 +103,18 @@ class _SessionResultsScreenState extends State<SessionResultsScreen> {
       } on NotFoundException {
         // Results haven't published yet — still try the prediction + scores
         // so we can show picks-without-results.
-        try { await scope.predictions.fetchPrediction(sessionId); } catch (_) {}
-        try { await scope.predictions.refreshScores(); } catch (_) {}
+        try {
+          await scope.predictions.fetchPrediction(sessionId);
+        } catch (_) {}
+        try {
+          await scope.predictions.refreshScores();
+        } catch (_) {}
       }
-      final picks = scope.predictions.prediction(sessionId)
-              ?.picks.map((p) => p.driverCode).toList() ??
+      final picks = scope.predictions
+              .prediction(sessionId)
+              ?.picks
+              .map((p) => p.driverCode)
+              .toList() ??
           const <String>[];
       final backendScore = scope.predictions.score(sessionId)?.pointsTotal;
       // Best-effort fetch of league members' picks. Hidden if the user has
@@ -101,13 +125,13 @@ class _SessionResultsScreenState extends State<SessionResultsScreen> {
       final selfId = scope.auth.currentUserId;
       if (leagues.isNotEmpty) {
         try {
-          final res = await scope.api.leagueSessionPredictions(
-              leagues.first.id, sessionId);
+          final res = await scope.api
+              .leagueSessionPredictions(leagues.first.id, sessionId);
           members = res.sessionLocked
               ? res.predictions.where((p) => p.userId != selfId).toList()
               : const [];
-          members.sort((a, b) =>
-              (b.pointsTotal ?? -1).compareTo(a.pointsTotal ?? -1));
+          members.sort(
+              (a, b) => (b.pointsTotal ?? -1).compareTo(a.pointsTotal ?? -1));
         } catch (_) {
           members = const [];
         }
@@ -150,7 +174,7 @@ class _SessionResultsScreenState extends State<SessionResultsScreen> {
               orElse: () => allEvents.first,
             );
             final sessions = event.sessions
-                .where((s) => _pickableTypes.contains(s.type))
+                .where((s) => _displayableTypes.contains(s.type))
                 .toList()
               ..sort((a, b) => a.scheduledStart.compareTo(b.scheduledStart));
             if (sessions.isEmpty) {
@@ -164,11 +188,13 @@ class _SessionResultsScreenState extends State<SessionResultsScreen> {
             // used to advance past the last sub-tab of one event into the
             // first sub-tab of the next.
             final chronological = _allPickableSessions(allEvents);
-            final currentIdx = chronological.indexWhere((e) => e.sessionId == active.id);
+            final currentIdx =
+                chronological.indexWhere((e) => e.sessionId == active.id);
             final prev = currentIdx > 0 ? chronological[currentIdx - 1] : null;
-            final next = currentIdx >= 0 && currentIdx < chronological.length - 1
-                ? chronological[currentIdx + 1]
-                : null;
+            final next =
+                currentIdx >= 0 && currentIdx < chronological.length - 1
+                    ? chronological[currentIdx + 1]
+                    : null;
 
             return GestureDetector(
               behavior: HitTestBehavior.translucent,
@@ -189,7 +215,7 @@ class _SessionResultsScreenState extends State<SessionResultsScreen> {
                     _header(event, active, t, prev: prev, next: next),
                     Padding(
                       padding: const EdgeInsets.fromLTRB(
-                          Spacing.lg, Spacing.sm, Spacing.lg, Spacing.xs),
+                          Spacing.lg, Spacing.sm, Spacing.lg, Spacing.lg),
                       child: Wrap(
                         spacing: 6,
                         runSpacing: 6,
@@ -349,7 +375,7 @@ List<_PickableSessionRef> _allPickableSessions(List<Event> events) {
   final out = <_PickableSessionRef>[];
   for (final e in events) {
     for (final s in e.sessions) {
-      if (!_pickableTypes.contains(s.type)) continue;
+      if (!_displayableTypes.contains(s.type)) continue;
       out.add(_PickableSessionRef(
         sessionId: s.id,
         eventRound: e.round,
@@ -378,7 +404,8 @@ class _SessionTab extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: Spacing.md, vertical: 7),
+        padding:
+            const EdgeInsets.symmetric(horizontal: Spacing.md, vertical: 7),
         decoration: BoxDecoration(
           color: active ? t.colorScheme.onSurface : Colors.transparent,
           border: Border.all(color: t.strokeColor, width: 1.5),
@@ -400,7 +427,8 @@ class _Body extends StatelessWidget {
   final Event event;
   final Session session;
   final _SessionPayload payload;
-  const _Body({required this.event, required this.session, required this.payload});
+  const _Body(
+      {required this.event, required this.session, required this.payload});
 
   int get _topN => requiredPicks(session.type);
 
@@ -434,10 +462,15 @@ class _Body extends StatelessWidget {
     final missCount =
         picksHits.where((p) => p.outcome == PickOutcome.miss).length;
 
+    // Practice sessions are view-only and have no picks → skip the score /
+    // upcoming-session tickets entirely and let the classification stand
+    // alone. The "Session hasn't run yet" empty state below covers FP3
+    // before it starts.
+    final isPickable = _pickableTypes.contains(session.type);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (payload.result.isEmpty) ...[
+        if (isPickable && payload.result.isEmpty) ...[
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
             child: _FutureSessionHero(
@@ -446,7 +479,7 @@ class _Body extends StatelessWidget {
               picks: payload.picks,
             ),
           ),
-        ] else ...[
+        ] else if (isPickable) ...[
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
             child: _YourScoreTicket(
@@ -454,6 +487,18 @@ class _Body extends StatelessWidget {
               subtitle: payload.picks.isEmpty
                   ? 'No picks for this session'
                   : '$exactCount exact · $nearCount in top-$topN · $missCount miss',
+            ),
+          ),
+        ] else if (payload.result.isEmpty) ...[
+          // Non-pickable session (FP) that hasn't been classified yet.
+          // Show a quiet placeholder instead of a ticket.
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+                Spacing.lg, Spacing.xl, Spacing.lg, Spacing.lg),
+            child: Text(
+              'Session hasn\'t run yet, results appear here after the chequered flag.',
+              style: AppText.label(11,
+                  color: t.colorScheme.onSurface.withOpacity(0.55)),
             ),
           ),
         ],
@@ -509,13 +554,11 @@ class _Body extends StatelessWidget {
                         SizedBox(
                           width: 44,
                           child: Text(r.driverCode,
-                              style:
-                                  AppText.body(12, weight: FontWeight.w800)),
+                              style: AppText.body(12, weight: FontWeight.w800)),
                         ),
                         Expanded(
                           child: Text(r.driverName,
-                              style:
-                                  AppText.body(12, weight: FontWeight.w500)),
+                              style: AppText.body(12, weight: FontWeight.w500)),
                         ),
                         if (pickedSlot != null) ...[
                           _PickSlotChip(slot: pickedSlot),
@@ -537,7 +580,7 @@ class _Body extends StatelessWidget {
             ),
           ),
         ],
-        if (payload.leagueMemberPredictions.isNotEmpty) ...[
+        if (isPickable && payload.leagueMemberPredictions.isNotEmpty) ...[
           Padding(
             padding: const EdgeInsets.fromLTRB(
                 Spacing.lg, Spacing.xl, Spacing.lg, Spacing.xs),
@@ -652,6 +695,7 @@ class _SessionPayload {
   final List<SessionResult> result;
   final List<String> picks;
   final int? backendScore;
+
   /// Every league member's picks + session score for this session. Empty when
   /// the user has no league, the session hasn't started, or the call failed.
   /// Already filtered to exclude the caller themselves.
@@ -686,7 +730,8 @@ class _FutureSessionHero extends StatelessWidget {
     final flag = flagFor(event.country);
     final dateLabel = DateFormat('EEE d MMM').format(session.scheduledStart);
     final timeLabel = DateFormat('HH:mm').format(session.scheduledStart);
-    final typeLabel = _typeLabels[session.type] ?? session.type.name.toUpperCase();
+    final typeLabel =
+        _typeLabels[session.type] ?? session.type.name.toUpperCase();
     final inFuture = session.scheduledStart.isAfter(DateTime.now());
     final empty = picks.isEmpty;
 
@@ -705,11 +750,13 @@ class _FutureSessionHero extends StatelessWidget {
             ),
             const SizedBox(width: Spacing.sm),
             Text(typeLabel,
-                style: AppText.label(10, color: Colors.black.withOpacity(0.65))),
+                style:
+                    AppText.label(10, color: Colors.black.withOpacity(0.65))),
           ],
         ),
         const SizedBox(height: Spacing.sm),
-        Text(event.name.toUpperCase(), style: AppText.display(22, color: Colors.black)),
+        Text(event.name.toUpperCase(),
+            style: AppText.display(22, color: Colors.black)),
         const SizedBox(height: Spacing.xs),
         Text(
           '$dateLabel · $timeLabel · ${event.circuitName}',
@@ -721,7 +768,8 @@ class _FutureSessionHero extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text('STARTS IN',
-                  style: AppText.label(10, color: Colors.black.withOpacity(0.55))),
+                  style:
+                      AppText.label(10, color: Colors.black.withOpacity(0.55))),
               const SizedBox(width: 8),
               Countdown(target: session.scheduledStart, size: 22),
             ],
@@ -731,7 +779,8 @@ class _FutureSessionHero extends StatelessWidget {
         // Inner horizontal perforation separating the event info from the picks.
         CustomPaint(
           size: const Size.fromHeight(1),
-          painter: _HorizontalDashedLinePainter(color: Colors.black.withOpacity(0.4)),
+          painter: _HorizontalDashedLinePainter(
+              color: Colors.black.withOpacity(0.4)),
         ),
         const SizedBox(height: Spacing.md),
         Text(empty ? 'YOUR PICKS · DRAFT' : 'YOUR PICKS',
@@ -742,8 +791,8 @@ class _FutureSessionHero extends StatelessWidget {
             _isPickable
                 ? 'No picks yet — tap → to start'
                 : 'No predictions for this session',
-            style: AppText.body(12,
-                color: Colors.black.withOpacity(0.55)).copyWith(fontStyle: FontStyle.italic),
+            style: AppText.body(12, color: Colors.black.withOpacity(0.55))
+                .copyWith(fontStyle: FontStyle.italic),
           )
         else
           Wrap(
@@ -755,13 +804,16 @@ class _FutureSessionHero extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
                         color: Colors.black.withOpacity(0.1),
-                        borderRadius: const BorderRadius.all(Radius.circular(4)),
+                        borderRadius:
+                            const BorderRadius.all(Radius.circular(4)),
                       ),
                       child: Text('P${i + 1}',
-                          style: AppText.label(9, color: Colors.black.withOpacity(0.7))),
+                          style: AppText.label(9,
+                              color: Colors.black.withOpacity(0.7))),
                     ),
                     const SizedBox(width: 6),
                     Text(picks[i],
@@ -776,8 +828,10 @@ class _FutureSessionHero extends StatelessWidget {
 
     return TicketCard(
       stubWidth: 76,
-      bodyPadding: const EdgeInsets.fromLTRB(Spacing.lg, Spacing.lg, Spacing.lg, Spacing.lg),
-      stubPadding: const EdgeInsets.symmetric(horizontal: Spacing.sm, vertical: Spacing.md),
+      bodyPadding: const EdgeInsets.fromLTRB(
+          Spacing.lg, Spacing.lg, Spacing.lg, Spacing.lg),
+      stubPadding: const EdgeInsets.symmetric(
+          horizontal: Spacing.sm, vertical: Spacing.md),
       body: body,
       stub: _isPickable ? _stub(context, empty: empty) : _viewOnlyStub(),
     );
@@ -812,7 +866,8 @@ class _FutureSessionHero extends StatelessWidget {
         children: [
           Text('VIEW', style: AppText.display(14, color: Colors.black)),
           const SizedBox(height: 4),
-          Text('only', style: AppText.label(9, color: Colors.black.withOpacity(0.55))),
+          Text('only',
+              style: AppText.label(9, color: Colors.black.withOpacity(0.55))),
         ],
       ),
     );
@@ -861,15 +916,12 @@ class _YourScoreTicket extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Text('YOUR SCORE',
-              style: AppText.label(10,
-                  color: Colors.black.withOpacity(0.7))),
+              style: AppText.label(10, color: Colors.black.withOpacity(0.7))),
           const SizedBox(height: 4),
-          Text('+$score',
-              style: AppText.display(36, color: Colors.black)),
+          Text('+$score', style: AppText.display(36, color: Colors.black)),
           const SizedBox(height: 4),
           Text(subtitle,
-              style: AppText.body(12,
-                  color: Colors.black.withOpacity(0.7))),
+              style: AppText.body(12, color: Colors.black.withOpacity(0.7))),
         ],
       ),
     );
@@ -904,12 +956,11 @@ class _MemberPickTicket extends StatelessWidget {
               ),
               if (pts != null)
                 Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 7, vertical: 3),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
                   decoration: BoxDecoration(
                     color: pts > 0 ? BrandColors.ok : Colors.black,
-                    borderRadius:
-                        const BorderRadius.all(Radius.circular(6)),
+                    borderRadius: const BorderRadius.all(Radius.circular(6)),
                   ),
                   child: Text('+$pts',
                       style: AppText.label(9,
@@ -920,8 +971,7 @@ class _MemberPickTicket extends StatelessWidget {
           const SizedBox(height: Spacing.sm),
           if (empty)
             Text('No picks for this session',
-                style: AppText.body(12,
-                    color: Colors.black.withOpacity(0.55))
+                style: AppText.body(12, color: Colors.black.withOpacity(0.55))
                     .copyWith(fontStyle: FontStyle.italic))
           else
             Wrap(
@@ -929,7 +979,8 @@ class _MemberPickTicket extends StatelessWidget {
               runSpacing: 6,
               children: [
                 for (final p in member.picks)
-                  _MemberPickChip(position: p.position, driverCode: p.driverCode),
+                  _MemberPickChip(
+                      position: p.position, driverCode: p.driverCode),
               ],
             ),
         ],
@@ -960,7 +1011,8 @@ class _MemberPickChip extends StatelessWidget {
         ),
         const SizedBox(width: 6),
         Text(driverCode,
-            style: AppText.body(14, weight: FontWeight.w800, color: Colors.black)),
+            style:
+                AppText.body(14, weight: FontWeight.w800, color: Colors.black)),
       ],
     );
   }
@@ -1004,8 +1056,8 @@ class LiveResultsBody extends StatelessWidget {
         ),
       ),
       Padding(
-        padding:
-            const EdgeInsets.fromLTRB(Spacing.lg, Spacing.lg, Spacing.lg, Spacing.xs),
+        padding: const EdgeInsets.fromLTRB(
+            Spacing.lg, Spacing.lg, Spacing.lg, Spacing.xs),
         child: Row(children: [
           Container(
               width: 8,
@@ -1077,8 +1129,8 @@ class LiveResultsBody extends StatelessWidget {
         ),
         for (final m in members)
           Padding(
-            padding:
-                const EdgeInsets.fromLTRB(Spacing.lg, 0, Spacing.lg, Spacing.sm),
+            padding: const EdgeInsets.fromLTRB(
+                Spacing.lg, 0, Spacing.lg, Spacing.sm),
             child: _MemberPickTicket(member: m),
           ),
       ],

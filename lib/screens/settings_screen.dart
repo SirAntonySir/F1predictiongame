@@ -1,4 +1,3 @@
-// ignore_for_file: deprecated_member_use
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
@@ -6,12 +5,17 @@ import 'package:go_router/go_router.dart';
 import '../components/branded_sheet.dart';
 import '../components/branded_field.dart';
 import '../components/branded_time_picker.dart';
+import '../components/branded_toast.dart';
 import '../state/app_state.dart';
 import '../state/notification_settings_controller.dart';
 import '../theme/app_theme.dart';
 import '../theme/colors.dart';
 import '../theme/tokens.dart';
 import '../theme/typography.dart';
+
+// Muted-color scale: text reads at 0.55, icons at 0.7.
+const double _mutedText = 0.55;
+const double _mutedIcon = 0.7;
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -51,127 +55,68 @@ class SettingsScreen extends StatelessWidget {
             const SizedBox(height: Spacing.xl),
             Text('ACCOUNT', style: AppText.label(11)),
             const SizedBox(height: Spacing.sm),
-            _boxed(
-              t,
-              child: Row(children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(currentName,
-                          style: AppText.body(14, weight: FontWeight.w700)),
-                      if (currentEmail.isNotEmpty)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 2),
-                          child: Text(currentEmail,
-                              style: AppText.body(11,
-                                  color: t.colorScheme.onSurface
-                                      .withOpacity(0.6))),
-                        ),
-                    ],
-                  ),
-                ),
-                TextButton(
-                  onPressed: () async {
-                    final confirmed = await BrandedSheet.confirm(
-                      context,
-                      title: 'Log out?',
-                      primaryLabel: 'Log out',
-                    );
-                    if (confirmed && context.mounted) {
-                      await AppState.of(context).auth.logout();
-                    }
-                  },
-                  child: Text('Sign out',
-                      style: AppText.body(13,
-                          weight: FontWeight.w700,
-                          color: BrandColors.accent)),
-                ),
-              ]),
+            _SettingsCard(
+              title: currentName,
+              subtitle: currentEmail.isEmpty ? null : currentEmail,
+              trailing: TextButton(
+                onPressed: () async {
+                  final confirmed = await BrandedSheet.confirm(
+                    context,
+                    title: 'Log out?',
+                    primaryLabel: 'Log out',
+                  );
+                  if (confirmed && context.mounted) {
+                    await AppState.of(context).auth.logout();
+                  }
+                },
+                child: Text('Sign out',
+                    style: AppText.body(13,
+                        weight: FontWeight.w700, color: BrandColors.accent)),
+              ),
             ),
             const SizedBox(height: Spacing.sm),
-            InkWell(
+            _SettingsCard(
+              title: 'Change password',
+              subtitle: 'Update your sign-in password',
+              trailing: _chevron(t),
               onTap: () {
                 final qs = currentEmail.isEmpty
                     ? ''
                     : '?email=${Uri.encodeQueryComponent(currentEmail)}';
                 context.push('/change-password$qs');
               },
-              borderRadius: const BorderRadius.all(Radius.circular(14)),
-              child: _boxed(
-                t,
-                child: Row(children: [
-                  Expanded(
-                    child: Text('Change password',
-                        style: AppText.body(14, weight: FontWeight.w700)),
-                  ),
-                  Text('›',
-                      style: TextStyle(
-                          fontSize: 20, color: t.colorScheme.onSurface)),
-                ]),
-              ),
             ),
             const SizedBox(height: Spacing.xl),
             Text('PRE-SEASON', style: AppText.label(11)),
             const SizedBox(height: Spacing.sm),
-            InkWell(
+            _SettingsCard(
+              title: 'Pre-season questionnaire',
+              subtitle: 'Driver & team predictions for the season',
+              trailing: _chevron(t),
               onTap: () => context.push('/preseason'),
-              borderRadius: const BorderRadius.all(Radius.circular(14)),
-              child: _boxed(
-                t,
-                child: Row(children: [
-                  Expanded(
-                    child: Text('Pre-season questionnaire',
-                        style: AppText.body(14, weight: FontWeight.w700)),
-                  ),
-                  Text('›',
-                      style: TextStyle(
-                          fontSize: 20, color: t.colorScheme.onSurface)),
-                ]),
-              ),
             ),
             const SizedBox(height: Spacing.xl),
             Text('LEAGUE', style: AppText.label(11)),
             const SizedBox(height: Spacing.sm),
-            _boxed(
-              t,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(league?.name ?? 'No league',
-                      style: AppText.body(14, weight: FontWeight.w700)),
-                  if (league != null) ...[
-                    const SizedBox(height: 4),
-                    Text('${league.members.length} members',
-                        style: AppText.body(11,
-                            color: t.colorScheme.onSurface.withOpacity(0.6))),
-                    if (league.joinCode != null) ...[
-                      const SizedBox(height: Spacing.sm),
-                      _JoinCodeRow(code: league.joinCode!),
-                    ],
-                    if (league.role == 'owner') ...[
-                      const SizedBox(height: Spacing.sm),
-                      _LeaguePasswordRow(
-                        hasPassword: league.hasPassword,
-                        leagueId: league.id,
-                      ),
-                    ] else if (league.hasPassword) ...[
-                      const SizedBox(height: Spacing.sm),
-                      Row(
-                        children: [
-                          FaIcon(FontAwesomeIcons.lock, size: 12,
-                              color: t.colorScheme.onSurface.withOpacity(0.5)),
-                          const SizedBox(width: 4),
-                          Text('Password-protected',
-                              style: AppText.body(11,
-                                  color: t.colorScheme.onSurface.withOpacity(0.5))),
-                        ],
-                      ),
-                    ],
-                  ],
-                ],
-              ),
+            _SettingsCard(
+              title: league?.name ?? 'No league',
+              subtitle: league == null
+                  ? null
+                  : league.hasPassword
+                      ? '${league.members.length} members · Password-protected'
+                      : '${league.members.length} members',
             ),
+            if (league?.joinCode != null) ...[
+              const SizedBox(height: Spacing.sm),
+              _JoinCodeRow(code: league!.joinCode!),
+            ],
+            if (league != null && league.role == 'owner') ...[
+              const SizedBox(height: Spacing.sm),
+              _LeaguePasswordRow(
+                hasPassword: league.hasPassword,
+                leagueId: league.id,
+              ),
+            ],
             const SizedBox(height: Spacing.xl),
             Text('NOTIFICATIONS', style: AppText.label(11)),
             const SizedBox(height: Spacing.sm),
@@ -182,46 +127,110 @@ class SettingsScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: Spacing.xl),
+            Text('GAME', style: AppText.label(11)),
+            const SizedBox(height: Spacing.sm),
+            _SettingsCard(
+              title: 'Scoring rules',
+              subtitle: 'How points are awarded',
+              trailing: _chevron(t),
+              onTap: () => context.push('/rules'),
+            ),
+            const SizedBox(height: Spacing.xl),
             Text('ABOUT', style: AppText.label(11)),
             const SizedBox(height: Spacing.sm),
             Text('F1 Prediction Game · v1.0.0',
                 style: AppText.body(12,
-                    color: t.colorScheme.onSurface.withOpacity(0.6))),
+                    color: t.colorScheme.onSurface
+                        .withValues(alpha: _mutedText))),
           ],
         ),
       ),
     );
   }
 
-  Widget _boxed(ThemeData t, {required Widget child}) => Container(
-        padding: const EdgeInsets.all(Spacing.lg),
-        decoration: BoxDecoration(
-          border: Border.all(color: t.strokeColor, width: 2),
-          borderRadius: const BorderRadius.all(Radius.circular(14)),
-        ),
-        child: child,
-      );
-
   Widget _opt(BuildContext context, ThemeData t, String label, ThemeMode m,
       ThemeMode current) {
     final on = m == current;
     return Padding(
-      padding: const EdgeInsets.only(right: 6),
+      padding: const EdgeInsets.only(right: Spacing.xs),
       child: GestureDetector(
         onTap: () => AppState.of(context).theme.setMode(m),
         child: Container(
           padding: const EdgeInsets.symmetric(
-              horizontal: Spacing.md, vertical: 7),
+              horizontal: Spacing.md, vertical: Spacing.xs),
           decoration: BoxDecoration(
             color: on ? BrandColors.accent : null,
-            border: Border.all(color: t.strokeColor, width: 1.5),
-            borderRadius: const BorderRadius.all(Radius.circular(8)),
+            border: Border.all(color: t.strokeColor, width: Strokes.subtle),
+            borderRadius: Radii.rSm,
           ),
           child: Text(label,
               style: AppText.label(11,
                   color: on ? Colors.white : t.colorScheme.onSurface)),
         ),
       ),
+    );
+  }
+}
+
+Widget _chevron(ThemeData t) => FaIcon(
+      FontAwesomeIcons.chevronRight,
+      size: 12,
+      color: t.colorScheme.onSurface.withValues(alpha: _mutedIcon),
+    );
+
+/// Unified settings card anatomy: title · subtitle · optional trailing widget.
+/// Wrap in InkWell when [onTap] is set; otherwise it's static.
+class _SettingsCard extends StatelessWidget {
+  final String title;
+  final String? subtitle;
+  final Widget? trailing;
+  final VoidCallback? onTap;
+
+  const _SettingsCard({
+    required this.title,
+    this.subtitle,
+    this.trailing,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Theme.of(context);
+    final container = Container(
+      padding: const EdgeInsets.all(Spacing.lg),
+      decoration: BoxDecoration(
+        border: Border.all(color: t.strokeColor, width: Strokes.card),
+        borderRadius: Radii.rLg,
+      ),
+      child: Row(children: [
+        Expanded(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title,
+                  style: AppText.body(14, weight: FontWeight.w700)),
+              if (subtitle != null) ...[
+                const SizedBox(height: Spacing.xxs),
+                Text(subtitle!,
+                    style: AppText.body(11,
+                        color: t.colorScheme.onSurface
+                            .withValues(alpha: _mutedText))),
+              ],
+            ],
+          ),
+        ),
+        if (trailing != null) ...[
+          const SizedBox(width: Spacing.sm),
+          trailing!,
+        ],
+      ]),
+    );
+    if (onTap == null) return container;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: Radii.rLg,
+      child: container,
     );
   }
 }
@@ -239,13 +248,15 @@ class _NotificationsSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _toggleRow(
-          context: context,
-          t: t,
+        _SettingsCard(
           title: 'Pick reminders',
-          subtitle: "5h, 1h, and 10 min before lock — only if you haven't picked.",
-          value: controller.enabled,
-          onChanged: controller.setEnabled,
+          subtitle:
+              "5h, 1h, and 10 min before lock, only if you haven't picked.",
+          trailing: Switch.adaptive(
+            value: controller.enabled,
+            onChanged: controller.setEnabled,
+            activeThumbColor: BrandColors.accent,
+          ),
         ),
         const SizedBox(height: Spacing.sm),
         Opacity(
@@ -254,13 +265,14 @@ class _NotificationsSection extends StatelessWidget {
             ignoring: !controller.enabled,
             child: Column(
               children: [
-                _toggleRow(
-                  context: context,
-                  t: t,
+                _SettingsCard(
                   title: 'Quiet hours',
                   subtitle: 'No reminders during this window.',
-                  value: controller.quietHoursEnabled,
-                  onChanged: controller.setQuietHoursEnabled,
+                  trailing: Switch.adaptive(
+                    value: controller.quietHoursEnabled,
+                    onChanged: controller.setQuietHoursEnabled,
+                    activeThumbColor: BrandColors.accent,
+                  ),
                 ),
                 if (controller.quietHoursEnabled) ...[
                   const SizedBox(height: Spacing.sm),
@@ -302,44 +314,6 @@ class _NotificationsSection extends StatelessWidget {
     );
   }
 
-  Widget _toggleRow({
-    required BuildContext context,
-    required ThemeData t,
-    required String title,
-    required String subtitle,
-    required bool value,
-    required ValueChanged<bool> onChanged,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(Spacing.lg),
-      decoration: BoxDecoration(
-        border: Border.all(color: t.strokeColor, width: 2),
-        borderRadius: const BorderRadius.all(Radius.circular(14)),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, style: AppText.body(14, weight: FontWeight.w700)),
-                const SizedBox(height: 2),
-                Text(subtitle,
-                    style: AppText.body(11,
-                        color: t.colorScheme.onSurface.withOpacity(0.6))),
-              ],
-            ),
-          ),
-          Switch.adaptive(
-            value: value,
-            onChanged: onChanged,
-            activeColor: BrandColors.accent,
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _timeButton({
     required BuildContext context,
     required ThemeData t,
@@ -362,16 +336,17 @@ class _NotificationsSection extends StatelessWidget {
         padding: const EdgeInsets.symmetric(
             horizontal: Spacing.md, vertical: Spacing.sm),
         decoration: BoxDecoration(
-          border: Border.all(color: t.strokeColor, width: 1.5),
-          borderRadius: const BorderRadius.all(Radius.circular(10)),
+          border: Border.all(color: t.strokeColor, width: Strokes.subtle),
+          borderRadius: Radii.rSm,
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(label.toUpperCase(),
                 style: AppText.label(9,
-                    color: t.colorScheme.onSurface.withOpacity(0.55))),
-            const SizedBox(height: 4),
+                    color: t.colorScheme.onSurface
+                        .withValues(alpha: _mutedText))),
+            const SizedBox(height: Spacing.xxs),
             Text('$h:$m', style: AppText.display(18)),
           ],
         ),
@@ -380,8 +355,7 @@ class _NotificationsSection extends StatelessWidget {
   }
 }
 
-/// Inline pill showing the league join code with a copy-to-clipboard tap
-/// target. Snackbar feedback confirms the copy without leaving the screen.
+/// Card row showing the league join code. Tap copies; toast confirms.
 class _JoinCodeRow extends StatelessWidget {
   final String code;
   const _JoinCodeRow({required this.code});
@@ -389,44 +363,25 @@ class _JoinCodeRow extends StatelessWidget {
   Future<void> _copy(BuildContext context) async {
     await Clipboard.setData(ClipboardData(text: code));
     if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Copied "$code"'), duration: const Duration(seconds: 2)),
-    );
+    BrandedToast.show(context, 'Code copied', tone: ToastTone.ok);
   }
 
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
-    return InkWell(
+    return _SettingsCard(
+      title: 'Join code',
+      subtitle: code,
+      trailing: FaIcon(FontAwesomeIcons.copy,
+          size: 14,
+          color: t.colorScheme.onSurface.withValues(alpha: _mutedIcon)),
       onTap: () => _copy(context),
-      borderRadius: const BorderRadius.all(Radius.circular(8)),
-      child: Container(
-        padding: const EdgeInsets.symmetric(
-            horizontal: Spacing.md, vertical: 7),
-        decoration: BoxDecoration(
-          color: t.mutedSurface,
-          border: Border.all(color: t.strokeColor, width: 1.5),
-          borderRadius: const BorderRadius.all(Radius.circular(8)),
-        ),
-        child: Row(
-          children: [
-            Text('JOIN CODE',
-                style: AppText.label(9,
-                    color: t.colorScheme.onSurface.withOpacity(0.55))),
-            const SizedBox(width: Spacing.sm),
-            Text(code,
-                style: AppText.display(14, color: t.colorScheme.onSurface)),
-            const Spacer(),
-            Icon(Icons.copy, size: 14, color: t.colorScheme.onSurface.withOpacity(0.7)),
-          ],
-        ),
-      ),
     );
   }
 }
 
-/// Owner-only row in the LEAGUE settings card. Opens a dialog to set,
-/// change, or clear the league join password.
+/// Owner-only row in the LEAGUE section. Opens a dialog to set, change, or
+/// clear the league join password.
 class _LeaguePasswordRow extends StatefulWidget {
   final bool hasPassword;
   final String leagueId;
@@ -449,23 +404,23 @@ class _LeaguePasswordRowState extends State<_LeaguePasswordRow> {
     );
     if (result == null || !mounted) return;
     final scope = AppState.of(context);
-    final messenger = ScaffoldMessenger.of(context);
     setState(() => _busy = true);
     try {
       // Empty string = clear; non-empty = set.
       await scope.api.updateLeague(widget.leagueId, password: result.value);
       await scope.league.load(widget.leagueId);
       if (!mounted) return;
-      messenger.showSnackBar(SnackBar(
-        content: Text(result.value.isEmpty
-            ? 'League password removed.'
-            : 'League password updated.'),
-      ));
+      BrandedToast.show(
+        context,
+        result.value.isEmpty
+            ? 'League password removed'
+            : 'League password updated',
+        tone: ToastTone.ok,
+      );
     } catch (_) {
       if (mounted) {
-        messenger.showSnackBar(const SnackBar(
-          content: Text("Couldn't update the league password."),
-        ));
+        BrandedToast.show(context, "Couldn't update password",
+            tone: ToastTone.error);
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -475,31 +430,13 @@ class _LeaguePasswordRowState extends State<_LeaguePasswordRow> {
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
-    final label = widget.hasPassword ? 'Change password' : 'Set password';
-    return InkWell(
+    return _SettingsCard(
+      title: widget.hasPassword ? 'Change password' : 'Set password',
+      subtitle: widget.hasPassword
+          ? 'Update the league join password'
+          : 'Require a password to join this league',
+      trailing: _chevron(t),
       onTap: _busy ? null : _open,
-      borderRadius: const BorderRadius.all(Radius.circular(8)),
-      child: Container(
-        padding: const EdgeInsets.symmetric(
-            horizontal: Spacing.md, vertical: 7),
-        decoration: BoxDecoration(
-          color: t.mutedSurface,
-          border: Border.all(color: t.strokeColor, width: 1.5),
-          borderRadius: const BorderRadius.all(Radius.circular(8)),
-        ),
-        child: Row(
-          children: [
-            FaIcon(
-              widget.hasPassword ? FontAwesomeIcons.lock : FontAwesomeIcons.lockOpen,
-              size: 14,
-              color: t.colorScheme.onSurface,
-            ),
-            const SizedBox(width: Spacing.sm),
-            Text(label.toUpperCase(),
-                style: AppText.label(10, color: t.colorScheme.onSurface)),
-          ],
-        ),
-      ),
     );
   }
 }
@@ -549,7 +486,8 @@ class _LeaguePasswordDialogState extends State<_LeaguePasswordDialog> {
     final t = Theme.of(context);
     final remove = widget.hasPassword && _ctrl.text.isEmpty;
     return BrandedSheet(
-      title: widget.hasPassword ? 'Change league password' : 'Set league password',
+      title:
+          widget.hasPassword ? 'Change league password' : 'Set league password',
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -562,7 +500,9 @@ class _LeaguePasswordDialogState extends State<_LeaguePasswordDialog> {
           const SizedBox(height: Spacing.sm),
           Text(
             'Leave empty and confirm to remove the password.',
-            style: AppText.body(11, color: t.colorScheme.onSurface.withOpacity(0.55)),
+            style: AppText.body(11,
+                color: t.colorScheme.onSurface
+                    .withValues(alpha: _mutedText)),
           ),
           if (_err != null) ...[
             const SizedBox(height: Spacing.xs),

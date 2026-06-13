@@ -11,6 +11,7 @@ import { registerPredictionRoutes } from './api/routes/predictions.js'
 import { registerLeaderboardRoutes } from './api/routes/leaderboard.js'
 import { registerPreseasonRoutes } from './api/routes/preseason.js'
 import { registerLiveRoutes } from './api/routes/live.js'
+import { registerReferenceLapsRoutes } from './api/routes/referenceLaps.js'
 import { Scheduler } from './crawler/scheduler.js'
 
 export type BuildAppOpts = { scheduler: Scheduler | null } & Omit<AdminDeps, 'scheduler'>
@@ -35,6 +36,7 @@ export async function buildApp(opts: BuildAppOpts): Promise<FastifyInstance> {
   })
 
   await registerPublicRoutes(app)
+  await app.register(registerReferenceLapsRoutes)
   await app.register(registerLiveRoutes, { openf1: opts.openf1 })
   await registerAdminRoutes(app, { scheduler: opts.scheduler, jolpica: opts.jolpica, wiki: opts.wiki, openf1: opts.openf1 })
   await app.register(registerAuthRoutes)

@@ -3,6 +3,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../api/models/session_leaderboard_row.dart';
+import '../components/branded_toast.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
 import '../theme/colors.dart';
@@ -172,11 +173,10 @@ class _TrajectoryFullscreenScreenState
         _selected.remove(userId);
       } else {
         if (!allowOverflow && _selected.length >= _maxSelected) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Max $_maxSelected players. Remove one first.'),
-              duration: Duration(seconds: 2),
-            ),
+          BrandedToast.show(
+            context,
+            'Max $_maxSelected players, remove one first',
+            tone: ToastTone.error,
           );
           return;
         }

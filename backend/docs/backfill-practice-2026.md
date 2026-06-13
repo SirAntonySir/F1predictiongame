@@ -30,9 +30,16 @@ The script talks to the DB directly — it does not need the deployed server.
 
 ## Step 1 — dry run (no writes)
 
+The Render `DATABASE_URL` needs `?uselibpqcompat=true&sslmode=require`
+appended — bare `sslmode=require` is now treated as `verify-full` by
+node-postgres and fails handshake against Render's chain. The backend
+config schema also requires `ADMIN_TOKEN` to be set (any non-empty value)
+even though this script never calls a protected endpoint.
+
 ```bash
 cd backend
-DATABASE_URL='<PROD_DATABASE_URL>' NODE_ENV=production \
+DATABASE_URL='<PROD_DATABASE_URL>?uselibpqcompat=true&sslmode=require' \
+  NODE_ENV=production ADMIN_TOKEN=backfill \
   npx tsx src/scripts/backfillPractice.ts 2026 --dry
 ```
 
@@ -50,7 +57,8 @@ expect to have completed so far in 2026.
 
 ```bash
 cd backend
-DATABASE_URL='<PROD_DATABASE_URL>' NODE_ENV=production \
+DATABASE_URL='<PROD_DATABASE_URL>?uselibpqcompat=true&sslmode=require' \
+  NODE_ENV=production ADMIN_TOKEN=backfill \
   npx tsx src/scripts/backfillPractice.ts 2026
 ```
 

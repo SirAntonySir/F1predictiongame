@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../api/api_client.dart';
 import '../components/big_pill.dart';
 import '../components/branded_field.dart';
+import '../components/branded_toast.dart';
 import '../state/app_state.dart';
 import '../theme/colors.dart';
 import '../theme/tokens.dart';
@@ -66,7 +67,6 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
       _error = null;
     });
     final api = AppState.of(context).api;
-    final messenger = ScaffoldMessenger.of(context);
     final router = GoRouter.of(context);
     try {
       await api.changePassword(
@@ -75,9 +75,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
         newPassword: _next.text,
       );
       if (!mounted) return;
-      messenger.showSnackBar(
-        const SnackBar(content: Text('Password updated.')),
-      );
+      BrandedToast.show(context, 'Password updated', tone: ToastTone.ok);
       router.pop();
     } on UnauthorizedException {
       setState(() => _error = 'Email or current password is wrong');

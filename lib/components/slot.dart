@@ -36,10 +36,16 @@ class Slot extends StatelessWidget {
         ),
         borderRadius: const BorderRadius.all(Radius.circular(10)),
       ),
+      // Match the empty-state row height when filled: empty state has no
+      // stripe and no IconButton, so the row height is driven by the "P$n"
+      // label + body text. We hold that line by giving the team stripe a
+      // shorter height (20 instead of 32) and replacing the IconButton —
+      // which forces a 48pt min touch target — with a tap-target-sized
+      // InkWell that doesn't dictate row height.
       child: Row(
         children: [
           if (filled && constructorId != null)
-            Container(width: 5, height: 32, color: teamColor(constructorId!)),
+            Container(width: 5, height: 20, color: teamColor(constructorId!)),
           if (filled) const SizedBox(width: Spacing.sm),
           Container(
             width: 32,
@@ -56,7 +62,14 @@ class Slot extends StatelessWidget {
           if (filled && number != null)
             Text('#$number', style: AppText.label(11, color: t.colorScheme.onSurface.withOpacity(0.5))),
           if (filled && onClear != null)
-            IconButton(icon: const Icon(Icons.close, size: 16), onPressed: onClear),
+            InkWell(
+              onTap: onClear,
+              borderRadius: const BorderRadius.all(Radius.circular(999)),
+              child: const Padding(
+                padding: EdgeInsets.all(2),
+                child: Icon(Icons.close, size: 16),
+              ),
+            ),
         ],
       ),
     );

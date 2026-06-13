@@ -1,0 +1,62 @@
+[
+  {
+    "session_key": 9999,
+    "driver_number": 1,
+    "lap_number": 1,
+    "lap_duration": 90.5,
+    "duration_sector_1": 30.0,
+    "duration_sector_2": 30.0,
+    "duration_sector_3": 30.5,
+    "is_pit_out_lap": true
+  },
+  {
+    "session_key": 9999,
+    "driver_number": 1,
+    "lap_number": 2,
+    "lap_duration": 78.456,
+    "duration_sector_1": 24.123,
+    "duration_sector_2": 31.222,
+    "duration_sector_3": 23.111,
+    "is_pit_out_lap": false
+  },
+  {
+    "session_key": 9999,
+    "driver_number": 1,
+    "lap_number": 3,
+    "lap_duration": 77.999,
+    "duration_sector_1": 23.999,
+    "duration_sector_2": 31.000,
+    "duration_sector_3": 23.000,
+    "is_pit_out_lap": false
+  },
+  {
+    "session_key": 9999,
+    "driver_number": 4,
+    "lap_number": 2,
+    "lap_duration": null,
+    "duration_sector_1": 24.000,
+    "duration_sector_2": null,
+    "duration_sector_3": null,
+    "is_pit_out_lap": false
+  },
+  {
+    "session_key": 9999,
+    "driver_number": 4,
+    "lap_number": 3,
+    "lap_duration": 78.500,
+    "duration_sector_1": 24.500,
+    "duration_sector_2": 31.500,
+    "duration_sector_3": 22.500,
+    "is_pit_out_lap": false
+  },
+  {
+    "session_key": 9999,
+    "driver_number": 99,
+    "lap_number": 5,
+    "lap_duration": 75.000,
+    "duration_sector_1": 22.000,
+    "duration_sector_2": 30.000,
+    "duration_sector_3": 23.000,
+    "is_pit_out_lap": false
+  }
+]

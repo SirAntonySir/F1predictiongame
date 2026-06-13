@@ -6,6 +6,10 @@ class BrandColors {
   static const Color near = Color(0xFFFFD233);
   static const Color miss = Color(0xFF000000);
   static const Color live = Color(0xFFE10600);
+  /// F1 broadcast sector-best (violet). Used on the predict-screen reference
+  /// rows: violet = fastest sector across the field in that session, green =
+  /// personal-best across reference sessions, neutral = neither.
+  static const Color violet = Color(0xFFB147FF);
 }
 
 class LightPalette {

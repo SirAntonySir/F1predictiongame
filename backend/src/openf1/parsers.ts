@@ -56,6 +56,56 @@ function statusFrom(r: { dnf?: boolean; dns?: boolean; dsq?: boolean }): string 
   return null
 }
 
+export type BestLap = {
+  driverCode: string
+  lapMs: number
+  s1Ms: number | null
+  s2Ms: number | null
+  s3Ms: number | null
+  lapNumber: number | null
+}
+
+const toMs = (sec: unknown): number | null => {
+  const n = Number(sec)
+  if (!Number.isFinite(n) || n <= 0) return null
+  return Math.round(n * 1000)
+}
+
+/// Pick each driver's best valid flying lap from OpenF1 /laps.
+///
+///   - Pit-out laps are excluded (sectors are warmed-up, not representative).
+///   - Laps without a total `lap_duration` are excluded.
+///   - For each driver, the lap with the smallest `lap_duration` wins.
+///   - Sector durations attach as-is (may be missing for laps where OpenF1
+///     dropped a sector — the lap can still be the "best total" even if one
+///     sector is null; downstream consumers handle that).
+export function parseBestLapsPerDriver(
+  rawLaps: unknown,
+  drivers: OpenF1DriverLookup[]
+): BestLap[] {
+  const byNumber = new Map(drivers.map((d) => [d.driverNumber, d]))
+  const arr = (rawLaps as any[]) ?? []
+  const best = new Map<string, BestLap>()
+  for (const l of arr) {
+    if (l.is_pit_out_lap === true) continue
+    const lapMs = toMs(l.lap_duration)
+    if (lapMs == null) continue
+    const drv = byNumber.get(Number(l.driver_number))
+    if (!drv) continue
+    const existing = best.get(drv.code)
+    if (existing && existing.lapMs <= lapMs) continue
+    best.set(drv.code, {
+      driverCode: drv.code,
+      lapMs,
+      s1Ms: toMs(l.duration_sector_1),
+      s2Ms: toMs(l.duration_sector_2),
+      s3Ms: toMs(l.duration_sector_3),
+      lapNumber: Number.isFinite(Number(l.lap_number)) ? Number(l.lap_number) : null
+    })
+  }
+  return [...best.values()]
+}
+
 export function parseSessionResult(
   raw: unknown,
   drivers: OpenF1DriverLookup[]
@@ -66,7 +116,21 @@ export function parseSessionResult(
   for (const r of arr) {
     const drv = byNumber.get(Number(r.driver_number))
     if (!drv) continue
-    const duration = (r.duration as number[] | undefined) ?? []
+    // OpenF1 returns `duration` two different ways depending on session type:
+    //  - quali / sprint_quali: array `[Q1, Q2, Q3]` (with later entries
+    //    null/missing when the driver was knocked out earlier),
+    //  - fp1 / fp2 / fp3: a scalar number — the driver's best lap of the
+    //    session.
+    // Normalise to an array so the q1/q2/q3 mapping below works uniformly.
+    // For practice the scalar lands in q1 (which is also where
+    // result_display.dart and the predict screen's _referenceTimeFor read
+    // FP times from).
+    const rawDuration = r.duration
+    const duration: number[] = Array.isArray(rawDuration)
+      ? (rawDuration as number[])
+      : typeof rawDuration === 'number'
+        ? [rawDuration]
+        : []
     out.push({
       sessionId: 0, // caller fills this in
       position: Number(r.position),

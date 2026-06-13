@@ -248,6 +248,31 @@ export const preseasonProjectionSnapshot = pgTable('preseason_projection_snapsho
   userSeasonIdx: index('preseason_proj_snapshot_user_season_idx').on(t.userId, t.seasonYear)
 }))
 
+/// Best lap (with sector durations) per driver per session. Sourced from
+/// OpenF1 /laps once a session is marked finished. Backs the predict-screen
+/// sector-color reference view.
+///
+/// Durations are stored in milliseconds (integer) so:
+///   - we can compare/aggregate without floating-point quirks,
+///   - we can compute session-best and personal-best sectors without
+///     re-parsing formatted strings.
+///
+/// `pitOutLap` is excluded at parse time, so any row that lands here is a
+/// real flying lap.
+export const sessionBestLap = pgTable('session_best_lap', {
+  sessionId: integer('session_id').notNull().references(() => session.id, { onDelete: 'cascade' }),
+  driverCode: text('driver_code').notNull().references(() => driver.code),
+  lapMs: integer('lap_ms').notNull(),
+  s1Ms: integer('s1_ms'),
+  s2Ms: integer('s2_ms'),
+  s3Ms: integer('s3_ms'),
+  lapNumber: integer('lap_number'),
+  computedAt: timestamp('computed_at', { withTimezone: true }).notNull().defaultNow()
+}, (t) => ({
+  pk: primaryKey({ columns: [t.sessionId, t.driverCode] }),
+  sessionIdx: index('session_best_lap_session_idx').on(t.sessionId)
+}))
+
 export const subjectiveTruth = pgTable('subjective_truth', {
   seasonYear: integer('season_year').primaryKey().references(() => season.year, { onDelete: 'cascade' }),
   surpriseDriverCode: text('surprise_driver_code').references(() => driver.code),

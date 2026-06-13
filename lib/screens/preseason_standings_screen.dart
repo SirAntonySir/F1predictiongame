@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../api/models/standing.dart';
 import '../components/app_card.dart';
+import '../components/branded_toast.dart';
 import '../components/error_view.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
@@ -62,19 +63,17 @@ class _PreseasonStandingsScreenState extends State<PreseasonStandingsScreen> {
       } else {
         await scope.preseason.setConstructorOrdering(_ordering);
       }
-    } catch (e) {
+    } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Couldn't save: $e")),
-        );
+        BrandedToast.show(context, "Couldn't save", tone: ToastTone.error);
       }
       return;
     }
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(_isDrivers ? 'Driver order saved' : 'Team order saved'),
-        ),
+      BrandedToast.show(
+        context,
+        _isDrivers ? 'Driver order saved' : 'Team order saved',
+        tone: ToastTone.ok,
       );
       context.pop();
     }
