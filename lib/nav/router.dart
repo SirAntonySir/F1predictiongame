@@ -7,6 +7,8 @@ import '../screens/login_screen.dart';
 import '../screens/predict_screen.dart';
 import '../screens/preseason_screen.dart';
 import '../screens/import_screen.dart';
+import '../screens/notifications_screen.dart';
+import '../screens/player_preseason_screen.dart';
 import '../screens/player_screen.dart';
 import '../screens/preseason_standings_screen.dart';
 import '../screens/rules_screen.dart';
@@ -51,26 +53,48 @@ GoRouter buildRouter(AuthController auth) {
         ),
       ),
       GoRoute(path: onboardingRoute, builder: (_, __) => LeagueOnboardingScreen(auth: auth)),
+      // Bottom-nav shell routes — no slide-in transition. The four tabs are
+      // peers (not a navigation hierarchy), so the Cupertino/Material default
+      // of sliding the new tab in from the right reads as "going deeper" when
+      // it should just be a swap. `NoTransitionPage` makes them feel like
+      // tabs again.
       ShellRoute(
-        builder: (_, __, child) => AppShell(child: child),
+        pageBuilder: (_, __, child) => NoTransitionPage(child: AppShell(child: child)),
         routes: [
-          GoRoute(path: '/home',     builder: (_, __) => const HomeScreen()),
-          GoRoute(path: '/calendar', builder: (_, __) => const CalendarScreen()),
+          GoRoute(
+            path: '/home',
+            pageBuilder: (_, __) => const NoTransitionPage(child: HomeScreen()),
+          ),
+          GoRoute(
+            path: '/calendar',
+            pageBuilder: (_, __) => const NoTransitionPage(child: CalendarScreen()),
+          ),
           GoRoute(
             path: '/predict',
-            builder: (_, s) {
+            pageBuilder: (_, s) {
               final raw = s.uri.queryParameters['session'];
               final sid = raw == null ? null : int.tryParse(raw);
-              return PredictScreen(sessionId: sid);
+              return NoTransitionPage(child: PredictScreen(sessionId: sid));
             },
           ),
           GoRoute(
             path: '/standings',
-            builder: (_, s) => StandingsScreen(subTab: 'league', leagueSort: s.uri.queryParameters['sort']),
+            pageBuilder: (_, s) => NoTransitionPage(
+                child: StandingsScreen(subTab: 'league', leagueSort: s.uri.queryParameters['sort'])),
             routes: [
-              GoRoute(path: 'league',   builder: (_, s) => StandingsScreen(subTab: 'league', leagueSort: s.uri.queryParameters['sort'])),
-              GoRoute(path: 'f1',       builder: (_, __) => const StandingsScreen(subTab: 'f1')),
-              GoRoute(path: 'insights', builder: (_, __) => const StandingsScreen(subTab: 'insights')),
+              GoRoute(
+                path: 'league',
+                pageBuilder: (_, s) => NoTransitionPage(
+                    child: StandingsScreen(subTab: 'league', leagueSort: s.uri.queryParameters['sort'])),
+              ),
+              GoRoute(
+                path: 'f1',
+                pageBuilder: (_, __) => const NoTransitionPage(child: StandingsScreen(subTab: 'f1')),
+              ),
+              GoRoute(
+                path: 'insights',
+                pageBuilder: (_, __) => const NoTransitionPage(child: StandingsScreen(subTab: 'insights')),
+              ),
             ],
           ),
         ],
@@ -83,6 +107,7 @@ GoRouter buildRouter(AuthController auth) {
         ),
       ),
       GoRoute(path: '/settings', builder: (_, __) => const SettingsScreen()),
+      GoRoute(path: '/notifications', builder: (_, __) => const NotificationsScreen()),
       GoRoute(path: '/rules', builder: (_, __) => const RulesScreen()),
       GoRoute(path: '/import', builder: (_, __) => const ImportScreen()),
       GoRoute(
@@ -90,6 +115,14 @@ GoRouter buildRouter(AuthController auth) {
         builder: (_, s) => PlayerScreen(
           leagueId: s.pathParameters['leagueId']!,
           userId: s.pathParameters['userId']!,
+        ),
+      ),
+      GoRoute(
+        path: '/league/:leagueId/player/:userId/preseason',
+        builder: (_, s) => PlayerPreseasonScreen(
+          leagueId: s.pathParameters['leagueId']!,
+          userId: s.pathParameters['userId']!,
+          displayName: s.uri.queryParameters['name'] ?? 'Player',
         ),
       ),
       // Trajectory full-screen. Data arrives via `extra` (passed by the

@@ -142,7 +142,13 @@ class _PlayerScreenState extends State<PlayerScreen> {
           const SizedBox(height: Spacing.xl),
           Text('PRESEASON', style: AppText.label(11)),
           const SizedBox(height: Spacing.sm),
-          _PreseasonCard(preseason: p.preseason, t: t),
+          _PreseasonSummaryRow(
+            preseason: p.preseason,
+            onTap: () => context.push(
+              '/league/${widget.leagueId}/player/${widget.userId}/preseason'
+                  '?name=${Uri.encodeQueryComponent(p.player.displayName)}',
+            ),
+          ),
         ],
 
         const SizedBox(height: Spacing.xl),
@@ -286,10 +292,11 @@ class _RecentChip extends StatelessWidget {
           const SizedBox(height: Spacing.xs),
           Row(
             children: [
-              for (final g in item.glyphs) ...[
-                _Glyph(glyph: g),
-                const SizedBox(width: 2),
-              ],
+              for (final g in item.glyphs)
+                if (g != FormGlyph.teamBonus) ...[
+                  _Glyph(glyph: g),
+                  const SizedBox(width: 2),
+                ],
             ],
           ),
         ],
@@ -411,6 +418,67 @@ class _InsightCard extends StatelessWidget {
   }
 }
 
+/// Compact preseason summary row on the player profile. Shows projected
+/// total + currently-hitting category count. The full per-category detail
+/// (driver/team axes + projected standings) lives on the dedicated
+/// PlayerPreseasonScreen reached via the chevron tap.
+class _PreseasonSummaryRow extends StatelessWidget {
+  final PlayerPreseason preseason;
+  final VoidCallback onTap;
+  const _PreseasonSummaryRow({required this.preseason, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Theme.of(context);
+    // 'Hitting' counts categories with either the driver OR team correct
+    // (each axis scores half the category's max independently).
+    final hits = preseason.picks.where((p) => p.driverExact || p.teamExact).length;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: Radii.rLg,
+      child: Container(
+        padding: const EdgeInsets.all(Spacing.lg),
+        decoration: BoxDecoration(
+          border: Border.all(color: t.strokeColor, width: Strokes.card),
+          borderRadius: Radii.rLg,
+        ),
+        child: Row(children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('PROJECTED TOTAL',
+                    style: AppText.label(9,
+                        color: t.colorScheme.onSurface.withOpacity(0.55))),
+                const SizedBox(height: 4),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.baseline,
+                  textBaseline: TextBaseline.alphabetic,
+                  children: [
+                    Text('+${preseason.projectedTotal ?? 0}',
+                        style: AppText.display(22, color: BrandColors.accent)),
+                    const SizedBox(width: Spacing.sm),
+                    Text(
+                      '${preseason.picks.length} categories · $hits hitting',
+                      style: AppText.body(11,
+                          color: t.colorScheme.onSurface.withOpacity(0.7)),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          Text('›',
+              style: TextStyle(fontSize: 22, color: t.colorScheme.onSurface)),
+        ]),
+      ),
+    );
+  }
+}
+
+// Legacy detailed card — kept for reference but no longer referenced.
+// ignore: unused_element
 class _PreseasonCard extends StatelessWidget {
   final PlayerPreseason preseason;
   final ThemeData t;
@@ -460,10 +528,12 @@ class _PreseasonCard extends StatelessWidget {
                   p.driverCode ?? p.constructorId ?? '—',
                   style: AppText.body(13,
                       weight: FontWeight.w800,
-                      color: p.exact ? BrandColors.ok : t.colorScheme.onSurface),
+                      color: (p.driverExact || p.teamExact)
+                          ? BrandColors.ok
+                          : t.colorScheme.onSurface),
                 ),
                 const Spacer(),
-                if (p.exact)
+                if (p.driverExact || p.teamExact)
                   Text('+${p.points}',
                       style: AppText.display(13, color: BrandColors.ok)),
               ]),
@@ -536,7 +606,11 @@ class _PickLogCard extends StatelessWidget {
       teamBonusPoints = (tb?['points'] as num?)?.toInt() ?? 0;
     }
 
-    return Container(
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () =>
+          context.push('/race/${item.round}/${item.sessionId}'),
+      child: Container(
       padding: const EdgeInsets.all(Spacing.lg),
       decoration: BoxDecoration(
         border: Border.all(color: t.strokeColor, width: Strokes.card),
@@ -605,6 +679,7 @@ class _PickLogCard extends StatelessWidget {
             ),
           ],
         ],
+      ),
       ),
     );
   }

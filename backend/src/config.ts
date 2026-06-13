@@ -8,7 +8,10 @@ const Env = z.object({
   PORT: z.coerce.number().int().positive().default(3000),
   JOLPICA_BASE: z.string().url().default('https://api.jolpi.ca/ergast'),
   WIKIPEDIA_BASE: z.string().url().default('https://en.wikipedia.org'),
-  OPENF1_BASE: z.string().url().default('https://api.openf1.org/v1')
+  OPENF1_BASE: z.string().url().default('https://api.openf1.org/v1'),
+  // Static-asset source for F1 circuit metadata + SVGs (julesr0y repo on
+  // GitHub). Override in tests to point at a local fixture server.
+  CIRCUITS_BASE: z.string().url().default('https://raw.githubusercontent.com/julesr0y/f1-circuits-svg/main')
 })
 
 export type Config = {
@@ -19,6 +22,7 @@ export type Config = {
   jolpicaBase: string
   wikipediaBase: string
   openf1Base: string
+  circuitsBase: string
 }
 
 export function parseConfig(env: Record<string, string | undefined>): Config {
@@ -36,7 +40,8 @@ export function parseConfig(env: Record<string, string | undefined>): Config {
     port: parsed.PORT,
     jolpicaBase: parsed.JOLPICA_BASE,
     wikipediaBase: parsed.WIKIPEDIA_BASE,
-    openf1Base: parsed.OPENF1_BASE
+    openf1Base: parsed.OPENF1_BASE,
+    circuitsBase: parsed.CIRCUITS_BASE
   }
 }
 

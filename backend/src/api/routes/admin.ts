@@ -24,6 +24,8 @@ import {
   extractDriversFromStandings, extractConstructorsFromStandings
 } from '../../jolpica/parsers.js'
 import { fetchByType, upsertNewDrivers, upsertNewConstructors } from '../../crawler/tick.js'
+import { CircuitsClient } from '../../circuits/client.js'
+import { runCircuitsCrawl } from '../../circuits/crawler.js'
 
 export type AdminDeps = {
   scheduler: Scheduler | null
@@ -191,6 +193,21 @@ export async function registerAdminRoutes(app: FastifyInstance, deps: AdminDeps)
       rescored: summary
     }
   })
+
+  // One-shot circuit crawl from julesr0y/f1-circuits-svg. Idempotent.
+  //   ?minSeason=YYYY   only mirror layouts active >= this year (default 2018)
+  //   ?layouts=all      mirror every historical layout (default: current only)
+  app.post<{ Querystring: { minSeason?: string; layouts?: string } }>(
+    '/admin/circuits/sync',
+    async (req) => {
+      const minSeason = Number(req.query.minSeason)
+      const summary = await runCircuitsCrawl(new CircuitsClient(), {
+        minSeason: Number.isFinite(minSeason) ? minSeason : undefined,
+        layouts: req.query.layouts === 'all' ? 'all' : 'current'
+      })
+      return { ok: true, ...summary }
+    }
+  )
 
   app.post<{ Params: { year: string } }>('/admin/rescore-season/:year', async (req) => {
     const year = Number(req.params.year)

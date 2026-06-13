@@ -84,7 +84,7 @@ abstract class ApiClient {
   Future<void>                     deletePreseasonSinglePick(PreseasonCategory category);
   Future<List<PreseasonStandingsDriverPick>> putPreseasonDriverStandings(List<PreseasonStandingsDriverPick> picks);
   Future<List<PreseasonStandingsConstructorPick>> putPreseasonConstructorStandings(List<PreseasonStandingsConstructorPick> picks);
-  Future<LeaguePreseasonView> leaguePreseason(String leagueId, {int? season});
+  Future<LeaguePreseasonView> leaguePreseason(String leagueId, {int? season, String? asUserId});
 
   // Owner-only JSON imports
   Future<Map<String, dynamic>> getImportSchema(String leagueId, int seasonYear);
@@ -93,6 +93,10 @@ abstract class ApiClient {
 
   // Player profile (composite)
   Future<PlayerProfile> leaguePlayer(String leagueId, String userId, {int? season});
+
+  // Raw SVG body for a circuit. Returns null when the circuit / variant is
+  // not stored in the backend (treated as "no map available" by the UI).
+  Future<String?> circuitSvg(String circuitId, {String detail = 'detailed', String variant = 'white', String? layout});
 }
 
 // Exceptions

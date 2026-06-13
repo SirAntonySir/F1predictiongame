@@ -10,6 +10,7 @@ import '../api/models/live_snapshot.dart';
 import '../api/models/session.dart';
 import '../api/models/session_result.dart';
 import '../components/app_card.dart';
+import '../components/circuit_svg.dart';
 import '../components/countdown.dart';
 import '../components/error_view.dart';
 import '../components/pod_tile.dart';
@@ -334,6 +335,13 @@ class _HomeScreenState extends State<HomeScreen> {
           const SizedBox(width: Spacing.sm),
           Skeleton.keep(
             child: IconButton(
+              onPressed: () => context.push('/notifications'),
+              icon: const Icon(Icons.notifications_outlined),
+              tooltip: 'Notifications',
+            ),
+          ),
+          Skeleton.keep(
+            child: IconButton(
               onPressed: () => context.push('/settings'),
               icon: const Icon(Icons.settings_outlined),
             ),
@@ -385,6 +393,25 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: CustomPaint(painter: RacingStripesPainter()),
               ),
             ),
+            // Circuit map — black-outline variant, anchored top-right of the
+            // hero. Slides behind the text content. Renders nothing when
+            // the event doesn't map to a known circuit id, so the layout is
+            // unaffected on weekends we don't have data for.
+            Positioned(
+              top: Spacing.xxl + Spacing.sm,
+              right: Spacing.lg,
+              child: IgnorePointer(
+                child: Opacity(
+                  opacity: 0.5,
+                  child: CircuitSvg(
+                    event: nextEvent,
+                    variant: 'black-outline',
+                    width: 150,
+                    height: 150,
+                  ),
+                ),
+              ),
+            ),
             Padding(
               padding: const EdgeInsets.fromLTRB(
                   Spacing.xl, Spacing.xl, Spacing.xl, Spacing.xl),
@@ -396,19 +423,46 @@ class _HomeScreenState extends State<HomeScreen> {
                   children: [
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
                         Expanded(
-                          child: Text(
-                            '${flag != null ? '$flag  ' : ''}${nextEvent.country.toUpperCase()} · ROUND ${nextEvent.round}',
-                            style: AppText.label(10,
-                                color: Colors.white.withOpacity(0.85)),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (flag != null) ...[
+                                Text(flag, style: const TextStyle(fontSize: 18, height: 1)),
+                                const SizedBox(width: 8),
+                              ],
+                              Flexible(
+                                child: Text(
+                                  '${nextEvent.country.toUpperCase()} · ROUND ${nextEvent.round}',
+                                  style: AppText.label(10,
+                                      color: Colors.white.withOpacity(0.85)),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.fade,
+                                  softWrap: false,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                         const SizedBox(width: Spacing.sm),
-                        Text(typeLabel,
+                        // Circuit name in the top-right. Fades on overflow so
+                        // long names ("Circuit de Spa-Francorchamps") don't
+                        // collide with the country label on the left.
+                        ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 160),
+                          child: Text(
+                            nextEvent.circuitName.toUpperCase(),
                             style: AppText.label(10,
-                                color: Colors.white.withOpacity(0.85))),
+                                color: Colors.white.withOpacity(0.85)),
+                            maxLines: 1,
+                            overflow: TextOverflow.fade,
+                            softWrap: false,
+                            textAlign: TextAlign.right,
+                          ),
+                        ),
                       ],
                     ),
                     const SizedBox(height: Spacing.sm),
@@ -416,8 +470,11 @@ class _HomeScreenState extends State<HomeScreen> {
                       Text(line.toUpperCase(),
                           style: AppText.display(30, color: Colors.white)),
                     const SizedBox(height: Spacing.xs),
+                    // Date/time line — circuit name moved to the top-right
+                    // header, plus the session type label is already implied
+                    // by the highlighted chip below.
                     Text(
-                      '$dateLabel · $timeLabel · ${nextEvent.circuitName}',
+                      '$dateLabel · $timeLabel · $typeLabel',
                       style: AppText.body(11,
                           color: Colors.white.withOpacity(0.9)),
                     ),

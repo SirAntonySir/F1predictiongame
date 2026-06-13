@@ -1,5 +1,5 @@
 import {
-  pgTable, integer, text, boolean, timestamp, pgEnum, primaryKey, uniqueIndex, index, uuid, customType, jsonb
+  pgTable, integer, text, boolean, timestamp, pgEnum, primaryKey, uniqueIndex, index, uuid, customType, jsonb, doublePrecision
 } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
 
@@ -295,6 +295,39 @@ export const sessionBestLap = pgTable('session_best_lap', {
 }, (t) => ({
   pk: primaryKey({ columns: [t.sessionId, t.driverCode] }),
   sessionIdx: index('session_best_lap_session_idx').on(t.sessionId)
+}))
+
+/// F1 circuit metadata + SVG layouts sourced from julesr0y/f1-circuits-svg.
+/// We mirror upstream's `circuits.json` (id, name, country, lat/lng) and
+/// store the SVG variants in `circuit_svg`.
+///
+/// `currentLayoutId` points to the layout used in the most recent season —
+/// the value the public endpoint defaults to when the caller doesn't
+/// specify one. Populated by the crawler from upstream's "seasons" field.
+export const circuit = pgTable('circuit', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  countryId: text('country_id'),
+  latitude: doublePrecision('latitude'),
+  longitude: doublePrecision('longitude'),
+  currentLayoutId: text('current_layout_id'),
+  fetchedAt: timestamp('fetched_at', { withTimezone: true }).notNull().defaultNow()
+})
+
+/// One row per (circuit_id, layout_id, detail, variant). 8 SVGs per layout
+/// upstream — we crawl all of them so the client can pick the right style.
+///   detail   ∈ 'detailed' | 'minimal'
+///   variant  ∈ 'black' | 'white' | 'black-outline' | 'white-outline'
+export const circuitSvg = pgTable('circuit_svg', {
+  circuitId: text('circuit_id').notNull().references(() => circuit.id, { onDelete: 'cascade' }),
+  layoutId: text('layout_id').notNull(),
+  detail: text('detail').notNull(),
+  variant: text('variant').notNull(),
+  svg: text('svg').notNull(),
+  fetchedAt: timestamp('fetched_at', { withTimezone: true }).notNull().defaultNow()
+}, (t) => ({
+  pk: primaryKey({ columns: [t.circuitId, t.layoutId, t.detail, t.variant] }),
+  layoutIdx: index('circuit_svg_layout_idx').on(t.layoutId)
 }))
 
 export const subjectiveTruth = pgTable('subjective_truth', {

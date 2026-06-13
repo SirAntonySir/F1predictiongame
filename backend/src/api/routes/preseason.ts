@@ -13,6 +13,7 @@ import * as picksRepo from '../../repo/preseasonPicks.js'
 import * as preseasonStandingsRepo from '../../repo/preseasonStandings.js'
 import * as truthRepo from '../../repo/subjectiveTruth.js'
 import * as scoresRepo from '../../repo/scores.js'
+import * as leagueMembers from '../../repo/leagueMembers.js'
 import { resolveSeason } from '../season-query.js'
 import type { PreseasonCategory } from '../../domain/types.js'
 
@@ -222,10 +223,19 @@ export async function registerPreseasonRoutes(app: FastifyInstance): Promise<voi
     return { scores, seasonYear: year }
   })
 
-  app.get<{ Params: { id: string }; Querystring: { season?: string } }>('/api/leagues/:id/preseason', async (req) => {
+  app.get<{ Params: { id: string }; Querystring: { season?: string; as?: string } }>('/api/leagues/:id/preseason', async (req) => {
     const u = getCurrentUser(req)
     await requireLeagueMember(req, req.params.id)
     const year = await resolveSeason(req.query)
-    return await buildLeaguePreseasonView(req.params.id, u.id, year)
+    // ?as=<userId> lets a league member view another member's projections
+    // (used by the player profile screen). Cross-league users are rejected
+    // by the same membership check the caller goes through.
+    let viewedUserId = u.id
+    if (req.query.as && req.query.as !== u.id) {
+      const ok = await leagueMembers.isMember(req.params.id, req.query.as)
+      if (!ok) throw new ApiError('NOT_FOUND', 'Target user is not in this league')
+      viewedUserId = req.query.as
+    }
+    return await buildLeaguePreseasonView(req.params.id, viewedUserId, year)
   })
 }

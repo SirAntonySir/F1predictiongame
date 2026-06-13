@@ -166,10 +166,10 @@ export async function registerPlayerRoutes(app: FastifyInstance): Promise<void> 
       const pPicks = await db.select().from(preseasonPick)
         .where(and(eq(preseasonPick.userId, targetId), eq(preseasonPick.seasonYear, seasonYear)))
 
-      // Per-category score so the UI can paint "exact hit" green. Each
-      // preseason `score` row carries the breakdown's driver.correct /
-      // team.correct flags. We treat a category as 'exact' when either side
-      // is currently correct.
+      // Per-category score: each preseason `score` row stores points and
+      // correctness for the driver and team sides separately. The UI needs
+      // both so it can colour-code each side independently — picking the
+      // right team but the wrong driver should not light up the driver.
       const pScoreRows = await db.select({
         category: score.preseasonCategory,
         pointsTotal: score.pointsTotal,
@@ -181,12 +181,27 @@ export async function registerPlayerRoutes(app: FastifyInstance): Promise<void> 
           eq(score.seasonYear, seasonYear),
           eq(score.kind, 'preseason')
         ))
-      const preseasonScoreByCategory = new Map<string, { points: number; exact: boolean }>()
+      type Side = { points: number; correct: boolean }
+      type CategoryScore = {
+        points: number
+        driver: Side
+        team: Side
+      }
+      const preseasonScoreByCategory = new Map<string, CategoryScore>()
       for (const r of pScoreRows) {
         if (!r.category) continue
-        const bd = r.breakdown as { driver?: { correct?: boolean }; team?: { correct?: boolean } }
-        const exact = bd?.driver?.correct === true || bd?.team?.correct === true
-        preseasonScoreByCategory.set(r.category, { points: r.pointsTotal, exact })
+        const bd = r.breakdown as { driver?: { points?: number; correct?: boolean }; team?: { points?: number; correct?: boolean } }
+        preseasonScoreByCategory.set(r.category, {
+          points: r.pointsTotal,
+          driver: {
+            points: bd?.driver?.points ?? 0,
+            correct: bd?.driver?.correct === true
+          },
+          team: {
+            points: bd?.team?.points ?? 0,
+            correct: bd?.team?.correct === true
+          }
+        })
       }
       const pDriverStandings = await db.select({
         position: preseasonPickStandingsDriver.position,
@@ -221,7 +236,10 @@ export async function registerPlayerRoutes(app: FastifyInstance): Promise<void> 
             driverCode: p.driverCode,
             constructorId: p.constructorId,
             points: s?.points ?? 0,
-            exact: s?.exact ?? false
+            driverExact: s?.driver.correct ?? false,
+            driverPoints: s?.driver.points ?? 0,
+            teamExact: s?.team.correct ?? false,
+            teamPoints: s?.team.points ?? 0
           }
         }),
         driverStandings: pDriverStandings,

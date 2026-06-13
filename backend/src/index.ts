@@ -11,6 +11,7 @@ import { registerPredictionRoutes } from './api/routes/predictions.js'
 import { registerLeaderboardRoutes } from './api/routes/leaderboard.js'
 import { registerPreseasonRoutes } from './api/routes/preseason.js'
 import { registerLiveRoutes } from './api/routes/live.js'
+import { registerCircuitRoutes } from './api/routes/circuits.js'
 import { registerImportsRoutes } from './api/routes/imports.js'
 import { registerPlayerRoutes } from './api/routes/players.js'
 import { registerReferenceLapsRoutes } from './api/routes/referenceLaps.js'
@@ -48,6 +49,7 @@ export async function buildApp(opts: BuildAppOpts): Promise<FastifyInstance> {
   await app.register(registerPreseasonRoutes)
   await app.register(registerImportsRoutes)
   await app.register(registerPlayerRoutes)
+  await app.register(registerCircuitRoutes)
 
   app.get('/api/health', async (_req, reply) => {
     const db = (await pingDb()) ? 'up' : 'down'

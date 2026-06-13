@@ -112,6 +112,20 @@ class ReminderService {
     }
   }
 
+  /// Debug helper for the in-app notification center — exposes whatever the
+  /// OS plugin currently has queued. iOS limits pending notifications to ~64;
+  /// Android stores them in the AlarmManager.
+  Future<List<PendingNotificationRequest>> pendingRequests() async {
+    if (!_inited) return const [];
+    return _plugin.pendingNotificationRequests();
+  }
+
+  /// Plain status snapshot for the notification center: `inited` tells us the
+  /// plugin booted, `permissionGranted` is what the last `requestPermissions`
+  /// call returned (best-effort — the OS can revoke between syncs).
+  ({bool inited, bool permissionGranted}) statusSnapshot() =>
+      (inited: _inited, permissionGranted: _permissionGranted);
+
   /// Cancel every reminder we own. Used before a full reschedule so we don't
   /// leave stale notifications for sessions that disappeared from `upcoming`.
   Future<void> _cancelAllOwn() async {

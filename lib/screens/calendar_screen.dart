@@ -144,10 +144,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 // can scroll the list to it.
                 key: e.round == scrollRound ? _nextRaceKey : null,
                 round: e.round,
-                country: () {
-                  final flag = flagFor(e.country);
-                  return '${flag != null ? '$flag  ' : ''}${e.country} · ${e.circuitName}';
-                }(),
+                event: e,
+                flag: flagFor(e.country),
+                country: '${e.country} · ${e.circuitName}',
                 name: e.name.replaceAll('Grand Prix', 'GP'),
                 when:
                     '${DateFormat('d MMM').format(e.sessions.first.scheduledStart)} – ${DateFormat('d MMM').format(race.scheduledStart)}',

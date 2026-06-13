@@ -362,15 +362,7 @@ class _PredictScreenState extends State<PredictScreen> {
             // is editing an unlocked session, regardless of how many slots
             // they've filled.
             final canLock = !systemLocked && !_saving;
-            return GestureDetector(
-              behavior: HitTestBehavior.translucent,
-              onHorizontalDragEnd: (details) {
-                final v = details.primaryVelocity ?? 0;
-                if (v.abs() < 250) return;
-                final target = v < 0 ? d.next : d.prev;
-                if (target != null) _navigateTo(target);
-              },
-              child: ListView(
+            return ListView(
                 padding: const EdgeInsets.only(bottom: Spacing.xxl + Spacing.xxl),
                 children: [
                 Padding(
@@ -514,8 +506,7 @@ class _PredictScreenState extends State<PredictScreen> {
                     ),
                   ),
               ],
-              ),
-            );
+              );
           },
           ),
         ),

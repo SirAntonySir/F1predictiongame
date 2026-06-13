@@ -352,8 +352,12 @@ class HttpApiClient implements ApiClient {
   }
 
   @override
-  Future<LeaguePreseasonView> leaguePreseason(String leagueId, {int? season}) async {
-    final j = await _request('GET', '/api/leagues/$leagueId/preseason${_seasonQ(season)}') as Map<String, dynamic>;
+  Future<LeaguePreseasonView> leaguePreseason(String leagueId, {int? season, String? asUserId}) async {
+    final parts = <String>[];
+    if (season != null) parts.add('season=$season');
+    if (asUserId != null) parts.add('as=$asUserId');
+    final q = parts.isEmpty ? '' : '?${parts.join('&')}';
+    final j = await _request('GET', '/api/leagues/$leagueId/preseason$q') as Map<String, dynamic>;
     return LeaguePreseasonView.fromJson(j);
   }
 
@@ -381,5 +385,28 @@ class HttpApiClient implements ApiClient {
     final j = await _request('GET', '/api/leagues/$leagueId/players/$userId$q')
         as Map<String, dynamic>;
     return PlayerProfile.fromJson(j);
+  }
+
+  @override
+  Future<String?> circuitSvg(String circuitId, {String detail = 'detailed', String variant = 'white', String? layout}) async {
+    final parts = <String>['detail=$detail', 'variant=$variant'];
+    if (layout != null) parts.add('layout=$layout');
+    final q = '?${parts.join('&')}';
+    try {
+      // Endpoint returns raw SVG, not JSON — talk to the http client directly
+      // so we don't go through _request's JSON decoder.
+      final headers = <String, String>{};
+      final token = _tokenProvider();
+      if (token != null) headers['Authorization'] = 'Bearer $token';
+      final res = await client.get(
+        Uri.parse('$baseUrl/api/circuits/$circuitId/svg$q'),
+        headers: headers,
+      );
+      if (res.statusCode == 404) return null;
+      if (res.statusCode >= 200 && res.statusCode < 300) return res.body;
+      return null;
+    } catch (_) {
+      return null;
+    }
   }
 }

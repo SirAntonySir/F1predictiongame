@@ -196,18 +196,7 @@ class _SessionResultsScreenState extends State<SessionResultsScreen> {
                     ? chronological[currentIdx + 1]
                     : null;
 
-            return GestureDetector(
-              behavior: HitTestBehavior.translucent,
-              onHorizontalDragEnd: (details) {
-                // Velocity unit: logical pixels per second. 250 ≈ a deliberate
-                // flick; below that we ignore so vertical scroll isn't hijacked.
-                final v = details.primaryVelocity ?? 0;
-                if (v.abs() < 250) return;
-                final target = v < 0 ? next : prev;
-                if (target == null) return;
-                _navigateTo(target);
-              },
-              child: SingleChildScrollView(
+            return SingleChildScrollView(
                 padding: const EdgeInsets.only(bottom: Spacing.xxl),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -283,8 +272,7 @@ class _SessionResultsScreenState extends State<SessionResultsScreen> {
                     ),
                   ],
                 ),
-              ),
-            );
+              );
           },
         ),
       ),
@@ -617,50 +605,16 @@ class _Body extends StatelessWidget {
                 style: AppText.label(11,
                     color: t.colorScheme.onSurface.withOpacity(0.6))),
           ),
-          // Responsive layout: on phones each ticket spans the row (one per
-          // member, stacked). On iPad-wide viewports pair them up so we use
-          // the horizontal real estate instead of stretching each ticket to
-          // an awkward slab.
-          LayoutBuilder(
-            builder: (ctx, constraints) {
-              final twoCol = constraints.maxWidth >= 640;
-              final members = payload.leagueMemberPredictions;
-              if (!twoCol) {
-                return Column(
-                  children: [
-                    for (final m in members)
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(
-                            Spacing.lg, 0, Spacing.lg, Spacing.sm),
-                        child: _MemberPickTicket(member: m),
-                      ),
-                  ],
-                );
-              }
-              final rows = <Widget>[];
-              for (var i = 0; i < members.length; i += 2) {
-                final left = members[i];
-                final right = i + 1 < members.length ? members[i + 1] : null;
-                rows.add(Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                      Spacing.lg, 0, Spacing.lg, Spacing.sm),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(child: _MemberPickTicket(member: left)),
-                      const SizedBox(width: Spacing.sm),
-                      Expanded(
-                        child: right == null
-                            ? const SizedBox.shrink()
-                            : _MemberPickTicket(member: right),
-                      ),
-                    ],
-                  ),
-                ));
-              }
-              return Column(children: rows);
-            },
-          ),
+          for (final m in payload.leagueMemberPredictions)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                  Spacing.lg, 0, Spacing.lg, Spacing.sm),
+              child: _MemberFormCard(
+                member: m,
+                result: payload.result,
+                sessionType: session.type,
+              ),
+            ),
         ],
       ],
     );
@@ -993,91 +947,130 @@ class _YourScoreTicket extends StatelessWidget {
   }
 }
 
-/// Ticket showing one league member's picks for this session. Cream stock
-/// with the stub torn off — they no longer get to edit, but you can see
-/// what they played.
-class _MemberPickTicket extends StatelessWidget {
+/// Compact bordered card for a league member — same anatomy as the recent-form
+/// chip on the player profile screen, but full-width with the player's name
+/// in the header and the picks rendered as `P# CODE` with an outcome dot per
+/// slot. Replaces the older cream-stock ticket so the list reads as a
+/// scannable stack instead of a horizontal scroll of slabs.
+class _MemberFormCard extends StatelessWidget {
   final MemberPrediction member;
-  const _MemberPickTicket({required this.member});
+  final List<SessionResult> result;
+  final SessionType sessionType;
+  const _MemberFormCard({
+    required this.member,
+    required this.result,
+    required this.sessionType,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final empty = member.picks.isEmpty;
+    final t = Theme.of(context);
+    final topN = requiredPicks(sessionType);
     final pts = member.pointsTotal;
-    return TicketCard(
-      tear: TicketTear.ghosted,
-      bodyPadding: const EdgeInsets.fromLTRB(
-          Spacing.lg, Spacing.md, Spacing.xl, Spacing.md),
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
+    final empty = member.picks.isEmpty;
+    final picksSorted = [...member.picks]
+      ..sort((a, b) => a.position.compareTo(b.position));
+    return Container(
+      padding: const EdgeInsets.symmetric(
+          horizontal: Spacing.md, vertical: Spacing.sm),
+      decoration: BoxDecoration(
+        border: Border.all(color: t.strokeColor, width: Strokes.card),
+        borderRadius: Radii.rLg,
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(member.displayName.toUpperCase(),
-                    overflow: TextOverflow.ellipsis,
-                    style: AppText.display(15, color: Colors.black)),
-              ),
-              if (pts != null)
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: pts > 0 ? BrandColors.ok : Colors.black,
-                    borderRadius: const BorderRadius.all(Radius.circular(6)),
-                  ),
-                  child: Text('+$pts',
-                      style: AppText.label(9,
-                          color: pts > 0 ? Colors.black : Colors.white)),
-                ),
-            ],
-          ),
-          const SizedBox(height: Spacing.sm),
-          if (empty)
-            Text('No picks for this session',
-                style: AppText.body(12, color: Colors.black.withOpacity(0.55))
-                    .copyWith(fontStyle: FontStyle.italic))
-          else
-            Wrap(
-              spacing: 12,
-              runSpacing: 6,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                for (final p in member.picks)
-                  _MemberPickChip(
-                      position: p.position, driverCode: p.driverCode),
+                Text(
+                  member.displayName.toUpperCase(),
+                  style: AppText.display(16),
+                  maxLines: 1,
+                  overflow: TextOverflow.fade,
+                  softWrap: false,
+                ),
+                const SizedBox(height: 6),
+                if (empty)
+                  Text('NO PICKS',
+                      style: AppText.label(9,
+                          color: t.colorScheme.onSurface.withOpacity(0.55)))
+                else
+                  Wrap(
+                    spacing: Spacing.md,
+                    runSpacing: 4,
+                    children: [
+                      for (final p in picksSorted)
+                        _MemberFormPick(
+                          position: p.position,
+                          driverCode: p.driverCode,
+                          outcome: result.isEmpty
+                              ? null
+                              : outcomeFor(
+                                  p.driverCode, p.position, result, topN),
+                        ),
+                    ],
+                  ),
               ],
             ),
+          ),
+          const SizedBox(width: Spacing.md),
+          Text(
+            pts == null ? '—' : '+$pts',
+            style: AppText.display(
+              22,
+              color: pts == null
+                  ? t.colorScheme.onSurface.withOpacity(0.35)
+                  : (pts > 0
+                      ? BrandColors.accent
+                      : t.colorScheme.onSurface.withOpacity(0.6)),
+            ),
+          ),
         ],
       ),
     );
   }
 }
 
-class _MemberPickChip extends StatelessWidget {
+/// One `P# CODE ●` triplet inside a [_MemberFormCard] row. The dot color
+/// encodes per-slot outcome (exact / wrongPos / miss / unknown).
+class _MemberFormPick extends StatelessWidget {
   final int position;
   final String driverCode;
-  const _MemberPickChip({required this.position, required this.driverCode});
+  final PickOutcome? outcome;
+  const _MemberFormPick({
+    required this.position,
+    required this.driverCode,
+    required this.outcome,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final t = Theme.of(context);
+    final dot = switch (outcome) {
+      PickOutcome.exact => BrandColors.ok,
+      PickOutcome.inTopN => BrandColors.near,
+      PickOutcome.miss => t.colorScheme.onSurface.withOpacity(0.25),
+      null => t.colorScheme.onSurface.withOpacity(0.2),
+    };
     return Row(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-          decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.08),
-            borderRadius: const BorderRadius.all(Radius.circular(4)),
-          ),
-          child: Text('P$position',
-              style: AppText.label(9, color: Colors.black.withOpacity(0.7))),
-        ),
-        const SizedBox(width: 6),
+        Text('P$position',
+            style: AppText.label(8,
+                color: t.colorScheme.onSurface.withOpacity(0.55))),
+        const SizedBox(width: 4),
         Text(driverCode,
-            style:
-                AppText.body(14, weight: FontWeight.w800, color: Colors.black)),
+            style: AppText.body(13, weight: FontWeight.w800)),
+        const SizedBox(width: 4),
+        Container(
+          width: 6,
+          height: 6,
+          decoration: BoxDecoration(color: dot, shape: BoxShape.circle),
+        ),
       ],
     );
   }
@@ -1196,7 +1189,11 @@ class LiveResultsBody extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.fromLTRB(
                 Spacing.lg, 0, Spacing.lg, Spacing.sm),
-            child: _MemberPickTicket(member: m),
+            child: _MemberFormCard(
+              member: m,
+              result: order,
+              sessionType: sessionType,
+            ),
           ),
       ],
     ]);

@@ -28,25 +28,39 @@ class PreseasonTab extends StatefulWidget {
   State<PreseasonTab> createState() => _PreseasonTabState();
 }
 
-class _PreseasonData {
+class PreseasonBodyData {
   final LeaguePreseasonView view;
   final Map<String, DriverStanding> driverById;
   final Map<String, ConstructorStanding> constructorById;
-  const _PreseasonData({
+  const PreseasonBodyData({
     required this.view,
     required this.driverById,
     required this.constructorById,
   });
+
+  /// Resolve the standings maps (driverById, constructorById) once we have
+  /// just the view. Convenience constructor for callers (like the player
+  /// preseason screen) that fetch the view via `?as=` and the standings
+  /// lists separately.
+  factory PreseasonBodyData.from({
+    required LeaguePreseasonView view,
+    required List<DriverStanding> drivers,
+    required List<ConstructorStanding> constructors,
+  }) => PreseasonBodyData(
+        view: view,
+        driverById: { for (final d in drivers) d.driverCode: d },
+        constructorById: { for (final c in constructors) c.constructorId: c },
+      );
 }
 
 class _PreseasonTabState extends State<PreseasonTab> {
-  Future<_PreseasonData>? _data;
+  Future<PreseasonBodyData>? _data;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (widget._injected != null) {
-      _data ??= Future.value(_PreseasonData(
+      _data ??= Future.value(PreseasonBodyData(
         view: widget._injected!,
         driverById: const {},
         constructorById: const {},
@@ -56,7 +70,7 @@ class _PreseasonTabState extends State<PreseasonTab> {
     }
   }
 
-  Future<_PreseasonData> _load() async {
+  Future<PreseasonBodyData> _load() async {
     final scope = AppState.of(context);
     final leagues = scope.auth.leagues;
     if (leagues.isEmpty) {
@@ -70,7 +84,7 @@ class _PreseasonTabState extends State<PreseasonTab> {
     final view = results[0] as LeaguePreseasonView;
     final drivers = results[1] as List<DriverStanding>;
     final constructors = results[2] as List<ConstructorStanding>;
-    return _PreseasonData(
+    return PreseasonBodyData(
       view: view,
       driverById: { for (final d in drivers) d.driverCode: d },
       constructorById: { for (final c in constructors) c.constructorId: c },
@@ -79,7 +93,7 @@ class _PreseasonTabState extends State<PreseasonTab> {
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<_PreseasonData>(
+    return FutureBuilder<PreseasonBodyData>(
       future: _data,
       builder: (_, snap) {
         if (snap.connectionState != ConnectionState.done) {
@@ -93,7 +107,7 @@ class _PreseasonTabState extends State<PreseasonTab> {
             onRetry: () => setState(() => _data = _load()),
           );
         }
-        return _Body(
+        return PreseasonBodyView(
           data: snap.data!,
           myUserId: widget._injectedMyUserId ?? AppState.of(context).auth.currentUserId,
         );
@@ -102,10 +116,26 @@ class _PreseasonTabState extends State<PreseasonTab> {
   }
 }
 
-class _Body extends StatelessWidget {
-  final _PreseasonData data;
+/// Reusable preseason body view. Drives both the Standings → Preseason tab
+/// (default params) and the per-player preseason screen launched from the
+/// player profile (sectionTitle override + leaderboard hidden).
+class PreseasonBodyView extends StatelessWidget {
+  final PreseasonBodyData data;
   final String? myUserId;
-  const _Body({required this.data, required this.myUserId});
+  /// Section header above the per-category cards. Default: "YOUR PROJECTIONS"
+  /// for the caller's own view. Player profile screen passes
+  /// "{Name}'S PROJECTIONS".
+  final String sectionTitle;
+  /// When false, the LEAGUE PRESEASON LEADERBOARD section is omitted (used
+  /// by the player screen — the league rank is already in the profile header).
+  final bool showLeaderboard;
+  const PreseasonBodyView({
+    super.key,
+    required this.data,
+    required this.myUserId,
+    this.sectionTitle = 'YOUR PROJECTIONS',
+    this.showLeaderboard = true,
+  });
 
   LeaguePreseasonView get view => data.view;
 
@@ -114,8 +144,6 @@ class _Body extends StatelessWidget {
     final standings = view.me.standings;
     final myDriverByPosition = {for (final p in standings.myDriverPicks) p.position: p.driverCode};
     final myTeamByPosition = {for (final p in standings.myConstructorPicks) p.position: p.constructorId};
-    // Where each driver/team is in the *projected* order. Used to compute the
-    // delta between a slot's user-pick and that pick's actual standing.
     final actualDriverPosition = {
       for (var i = 0; i < standings.projectedDriverOrder.length; i++)
         standings.projectedDriverOrder[i]: i + 1,
@@ -138,22 +166,24 @@ class _Body extends StatelessWidget {
             ],
           ),
         ),
-        _h('LEAGUE PRESEASON LEADERBOARD'),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
-          child: Column(
-            children: [
-              const _LeaderHeader(),
-              for (var i = 0; i < view.leaderboard.length; i++)
-                _LeaderRow(
-                  rank: i + 1,
-                  row: view.leaderboard[i],
-                  isMe: view.leaderboard[i].userId == myUserId,
-                ),
-            ],
+        if (showLeaderboard) ...[
+          _h('LEAGUE PRESEASON LEADERBOARD'),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
+            child: Column(
+              children: [
+                const _LeaderHeader(),
+                for (var i = 0; i < view.leaderboard.length; i++)
+                  _LeaderRow(
+                    rank: i + 1,
+                    row: view.leaderboard[i],
+                    isMe: view.leaderboard[i].userId == myUserId,
+                  ),
+              ],
+            ),
           ),
-        ),
-        _h('YOUR PROJECTIONS'),
+        ],
+        _h(sectionTitle),
         for (final c in view.me.categories) ...[
           Padding(
             padding: const EdgeInsets.fromLTRB(Spacing.lg, Spacing.sm, Spacing.lg, Spacing.xs),

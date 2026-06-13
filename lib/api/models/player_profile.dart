@@ -182,26 +182,34 @@ class PreseasonCategoryPick {
   final String category;
   final String? driverCode;
   final String? constructorId;
-  /// Points this pick is currently worth — non-zero means the prediction
-  /// is hitting at this moment (truth either set already or derived from
-  /// in-season aggregates by the preseason rescorer).
+  /// Total points (driver side + team side) currently scored on this pick.
   final int points;
-  /// True when the pick is currently an exact hit (driver and/or
-  /// constructor side of the category's truth matches).
-  final bool exact;
+  /// Driver-side correctness — picked driver matches the truth driver for
+  /// the category.
+  final bool driverExact;
+  final int driverPoints;
+  /// Team-side correctness — picked constructor matches the truth team.
+  final bool teamExact;
+  final int teamPoints;
   const PreseasonCategoryPick({
     required this.category,
     required this.driverCode,
     required this.constructorId,
     required this.points,
-    required this.exact,
+    required this.driverExact,
+    required this.driverPoints,
+    required this.teamExact,
+    required this.teamPoints,
   });
   factory PreseasonCategoryPick.fromJson(Map<String, dynamic> j) => PreseasonCategoryPick(
         category: j['category'] as String,
         driverCode: j['driverCode'] as String?,
         constructorId: j['constructorId'] as String?,
         points: (j['points'] as num?)?.toInt() ?? 0,
-        exact: j['exact'] as bool? ?? false,
+        driverExact: j['driverExact'] as bool? ?? false,
+        driverPoints: (j['driverPoints'] as num?)?.toInt() ?? 0,
+        teamExact: j['teamExact'] as bool? ?? false,
+        teamPoints: (j['teamPoints'] as num?)?.toInt() ?? 0,
       );
 }
 

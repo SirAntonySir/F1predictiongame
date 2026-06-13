@@ -1,10 +1,12 @@
 // ignore_for_file: deprecated_member_use
 import 'package:flutter/material.dart';
+import '../api/models/event.dart';
 import '../domain/race_phase.dart';
 import '../theme/colors.dart';
 import '../theme/tokens.dart';
 import '../theme/typography.dart';
 import 'app_card.dart';
+import 'circuit_svg.dart';
 
 // RaceState lives in the domain layer (so the calendar's pure classifier can
 // produce it); re-exported here for existing importers of this component.
@@ -21,6 +23,11 @@ class RaceTile extends StatelessWidget {
   final bool sprint;
   final String? distanceFromNow;
   final VoidCallback? onTap;
+  /// When set, a faint circuit map renders as a background watermark and the
+  /// header line uses the flag emoji + country text rendered separately so
+  /// the flag can be sized larger than the label text.
+  final Event? event;
+  final String? flag;
 
   const RaceTile({
     super.key,
@@ -34,6 +41,8 @@ class RaceTile extends StatelessWidget {
     this.sprint = false,
     this.distanceFromNow,
     this.onTap,
+    this.event,
+    this.flag,
   });
 
   @override
@@ -52,7 +61,27 @@ class RaceTile extends StatelessWidget {
         child: ClipRRect(
           borderRadius: Radii.rLg,
           child: IntrinsicHeight(
-            child: Row(
+            child: Stack(
+              children: [
+                if (event != null)
+                  Positioned(
+                    top: Spacing.sm,
+                    right: Spacing.sm,
+                    bottom: Spacing.sm,
+                    child: IgnorePointer(
+                      child: Opacity(
+                        opacity: state == RaceState.past ? 0.08 : 0.18,
+                        child: CircuitSvg(
+                          event: event!,
+                          variant: 'black-outline',
+                          width: 90,
+                          height: 90,
+                          color: t.colorScheme.onSurface,
+                        ),
+                      ),
+                    ),
+                  ),
+                Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               if (stripeColor != null)
@@ -76,8 +105,21 @@ class RaceTile extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text(country.toUpperCase(),
-                            style: AppText.label(10, color: t.colorScheme.onSurface.withOpacity(0.55))),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (flag != null) ...[
+                              Text(flag!, style: const TextStyle(fontSize: 16, height: 1)),
+                              const SizedBox(width: 6),
+                            ],
+                            Flexible(
+                              child: Text(country.toUpperCase(),
+                                  style: AppText.label(10, color: t.colorScheme.onSurface.withOpacity(0.55)),
+                                  maxLines: 1, overflow: TextOverflow.fade, softWrap: false),
+                            ),
+                          ],
+                        ),
                         const SizedBox(height: Spacing.xxs),
                         Text(
                           name.toUpperCase(),
@@ -116,6 +158,8 @@ class RaceTile extends StatelessWidget {
               ),
             ],
           ),
+              ],
+            ),
           ),
         ),
       ),
