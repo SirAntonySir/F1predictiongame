@@ -773,49 +773,52 @@ class _HomeScreenState extends State<HomeScreen> {
     final top = preview.take(4).toList();
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
-      child: AppCard(
-        child: Column(
-          children: List.generate(top.length, (i) {
-            final r = top[i];
-            final isMe = r.userId == meId;
-            return Padding(
-              padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Column(
+        children: List.generate(top.length, (i) {
+          final r = top[i];
+          final isMe = r.userId == meId;
+          return Padding(
+            padding: const EdgeInsets.only(bottom: Spacing.xs),
+            child: Container(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: Spacing.sm, vertical: Spacing.xs),
+              decoration: BoxDecoration(
+                color: isMe ? t.rowHighlight : null,
+                border: Border.all(color: t.strokeColor, width: Strokes.card),
+                borderRadius: Radii.rLg,
+              ),
               child: Row(
                 children: [
-                  Expanded(
-                    child: Row(
-                      children: [
-                        SizedBox(
-                          width: 18,
-                          child: Text('${i + 1}',
-                              style: AppText.display(13,
-                                  color: isMe
-                                      ? BrandColors.accent
-                                      : t.colorScheme.onSurface)),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            isMe ? '${r.displayName} (you)' : r.displayName,
-                            maxLines: 1,
-                            overflow: TextOverflow.fade,
-                            softWrap: false,
-                            style: AppText.body(13,
-                                weight: isMe
-                                    ? FontWeight.w800
-                                    : FontWeight.w600),
-                          ),
-                        ),
-                      ],
-                    ),
+                  SizedBox(
+                    width: 22,
+                    child: Text('${i + 1}',
+                        style: AppText.display(13,
+                            color: isMe
+                                ? BrandColors.accent
+                                : t.colorScheme.onSurface)),
                   ),
                   const SizedBox(width: Spacing.sm),
-                  Text('${points(r)}', style: AppText.display(13)),
+                  Expanded(
+                    child: Text(
+                      isMe ? '${r.displayName} (you)' : r.displayName,
+                      maxLines: 1,
+                      overflow: TextOverflow.fade,
+                      softWrap: false,
+                      style: AppText.body(13,
+                          weight: isMe ? FontWeight.w800 : FontWeight.w600),
+                    ),
+                  ),
+                  SizedBox(
+                    width: 40,
+                    child: Text('${points(r)}',
+                        style: AppText.display(15),
+                        textAlign: TextAlign.right),
+                  ),
                 ],
               ),
-            );
-          }),
-        ),
+            ),
+          );
+        }),
       ),
     );
   }
@@ -916,40 +919,51 @@ class LiveHeroCard extends StatelessWidget {
                           borderRadius:
                               const BorderRadius.all(Radius.circular(12)),
                         ),
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: Spacing.md, vertical: Spacing.sm),
+                        padding: const EdgeInsets.all(Spacing.sm),
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             for (final r in top)
                               Padding(
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 4),
-                                child: Row(children: [
-                                  SizedBox(
-                                      width: 20,
-                                      child: Text('${r.position}',
-                                          style: AppText.display(13,
-                                              color: t.colorScheme.onSurface))),
-                                  Container(
-                                      width: 3,
-                                      height: 16,
-                                      color: teamColor(r.constructorId,
-                                          fallbackHex: r.teamColour)),
-                                  const SizedBox(width: Spacing.sm),
-                                  SizedBox(
-                                      width: 42,
-                                      child: Text(r.driverCode,
-                                          style: AppText.body(12,
-                                              weight: FontWeight.w800,
-                                              color: t.colorScheme.onSurface))),
-                                  Expanded(
-                                      child: Text(r.driverName,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: AppText.body(12,
-                                              color: t.colorScheme.onSurface
-                                                  .withOpacity(0.7)))),
-                                ]),
+                                padding: const EdgeInsets.only(bottom: Spacing.xs),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: Spacing.sm, vertical: Spacing.xs),
+                                  decoration: BoxDecoration(
+                                    border: Border.all(color: t.strokeColor, width: Strokes.card),
+                                    borderRadius: Radii.rLg,
+                                  ),
+                                  child: Row(children: [
+                                    SizedBox(
+                                        width: 22,
+                                        child: Text('${r.position}',
+                                            style: AppText.display(13,
+                                                color: t.colorScheme.onSurface))),
+                                    const SizedBox(width: Spacing.xs),
+                                    Container(
+                                      width: 5,
+                                      height: 22,
+                                      decoration: BoxDecoration(
+                                        color: teamColor(r.constructorId,
+                                            fallbackHex: r.teamColour),
+                                        borderRadius: BorderRadius.circular(2),
+                                      ),
+                                    ),
+                                    const SizedBox(width: Spacing.sm),
+                                    SizedBox(
+                                        width: 42,
+                                        child: Text(r.driverCode,
+                                            style: AppText.body(12,
+                                                weight: FontWeight.w800,
+                                                color: t.colorScheme.onSurface))),
+                                    Expanded(
+                                        child: Text(r.driverName,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: AppText.body(12,
+                                                color: t.colorScheme.onSurface
+                                                    .withOpacity(0.7)))),
+                                  ]),
+                                ),
                               ),
                           ],
                         ),

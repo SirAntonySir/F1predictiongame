@@ -15,6 +15,7 @@
 import type { FastifyInstance } from 'fastify'
 import * as sessionsRepo from '../../repo/sessions.js'
 import * as bestLapsRepo from '../../repo/bestLaps.js'
+import * as resultsRepo from '../../repo/results.js'
 import { ApiError } from '../errors.js'
 import type { SessionType } from '../../domain/types.js'
 
@@ -22,6 +23,7 @@ type Tier = 'sessionBest' | 'personalBest' | 'neutral'
 
 type LapRow = {
   driverCode: string
+  constructorId: string | null
   lapMs: number
   lapTier: Tier
   s1Ms: number | null; s1Tier: Tier
@@ -73,6 +75,24 @@ export async function registerReferenceLapsRoutes(app: FastifyInstance): Promise
       const sessionIds = refs.map((r) => r.id)
       const allLaps = await bestLapsRepo.listForSessions(sessionIds)
 
+      // Driver → constructor lookup, built from session_result rows of the
+      // reference sessions. Lets the frontend show team color for drivers who
+      // ran practice but weren't classified in the most recent finished race
+      // (DNF, reserves, etc) — those would otherwise fall back to neutral
+      // grey on the predict screen.
+      const constructorByDriver = new Map<string, string>()
+      for (const sid of sessionIds) {
+        const rows = await resultsRepo.listForSession(sid)
+        for (const r of rows) {
+          // First-seen wins; iteration order is chronological so the earliest
+          // appearance of the driver this weekend defines their team. Mid-
+          // weekend team swaps don't happen in modern F1.
+          if (!constructorByDriver.has(r.driverCode)) {
+            constructorByDriver.set(r.driverCode, r.constructorId)
+          }
+        }
+      }
+
       // Personal-best per (driver, sector) across all reference sessions in
       // scope. Compute once up front so per-row tiering is O(1).
       const pb = new Map<string, { s1: number | null; s2: number | null; s3: number | null }>()
@@ -112,6 +132,7 @@ export async function registerReferenceLapsRoutes(app: FastifyInstance): Promise
           const s3Tier = tier(l.s3Ms, sb.s3, pbEntry.s3)
           return {
             driverCode: l.driverCode,
+            constructorId: constructorByDriver.get(l.driverCode) ?? null,
             lapMs: l.lapMs,
             lapTier: topTier(topTier(s1Tier, s2Tier), s3Tier),
             s1Ms: l.s1Ms, s1Tier,

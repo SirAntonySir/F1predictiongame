@@ -826,23 +826,33 @@ class _SectorReferenceList extends StatelessWidget {
     final allCodes = <String>{...byCode.keys, ...byDriver.keys};
     final rows = <_DriverSectorRowModel>[];
     for (final code in allCodes) {
-      if (picks.contains(code)) continue;  // picked → moved to top, hide here
       final laps = byDriver[code] ?? List<ReferenceLap?>.filled(refs.references.length, null);
       ReferenceLap? best;
-      var bestIdx = -1;
-      for (var i = 0; i < laps.length; i++) {
-        final l = laps[i];
+      for (final l in laps) {
         if (l == null) continue;
-        if (best == null || l.lapMs < best.lapMs) { best = l; bestIdx = i; }
+        if (best == null || l.lapMs < best.lapMs) best = l;
       }
       final sr = byCode[code];
+      // Constructor lookup falls back to the reference-laps payload when the
+      // driver wasn't classified in the lineup (DNF, reserve drivers — e.g.
+      // VER didn't finish Monaco, Lindblad doesn't race the GP at all). The
+      // /reference-laps endpoint reads constructorId from the practice/quali
+      // session_result rows, which always have a team for every driver who
+      // turned a wheel that weekend.
+      String? constructorId = sr?.constructorId;
+      for (final l in laps) {
+        if (l == null) continue;
+        constructorId ??= l.constructorId;
+        if (constructorId != null) break;
+      }
+      final pickIdx = picks.indexOf(code);
       rows.add(_DriverSectorRowModel(
         driverCode: code,
-        constructorId: sr?.constructorId,
+        constructorId: constructorId,
         teamColorHex: sr?.teamColour,
         laps: laps,
         bestLapMs: best?.lapMs,
-        bestSlot: bestIdx >= 0 ? bestIdx : null,
+        pickedSlot: pickIdx == -1 ? null : pickIdx + 1,
       ));
     }
     // Fastest first, no-laps last.
@@ -863,11 +873,10 @@ class _SectorReferenceList extends StatelessWidget {
               padding: const EdgeInsets.only(bottom: Spacing.xs),
               child: DriverSectorRow(
                 driverCode: r.driverCode,
-                driverNumber: null,
                 constructorId: r.constructorId,
                 teamColorHex: r.teamColorHex,
                 referenceLaps: r.laps,
-                bestSlot: r.bestSlot,
+                pickedSlot: r.pickedSlot,
                 onTap: canEdit ? () => onToggle(r.driverCode) : null,
               ),
             ),
@@ -883,14 +892,14 @@ class _DriverSectorRowModel {
   final String? teamColorHex;
   final List<ReferenceLap?> laps;
   final int? bestLapMs;
-  final int? bestSlot;
+  final int? pickedSlot;
   _DriverSectorRowModel({
     required this.driverCode,
     required this.constructorId,
     required this.teamColorHex,
     required this.laps,
     required this.bestLapMs,
-    required this.bestSlot,
+    required this.pickedSlot,
   });
 }
 

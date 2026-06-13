@@ -141,18 +141,16 @@ class _Body extends StatelessWidget {
         _h('LEAGUE PRESEASON LEADERBOARD'),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
-          child: AppCard(
-            padding: EdgeInsets.zero,
-            child: Column(
-              children: [
-                for (var i = 0; i < view.leaderboard.length; i++)
-                  _LeaderRow(
-                    rank: i + 1,
-                    row: view.leaderboard[i],
-                    isMe: view.leaderboard[i].userId == myUserId,
-                  ),
-              ],
-            ),
+          child: Column(
+            children: [
+              const _LeaderHeader(),
+              for (var i = 0; i < view.leaderboard.length; i++)
+                _LeaderRow(
+                  rank: i + 1,
+                  row: view.leaderboard[i],
+                  isMe: view.leaderboard[i].userId == myUserId,
+                ),
+            ],
           ),
         ),
         _h('YOUR PROJECTIONS'),
@@ -219,6 +217,30 @@ class _Body extends StatelessWidget {
       );
 }
 
+// Shared column widths for the preseason leaderboard header + rows.
+const double _kLeaderPosCol = 22;
+const double _kLeaderPointsCol = 50;
+
+class _LeaderHeader extends StatelessWidget {
+  const _LeaderHeader();
+  @override
+  Widget build(BuildContext context) {
+    final t = Theme.of(context);
+    final muted = AppText.label(8, color: t.colorScheme.onSurface.withOpacity(0.55));
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(Spacing.sm, 0, Spacing.sm, Spacing.xs),
+      child: Row(
+        children: [
+          SizedBox(width: _kLeaderPosCol, child: Text('P', style: muted)),
+          const SizedBox(width: Spacing.sm),
+          Expanded(child: Text('PLAYER', style: muted)),
+          SizedBox(width: _kLeaderPointsCol, child: Text('PTS', style: muted, textAlign: TextAlign.right)),
+        ],
+      ),
+    );
+  }
+}
+
 class _LeaderRow extends StatelessWidget {
   final int rank;
   final LeaguePreseasonLeaderboardRow row;
@@ -228,20 +250,38 @@ class _LeaderRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: Spacing.lg, vertical: 10),
-      color: isMe ? t.rowHighlight : null,
-      child: Row(
-        children: [
-          SizedBox(width: 22, child: Text('$rank', style: AppText.display(15))),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(row.displayName,
-                style: AppText.body(13, weight: isMe ? FontWeight.w800 : FontWeight.w700)),
-          ),
-          Text('+${row.preseasonPointsProjected}',
-              style: AppText.display(15, color: isMe ? BrandColors.accent : null)),
-        ],
+    return Padding(
+      padding: const EdgeInsets.only(bottom: Spacing.xs),
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+            horizontal: Spacing.sm, vertical: Spacing.xs),
+        decoration: BoxDecoration(
+          color: isMe ? t.rowHighlight : null,
+          border: Border.all(color: t.strokeColor, width: Strokes.card),
+          borderRadius: Radii.rLg,
+        ),
+        child: Row(
+          children: [
+            SizedBox(
+              width: _kLeaderPosCol,
+              child: Text('$rank',
+                  style: AppText.display(15,
+                      color: isMe ? BrandColors.accent : t.colorScheme.onSurface)),
+            ),
+            const SizedBox(width: Spacing.sm),
+            Expanded(
+              child: Text(row.displayName,
+                  style: AppText.body(13, weight: isMe ? FontWeight.w800 : FontWeight.w700)),
+            ),
+            SizedBox(
+              width: _kLeaderPointsCol,
+              child: Text('+${row.preseasonPointsProjected}',
+                  style: AppText.display(15,
+                      color: isMe ? BrandColors.accent : null),
+                  textAlign: TextAlign.right),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -494,60 +534,59 @@ class _DriverPositionTile extends StatelessWidget {
     final delta = (myCode != null && myActualPosition != null)
         ? myActualPosition! - position
         : null;
-    return AppCard(
-      padding: EdgeInsets.zero,
-      child: IntrinsicHeight(
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(Spacing.lg, Spacing.sm, Spacing.md, Spacing.sm),
-              child: SizedBox(
-                width: 30,
-                child: Text(
-                  position.toString().padLeft(2, '0'),
-                  style: AppText.display(22),
-                ),
-              ),
+    return Container(
+      padding: const EdgeInsets.symmetric(
+          horizontal: Spacing.sm, vertical: Spacing.xs),
+      decoration: BoxDecoration(
+        border: Border.all(color: t.strokeColor, width: Strokes.card),
+        borderRadius: Radii.rLg,
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 32,
+            child: Text(
+              position.toString().padLeft(2, '0'),
+              style: AppText.display(20),
             ),
-            if (myStanding != null)
-              Container(width: 4, color: teamColor(myStanding!.constructorId)),
-            const SizedBox(width: Spacing.sm),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: Spacing.sm),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      myCode ?? '—',
-                      style: AppText.display(15,
-                          color: myCode == null ? t.colorScheme.onSurface.withOpacity(0.4) : null),
-                    ),
-                    if (myStanding != null) ...[
-                      const SizedBox(height: 2),
-                      Text(myStanding!.driverName,
-                          style: AppText.body(11, color: t.colorScheme.onSurface.withOpacity(0.65))),
-                    ],
-                  ],
-                ),
-              ),
+          ),
+          const SizedBox(width: Spacing.xs),
+          Container(
+            width: 5,
+            height: 32,
+            decoration: BoxDecoration(
+              color: myStanding != null
+                  ? teamColor(myStanding!.constructorId)
+                  : t.colorScheme.onSurface.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(2),
             ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(Spacing.sm, Spacing.sm, Spacing.lg, Spacing.sm),
-              child: Align(
-                alignment: Alignment.center,
-                child: _PickIndicator(
-                  myLabel: myCode,
-                  correct: correct,
-                  pickedDifferent: false,
-                  delta: delta,
+          ),
+          const SizedBox(width: Spacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  myCode ?? '—',
+                  style: AppText.display(15,
+                      color: myCode == null ? t.colorScheme.onSurface.withOpacity(0.4) : null),
                 ),
-              ),
+                if (myStanding != null) ...[
+                  const SizedBox(height: 2),
+                  Text(myStanding!.driverName,
+                      style: AppText.body(11, color: t.colorScheme.onSurface.withOpacity(0.65))),
+                ],
+              ],
             ),
-          ],
-        ),
+          ),
+          _PickIndicator(
+            myLabel: myCode,
+            correct: correct,
+            pickedDifferent: false,
+            delta: delta,
+          ),
+        ],
       ),
     );
   }
@@ -576,50 +615,50 @@ class _TeamPositionTile extends StatelessWidget {
     final delta = (myId != null && myActualPosition != null)
         ? myActualPosition! - position
         : null;
-    return AppCard(
-      padding: EdgeInsets.zero,
-      child: IntrinsicHeight(
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(Spacing.lg, Spacing.sm, Spacing.md, Spacing.sm),
-              child: SizedBox(
-                width: 30,
-                child: Text(
-                  position.toString().padLeft(2, '0'),
-                  style: AppText.display(22),
-                ),
-              ),
+    return Container(
+      padding: const EdgeInsets.symmetric(
+          horizontal: Spacing.sm, vertical: Spacing.xs),
+      decoration: BoxDecoration(
+        border: Border.all(color: t.strokeColor, width: Strokes.card),
+        borderRadius: Radii.rLg,
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 32,
+            child: Text(
+              position.toString().padLeft(2, '0'),
+              style: AppText.display(20),
             ),
-            if (myId != null) Container(width: 4, color: teamColor(myId!)),
-            const SizedBox(width: Spacing.sm),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: Spacing.sm),
-                child: Text(
-                  myId == null
-                      ? '—'
-                      : (myStanding?.constructorName ?? _prettyConstructorId(myId!)),
-                  style: AppText.display(15,
-                      color: myId == null ? t.colorScheme.onSurface.withOpacity(0.4) : null),
-                ),
-              ),
+          ),
+          const SizedBox(width: Spacing.xs),
+          Container(
+            width: 5,
+            height: 32,
+            decoration: BoxDecoration(
+              color: myId != null
+                  ? teamColor(myId!)
+                  : t.colorScheme.onSurface.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(2),
             ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(Spacing.sm, Spacing.sm, Spacing.lg, Spacing.sm),
-              child: Align(
-                alignment: Alignment.center,
-                child: _PickIndicator(
-                  myLabel: myId,
-                  correct: correct,
-                  pickedDifferent: false,
-                  delta: delta,
-                ),
-              ),
+          ),
+          const SizedBox(width: Spacing.sm),
+          Expanded(
+            child: Text(
+              myId == null
+                  ? '—'
+                  : (myStanding?.constructorName ?? _prettyConstructorId(myId!)),
+              style: AppText.display(15,
+                  color: myId == null ? t.colorScheme.onSurface.withOpacity(0.4) : null),
             ),
-          ],
-        ),
+          ),
+          _PickIndicator(
+            myLabel: myId,
+            correct: correct,
+            pickedDifferent: false,
+            delta: delta,
+          ),
+        ],
       ),
     );
   }

@@ -512,10 +512,13 @@ class _Body extends StatelessWidget {
           ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
-            child: AppCard(
-              padding: EdgeInsets.zero,
-              child: Column(
-                children: payload.result.map((r) {
+            child: Column(
+              children: [
+                // Column header strip — mirrors the predict-screen header
+                // (FP1/FP2/BEST) so the right-side columns are named even
+                // on rows where the badge/glyph happen to be empty.
+                _ClassificationHeader(t: t),
+                ...payload.result.map((r) {
                   final slot = payload.picks.indexOf(r.driverCode);
                   final pickedSlot = slot == -1 ? null : slot + 1;
                   final outcome = pickedSlot == null
@@ -523,11 +526,10 @@ class _Body extends StatelessWidget {
                       : outcomeFor(
                           r.driverCode, pickedSlot, payload.result, topN);
                   final mine = pickedSlot != null;
-                  // Tint row by outcome — picks I got *exactly* right are
-                  // green-tinted, picks that landed in my top-N but at a
-                  // different slot are amber-tinted, picks that flat-out
-                  // missed get the neutral row highlight, and rows that
-                  // weren't my pick at all get no background.
+                  // Outcome tint stays — green = exact, amber = in-topN,
+                  // neutral highlight = miss. Different from the predict
+                  // screen's flat "picked = red" state because here the color
+                  // *is* the information.
                   final rowBg = !mine
                       ? null
                       : (outcome == PickOutcome.exact
@@ -535,48 +537,75 @@ class _Body extends StatelessWidget {
                           : outcome == PickOutcome.inTopN
                               ? BrandColors.near.withOpacity(0.22)
                               : t.rowHighlight);
-                  return Container(
-                    color: rowBg,
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: Spacing.md, vertical: 7),
-                    child: Row(
-                      children: [
-                        SizedBox(
-                          width: 22,
-                          child:
-                              Text('${r.position}', style: AppText.display(13)),
-                        ),
-                        Container(
-                            width: 3,
-                            height: 18,
-                            color: teamColor(r.constructorId)),
-                        const SizedBox(width: Spacing.sm),
-                        SizedBox(
-                          width: 44,
-                          child: Text(r.driverCode,
-                              style: AppText.body(12, weight: FontWeight.w800)),
-                        ),
-                        Expanded(
-                          child: Text(r.driverName,
-                              style: AppText.body(12, weight: FontWeight.w500)),
-                        ),
-                        if (pickedSlot != null) ...[
-                          _PickSlotChip(slot: pickedSlot),
-                          const SizedBox(width: 6),
-                        ],
-                        if (outcome != null) ...[
-                          _OutcomeTag(outcome: outcome),
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: Spacing.xs),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: Spacing.sm, vertical: Spacing.xs),
+                      decoration: BoxDecoration(
+                        color: rowBg,
+                        border: Border.all(color: t.strokeColor, width: Strokes.card),
+                        borderRadius: Radii.rLg,
+                      ),
+                      child: Row(
+                        children: [
+                          SizedBox(
+                            width: _kPosCol,
+                            child:
+                                Text('${r.position}', style: AppText.display(13)),
+                          ),
+                          const SizedBox(width: Spacing.xs),
+                          // Inset team-color bar — matches the DriverSectorRow
+                          // and the top P-slot anatomy.
+                          Container(
+                            width: 5,
+                            height: 22,
+                            decoration: BoxDecoration(
+                              color: teamColor(r.constructorId),
+                              borderRadius: BorderRadius.circular(2),
+                            ),
+                          ),
                           const SizedBox(width: Spacing.sm),
+                          SizedBox(
+                            width: _kCodeCol,
+                            child: Text(r.driverCode,
+                                style: AppText.body(12, weight: FontWeight.w800)),
+                          ),
+                          Expanded(
+                            child: Text(r.driverName,
+                                style: AppText.body(12, weight: FontWeight.w500)),
+                          ),
+                          // Fixed-width pick + outcome slots. Empty when not
+                          // applicable so columns line up across rows.
+                          SizedBox(
+                            width: _kPickCol,
+                            child: pickedSlot == null
+                                ? const SizedBox.shrink()
+                                : Center(child: _PickSlotChip(slot: pickedSlot)),
+                          ),
+                          const SizedBox(width: Spacing.xs),
+                          SizedBox(
+                            width: _kOutcomeCol,
+                            child: outcome == null
+                                ? const SizedBox.shrink()
+                                : Center(child: _OutcomeTag(outcome: outcome)),
+                          ),
+                          const SizedBox(width: Spacing.sm),
+                          SizedBox(
+                            width: _kTimeCol,
+                            child: Text(
+                              displayTime(r, session.type),
+                              style: AppText.display(11,
+                                  color: t.colorScheme.onSurface.withOpacity(0.6)),
+                              textAlign: TextAlign.right,
+                            ),
+                          ),
                         ],
-                        Text(displayTime(r, session.type),
-                            style: AppText.display(11,
-                                color:
-                                    t.colorScheme.onSurface.withOpacity(0.6))),
-                      ],
+                      ),
                     ),
                   );
-                }).toList(),
-              ),
+                }),
+              ],
             ),
           ),
         ],
@@ -634,6 +663,42 @@ class _Body extends StatelessWidget {
           ),
         ],
       ],
+    );
+  }
+}
+
+// Shared column widths so the classification header and rows align exactly.
+const double _kPosCol = 22;
+const double _kCodeCol = 44;
+const double _kPickCol = 28;
+const double _kOutcomeCol = 24;
+const double _kTimeCol = 78;
+
+class _ClassificationHeader extends StatelessWidget {
+  final ThemeData t;
+  const _ClassificationHeader({required this.t});
+
+  @override
+  Widget build(BuildContext context) {
+    final muted = AppText.label(8, color: t.colorScheme.onSurface.withOpacity(0.55));
+    return Padding(
+      // Match the row's internal padding so labels sit over the right columns.
+      padding: const EdgeInsets.fromLTRB(Spacing.sm, 0, Spacing.sm, Spacing.xs),
+      child: Row(
+        children: [
+          SizedBox(width: _kPosCol, child: Text('P', style: muted)),
+          const SizedBox(width: Spacing.xs),
+          const SizedBox(width: 5),
+          const SizedBox(width: Spacing.sm),
+          SizedBox(width: _kCodeCol, child: Text('CODE', style: muted)),
+          const Expanded(child: SizedBox.shrink()),
+          SizedBox(width: _kPickCol, child: Text('PICK', style: muted, textAlign: TextAlign.center)),
+          const SizedBox(width: Spacing.xs),
+          const SizedBox(width: _kOutcomeCol),
+          const SizedBox(width: Spacing.sm),
+          SizedBox(width: _kTimeCol, child: Text('TIME', style: muted, textAlign: TextAlign.right)),
+        ],
+      ),
     );
   }
 }

@@ -137,10 +137,14 @@ class _LeagueTabState extends State<LeagueTab> {
             const SizedBox(height: Spacing.md),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
-              child: AppCard(
-                padding: EdgeInsets.zero,
-                child: Column(
-                  children: List.generate(sorted.length, (i) {
+              child: Column(
+                children: [
+                  LeagueRowHeader(
+                    focus: _metric == _Metric.inSeason
+                        ? LeagueRowFocus.inSeason
+                        : LeagueRowFocus.total,
+                  ),
+                  ...List.generate(sorted.length, (i) {
                     final r = sorted[i];
                     final isMe = r.userId == me;
                     return LeagueRow(
@@ -156,7 +160,7 @@ class _LeagueTabState extends State<LeagueTab> {
                           : LeagueRowFocus.total,
                     );
                   }),
-                ),
+                ],
               ),
             ),
           ],

@@ -1,7 +1,6 @@
 // ignore_for_file: deprecated_member_use
 import 'package:flutter/material.dart';
 import '../../api/models/standing.dart';
-import '../../components/app_card.dart';
 import '../../components/error_view.dart';
 import '../../components/standings_skeleton.dart';
 import '../../state/app_state.dart';
@@ -9,6 +8,11 @@ import '../../theme/app_theme.dart';
 import '../../theme/team_colors.dart';
 import '../../theme/tokens.dart';
 import '../../theme/typography.dart';
+
+// Shared column widths so the driver/constructor headers and rows align.
+const double _kPosCol = 24;
+const double _kCodeCol = 44;
+const double _kPointsCol = 50;
 
 class F1Tab extends StatefulWidget {
   final int? season;
@@ -88,46 +92,58 @@ class _F1TabState extends State<F1Tab> {
           return ListView(
             padding: const EdgeInsets.symmetric(horizontal: Spacing.lg, vertical: Spacing.md),
             children: [
-              AppCard(
-                padding: EdgeInsets.zero,
-                child: Column(
-                  children: snap.data!.map((d) => Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: Spacing.md, vertical: 10),
-                    child: Row(
-                      children: [
-                        SizedBox(width: 24, child: Text('${d.position}', style: AppText.display(16))),
-                        Container(width: 4, height: 22, color: teamColor(d.constructorId)),
-                        const SizedBox(width: 10),
-                        SizedBox(
-                          width: 44,
-                          child: Text(d.driverCode, style: AppText.body(13, weight: FontWeight.w800)),
+              _DriverHeader(t: t),
+              ...snap.data!.map((d) => Padding(
+                padding: const EdgeInsets.only(bottom: Spacing.xs),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: Spacing.sm, vertical: Spacing.xs),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: t.strokeColor, width: Strokes.card),
+                    borderRadius: Radii.rLg,
+                  ),
+                  child: Row(
+                    children: [
+                      SizedBox(width: _kPosCol, child: Text('${d.position}', style: AppText.display(16))),
+                      const SizedBox(width: Spacing.xs),
+                      Container(
+                        width: 5,
+                        height: 28,
+                        decoration: BoxDecoration(
+                          color: teamColor(d.constructorId),
+                          borderRadius: BorderRadius.circular(2),
                         ),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(d.driverName, style: AppText.body(13, weight: FontWeight.w600)),
-                              Text('${d.wins} wins',
-                                  style: AppText.body(10, color: t.colorScheme.onSurface.withOpacity(0.5))),
-                            ],
-                          ),
+                      ),
+                      const SizedBox(width: Spacing.sm),
+                      SizedBox(
+                        width: _kCodeCol,
+                        child: Text(d.driverCode, style: AppText.body(13, weight: FontWeight.w800)),
+                      ),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(d.driverName, style: AppText.body(13, weight: FontWeight.w600)),
+                            Text('${d.wins} wins',
+                                style: AppText.body(10, color: t.colorScheme.onSurface.withOpacity(0.5))),
+                          ],
                         ),
-                        SizedBox(
-                          width: 42,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              Text('${d.points}', style: AppText.display(18)),
-                              Text('pts', style: AppText.label(8, color: t.colorScheme.onSurface.withOpacity(0.6))),
-                            ],
-                          ),
+                      ),
+                      SizedBox(
+                        width: _kPointsCol,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text('${d.points}', style: AppText.display(18)),
+                            Text('pts', style: AppText.label(8, color: t.colorScheme.onSurface.withOpacity(0.6))),
+                          ],
                         ),
-                      ],
-                    ),
-                  )).toList(),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
+              )),
             ],
           );
         },
@@ -150,33 +166,96 @@ class _F1TabState extends State<F1Tab> {
               }),
             );
           }
+          final t = Theme.of(context);
           return ListView(
             padding: const EdgeInsets.symmetric(horizontal: Spacing.lg, vertical: Spacing.md),
             children: [
-              AppCard(
-                padding: EdgeInsets.zero,
-                child: Column(
-                  children: snap.data!.map((c) => Container(
-                    padding: const EdgeInsets.symmetric(horizontal: Spacing.md, vertical: 10),
-                    child: Row(
-                      children: [
-                        SizedBox(width: 24, child: Text('${c.position}', style: AppText.display(16))),
-                        Container(width: 4, height: 22, color: teamColor(c.constructorId)),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            c.constructorName,
-                            style: AppText.body(13, weight: FontWeight.w700),
-                          ),
+              _ConstructorHeader(t: t),
+              ...snap.data!.map((c) => Padding(
+                padding: const EdgeInsets.only(bottom: Spacing.xs),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: Spacing.sm, vertical: Spacing.xs),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: t.strokeColor, width: Strokes.card),
+                    borderRadius: Radii.rLg,
+                  ),
+                  child: Row(
+                    children: [
+                      SizedBox(width: _kPosCol, child: Text('${c.position}', style: AppText.display(16))),
+                      const SizedBox(width: Spacing.xs),
+                      Container(
+                        width: 5,
+                        height: 28,
+                        decoration: BoxDecoration(
+                          color: teamColor(c.constructorId),
+                          borderRadius: BorderRadius.circular(2),
                         ),
-                        Text('${c.points}', style: AppText.display(16)),
-                      ],
-                    ),
-                  )).toList(),
+                      ),
+                      const SizedBox(width: Spacing.sm),
+                      Expanded(
+                        child: Text(
+                          c.constructorName,
+                          style: AppText.body(13, weight: FontWeight.w700),
+                        ),
+                      ),
+                      SizedBox(
+                        width: _kPointsCol,
+                        child: Text('${c.points}',
+                            style: AppText.display(16),
+                            textAlign: TextAlign.right),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
+              )),
             ],
           );
         },
       );
+}
+
+class _DriverHeader extends StatelessWidget {
+  final ThemeData t;
+  const _DriverHeader({required this.t});
+  @override
+  Widget build(BuildContext context) {
+    final muted = AppText.label(8, color: t.colorScheme.onSurface.withOpacity(0.55));
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(Spacing.sm, 0, Spacing.sm, Spacing.xs),
+      child: Row(
+        children: [
+          SizedBox(width: _kPosCol, child: Text('P', style: muted)),
+          const SizedBox(width: Spacing.xs),
+          const SizedBox(width: 5),
+          const SizedBox(width: Spacing.sm),
+          SizedBox(width: _kCodeCol, child: Text('CODE', style: muted)),
+          Expanded(child: Text('DRIVER', style: muted)),
+          SizedBox(width: _kPointsCol, child: Text('PTS', style: muted, textAlign: TextAlign.right)),
+        ],
+      ),
+    );
+  }
+}
+
+class _ConstructorHeader extends StatelessWidget {
+  final ThemeData t;
+  const _ConstructorHeader({required this.t});
+  @override
+  Widget build(BuildContext context) {
+    final muted = AppText.label(8, color: t.colorScheme.onSurface.withOpacity(0.55));
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(Spacing.sm, 0, Spacing.sm, Spacing.xs),
+      child: Row(
+        children: [
+          SizedBox(width: _kPosCol, child: Text('P', style: muted)),
+          const SizedBox(width: Spacing.xs),
+          const SizedBox(width: 5),
+          const SizedBox(width: Spacing.sm),
+          Expanded(child: Text('CONSTRUCTOR', style: muted)),
+          SizedBox(width: _kPointsCol, child: Text('PTS', style: muted, textAlign: TextAlign.right)),
+        ],
+      ),
+    );
+  }
 }

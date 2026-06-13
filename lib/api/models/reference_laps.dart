@@ -10,6 +10,10 @@ SectorTier _tierFrom(String? s) => switch (s) {
 
 class ReferenceLap {
   final String driverCode;
+  /// Constructor the driver was running for in this weekend's sessions.
+  /// Null only when the driver has no session_result row at all for any of
+  /// the reference sessions (extremely rare).
+  final String? constructorId;
   final int lapMs;
   final SectorTier lapTier;
   final int? s1Ms;
@@ -22,6 +26,7 @@ class ReferenceLap {
 
   const ReferenceLap({
     required this.driverCode,
+    required this.constructorId,
     required this.lapMs,
     required this.lapTier,
     required this.s1Ms,
@@ -35,6 +40,7 @@ class ReferenceLap {
 
   factory ReferenceLap.fromJson(Map<String, dynamic> j) => ReferenceLap(
         driverCode: j['driverCode'] as String,
+        constructorId: j['constructorId'] as String?,
         lapMs: (j['lapMs'] as num).toInt(),
         lapTier: _tierFrom(j['lapTier'] as String?),
         s1Ms: (j['s1Ms'] as num?)?.toInt(),
