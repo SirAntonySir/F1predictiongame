@@ -90,16 +90,7 @@ class RaceTile extends StatelessWidget {
                 Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Opacity(
-                opacity: pastDim,
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(Spacing.lg, Spacing.md, Spacing.lg, Spacing.md),
-                  child: Text(
-                    round.toString().padLeft(2, '0'),
-                    style: AppText.display(28),
-                  ),
-                ),
-              ),
+              const SizedBox(width: Spacing.lg),
               Expanded(
                 child: Opacity(
                   opacity: pastDim,

@@ -1,4 +1,4 @@
-import { and, eq, lt, gt, sql, asc, desc } from 'drizzle-orm'
+import { and, eq, gt, sql, asc, desc } from 'drizzle-orm'
 import { getDb } from '../db/client.js'
 import { session } from '../db/schema.js'
 import type { Session } from '../domain/types.js'
@@ -42,19 +42,25 @@ export async function markFinished(id: number): Promise<void> {
 
 export async function listCandidates(): Promise<StoredSession[]> {
   const db = getDb()
-  // Eligible: status=scheduled AND end + 30 min < now.
-  // sprint_quali and fp1/fp2/fp3 are sourced from OpenF1 — they follow the
-  // same unbounded-lookback rule as race/qualifying/sprint so past sessions
-  // are picked up after a bootstrap or outage. Practice has no scorable
-  // picks (EXPECTED_PICKS doesn't include FP), so rescore is a no-op for
-  // those rows — they get classified and stored for reference times only.
+  // Eligible: status=scheduled AND past scheduled end.
+  // Split by source: sessions with an OpenF1 session key are picked up
+  // immediately after scheduled end (OpenF1 publishes results within
+  // minutes of the chequered flag). Sessions without a key fall back to
+  // Jolpica, which lags 30 min–24 h, so we keep the original +30 min gate
+  // to avoid hammering Jolpica before the data has any chance of landing.
+  // sprint_quali / fp1–fp3 always have an OpenF1 key (Jolpica doesn't
+  // publish them), so they take the fast path.
   const rows = await db
     .select()
     .from(session)
     .where(
       and(
         eq(session.status, 'scheduled'),
-        lt(session.scheduledEnd, sql`now() - interval '30 minutes'`)
+        sql`(
+          (${session.openf1SessionKey} IS NOT NULL AND ${session.scheduledEnd} < now())
+          OR
+          (${session.openf1SessionKey} IS NULL AND ${session.scheduledEnd} < now() - interval '30 minutes')
+        )`
       )
     )
   return rows as StoredSession[]
@@ -89,6 +95,11 @@ export async function listForEvent(eventId: number): Promise<StoredSession[]> {
 export async function setOpenF1SessionKey(id: number, key: number | null): Promise<void> {
   const db = getDb()
   await db.update(session).set({ openf1SessionKey: key }).where(eq(session.id, id))
+}
+
+export async function setLastReconciledAt(id: number, at: Date | null): Promise<void> {
+  const db = getDb()
+  await db.update(session).set({ lastReconciledAt: at }).where(eq(session.id, id))
 }
 
 export async function listRecentFinishedWithOpenF1Key(limit: number): Promise<StoredSession[]> {

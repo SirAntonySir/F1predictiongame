@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { runTick } from '../../src/crawler/tick.js'
+import { reconcileOnce } from '../../src/crawler/reconcile.js'
 import { JolpicaClient } from '../../src/jolpica/client.js'
 import { WikipediaClient } from '../../src/wikipedia/client.js'
 import { OpenF1Client } from '../../src/openf1/client.js'
@@ -19,7 +20,7 @@ function staticFetch(handler: (url: string) => { status: number; body: unknown }
   }) as unknown as typeof fetch
 }
 
-async function seedRaceSession(openf1Key: number | null = 9001) {
+async function seedRaceSession() {
   await seasons.upsertSeason({ year: 2024, isCurrent: true })
   const ev = await events.upsertEvent({
     seasonYear: 2024, round: 1, name: 'Bahrain GP', circuitName: 'BIC',
@@ -40,7 +41,7 @@ async function seedRaceSession(openf1Key: number | null = 9001) {
   return sessions.upsertSession({
     eventId: ev.id, type: 'race',
     scheduledStart: past, scheduledEnd: past,
-    status: 'scheduled', openf1SessionKey: openf1Key
+    status: 'scheduled', openf1SessionKey: 9001
   })
 }
 
@@ -53,6 +54,12 @@ function jolpicaRace(rows: Array<{ position: number; code: string }>) {
     })) }] } }
   }
   return new JolpicaClient('https://example.invalid', staticFetch(() => ({ status: 200, body })))
+}
+
+function jolpicaEmpty() {
+  return new JolpicaClient('https://example.invalid', staticFetch(() => ({
+    status: 200, body: { MRData: { RaceTable: { Races: [] } } }
+  })))
 }
 
 function openf1Race(rows: Array<{ position: number; code: string }>) {
@@ -78,66 +85,91 @@ const wikiNoop = new WikipediaClient('https://example.invalid', staticFetch(() =
 
 async function sourceOf(sessionId: number): Promise<string> {
   const db = getDb()
-  const rows = await db.execute(sql`
-    SELECT source FROM session_result WHERE session_id = ${sessionId} LIMIT 1
-  `)
+  const rows = await db.execute(sql`SELECT source FROM session_result WHERE session_id = ${sessionId} LIMIT 1`)
   return ((rows as unknown as { rows: { source: string }[] }).rows[0]?.source) ?? 'unknown'
 }
 
-describe('Crawler — OpenF1-first source priority', () => {
-  it('persists OpenF1 rows when both agree (source=openf1)', async () => {
+async function lastReconciledAtOf(sessionId: number): Promise<Date | null> {
+  const db = getDb()
+  const rows = await db.execute(sql`SELECT last_reconciled_at FROM session WHERE id = ${sessionId}`)
+  const v = (rows as unknown as { rows: { last_reconciled_at: string | null }[] }).rows[0]?.last_reconciled_at
+  return v ? new Date(v) : null
+}
+
+describe('reconcileOnce', () => {
+  it('stamps last_reconciled_at when OpenF1 and Jolpica agree (no row swap)', async () => {
     const ses = await seedRaceSession()
     await runTick(
-      jolpicaRace([{ position: 1, code: 'VER' }, { position: 2, code: 'PER' }]),
+      jolpicaEmpty(),
       wikiNoop,
       openf1Race([{ position: 1, code: 'VER' }, { position: 2, code: 'PER' }])
     )
+    expect(await sourceOf(ses.id!)).toBe('openf1')
+
+    const summary = await reconcileOnce(
+      jolpicaRace([{ position: 1, code: 'VER' }, { position: 2, code: 'PER' }]),
+      wikiNoop
+    )
+    expect(summary.attempted).toBe(1)
+    expect(summary.matched).toBe(1)
+    expect(summary.replaced).toBe(0)
+    expect(await lastReconciledAtOf(ses.id!)).not.toBeNull()
+    // Row order unchanged.
     const rows = await results.listForSession(ses.id!)
     expect(rows.map((r) => r.driverCode)).toEqual(['VER', 'PER'])
-    expect(await sourceOf(ses.id!)).toBe('openf1')
   })
 
-  it('persists OpenF1 classification even when it disagrees with Jolpica — reconciliation pass owns the swap', async () => {
+  it('replaces rows + flips source to jolpica when classifications diverge (post-stewards penalty)', async () => {
     const ses = await seedRaceSession()
+    // OpenF1 reports the on-track order: VER 1st, PER 2nd.
     await runTick(
-      jolpicaRace([{ position: 1, code: 'VER' }, { position: 2, code: 'PER' }]),
+      jolpicaEmpty(),
       wikiNoop,
-      openf1Race([{ position: 1, code: 'PER' }, { position: 2, code: 'VER' }])
+      openf1Race([{ position: 1, code: 'VER' }, { position: 2, code: 'PER' }])
     )
-    const rows = await results.listForSession(ses.id!)
-    expect(rows.map((r) => r.driverCode)).toEqual(['PER', 'VER']) // OpenF1 wins
     expect(await sourceOf(ses.id!)).toBe('openf1')
+
+    // Jolpica publishes the official classification: VER got a 10s penalty,
+    // PER inherits the win. The reconciler should swap and rescore.
+    const summary = await reconcileOnce(
+      jolpicaRace([{ position: 1, code: 'PER' }, { position: 2, code: 'VER' }]),
+      wikiNoop
+    )
+    expect(summary.attempted).toBe(1)
+    expect(summary.replaced).toBe(1)
+    expect(summary.matched).toBe(0)
+    expect(await sourceOf(ses.id!)).toBe('jolpica')
+    const rows = await results.listForSession(ses.id!)
+    expect(rows.map((r) => r.driverCode)).toEqual(['PER', 'VER'])
   })
 
-  it('falls back to Jolpica when OpenF1 returns empty (source=jolpica)', async () => {
+  it('does not touch jolpica-sourced sessions (they are already official)', async () => {
     const ses = await seedRaceSession()
+    // Drive the tick down the Jolpica fallback path (OpenF1 returns nothing).
     const openf1Empty = new OpenF1Client('https://api.openf1.org/v1', staticFetch(() => ({ status: 200, body: [] })))
     await runTick(
       jolpicaRace([{ position: 1, code: 'VER' }, { position: 2, code: 'PER' }]),
       wikiNoop,
       openf1Empty
     )
-    const rows = await results.listForSession(ses.id!)
-    expect(rows.map((r) => r.driverCode)).toEqual(['VER', 'PER'])
     expect(await sourceOf(ses.id!)).toBe('jolpica')
+
+    const summary = await reconcileOnce(jolpicaRace([{ position: 1, code: 'VER' }, { position: 2, code: 'PER' }]), wikiNoop)
+    expect(summary.attempted).toBe(0)
   })
 
-  it('does not invoke OpenF1 when openf1SessionKey is null', async () => {
-    const ses = await seedRaceSession(null)
-    let openf1Calls = 0
-    const openf1 = new OpenF1Client('https://api.openf1.org/v1', (async () => {
-      openf1Calls++
-      return new Response('[]', { status: 200 })
-    }) as unknown as typeof fetch)
-
+  it('records noJolpicaData when Jolpica is still empty — leaves the session for the next pass', async () => {
+    const ses = await seedRaceSession()
     await runTick(
-      jolpicaRace([{ position: 1, code: 'VER' }, { position: 2, code: 'PER' }]),
+      jolpicaEmpty(),
       wikiNoop,
-      openf1
+      openf1Race([{ position: 1, code: 'VER' }, { position: 2, code: 'PER' }])
     )
-    expect(openf1Calls).toBe(0)
-    const rows = await results.listForSession(ses.id!)
-    expect(rows.length).toBe(2)
-    expect(await sourceOf(ses.id!)).toBe('jolpica')
+
+    const summary = await reconcileOnce(jolpicaEmpty(), wikiNoop)
+    expect(summary.attempted).toBe(1)
+    expect(summary.noJolpicaData).toBe(1)
+    expect(await lastReconciledAtOf(ses.id!)).toBeNull()
+    expect(await sourceOf(ses.id!)).toBe('openf1')
   })
 })

@@ -20,7 +20,6 @@ import * as seasonsRepo from '../repo/seasons.js'
 import { rescoreSession } from '../scoring/rescorer.js'
 import { rescorePreseasonForSeason } from '../preseason/rescorer.js'
 import type { SessionType, SessionResultRow } from '../domain/types.js'
-import { compareClassifications } from './crossCheck.js'
 import { enrichDriversAndConstructors } from './openf1Enrichment.js'
 
 export type TickSummary = { sessionsFinished: number; sessionsSkipped: number; errors: number }
@@ -29,6 +28,28 @@ type FetchOutput = {
   rows: SessionResultRow[]
   drivers: DriverLookup[]
   constructors: ConstructorLookup[]
+  /// 'openf1' when rows came from the OpenF1 fast path; 'jolpica' when they
+  /// came from Ergast/Jolpica. The runTick caller stamps this on the persisted
+  /// session_result rows so the reconciliation pass can later flip 'openf1'
+  /// rows to 'jolpica' once the official classification is published.
+  source: 'openf1' | 'jolpica'
+  /// Parsed OpenF1 drivers when the OpenF1 path was used — handed back so
+  /// the caller can run image/constructor enrichment without re-fetching.
+  openF1Drivers: OpenF1DriverLookup[] | null
+}
+
+async function fetchFromOpenF1(
+  openf1: OpenF1Client,
+  openf1SessionKey: number
+): Promise<{ rows: SessionResultRow[]; drivers: OpenF1DriverLookup[] } | null> {
+  const sr = await openf1.getSessionResult(openf1SessionKey)
+  if (!sr) return null
+  const drv = await openf1.getDrivers(openf1SessionKey)
+  if (!drv) return null
+  const openF1Drivers = parseOpenF1Drivers(drv)
+  const rows = parseOpenF1SessionResult(sr, openF1Drivers)
+  if (rows.length === 0) return null
+  return { rows, drivers: openF1Drivers }
 }
 
 export async function fetchByType(
@@ -39,7 +60,35 @@ export async function fetchByType(
   round: number,
   openf1SessionKey: number | null
 ): Promise<FetchOutput> {
-  const empty: FetchOutput = { rows: [], drivers: [], constructors: [] }
+  const empty: FetchOutput = { rows: [], drivers: [], constructors: [], source: 'jolpica', openF1Drivers: null }
+
+  // OpenF1 fast path — try it first for every session type. Lands within
+  // minutes of the chequered flag; Jolpica typically lags by 30 min to 1+ day.
+  // We accept that OpenF1's classification may not yet reflect stewards'
+  // penalties; the reconciliation pass will replace these rows with Jolpica's
+  // official classification once it's published.
+  if (openf1SessionKey != null) {
+    try {
+      const o = await fetchFromOpenF1(openf1, openf1SessionKey)
+      if (o) {
+        return {
+          rows: o.rows,
+          drivers: o.drivers.map((d) => ({
+            code: d.code, givenName: d.givenName, familyName: d.familyName,
+            nationality: null, permanentNumber: d.driverNumber, wikipediaUrl: null
+          })),
+          constructors: dedupeConstructorsFromOpenF1(o.drivers),
+          source: 'openf1',
+          openF1Drivers: o.drivers
+        }
+      }
+    } catch (err) {
+      console.warn('OpenF1 fast-path failed, falling back to Jolpica', { type, year, round, err })
+    }
+  }
+
+  // Jolpica fallback — used when OpenF1 has no session key (older seasons,
+  // pre-OpenF1-coverage) or when its fast path returned nothing yet.
   let raw: unknown | null = null
   let rows: SessionResultRow[] = []
   switch (type) {
@@ -61,28 +110,17 @@ export async function fetchByType(
     case 'sprint_quali':
     case 'fp1':
     case 'fp2':
-    case 'fp3': {
-      if (openf1SessionKey == null) return empty
-      const sr = await openf1.getSessionResult(openf1SessionKey)
-      if (!sr) return empty
-      const drv = await openf1.getDrivers(openf1SessionKey)
-      if (!drv) return empty
-      const openF1Drivers = parseOpenF1Drivers(drv)
-      rows = parseOpenF1SessionResult(sr, openF1Drivers)
-      return {
-        rows,
-        drivers: openF1Drivers.map((d) => ({
-          code: d.code, givenName: d.givenName, familyName: d.familyName,
-          nationality: null, permanentNumber: d.driverNumber, wikipediaUrl: null
-        })),
-        constructors: dedupeConstructorsFromOpenF1(openF1Drivers)
-      }
-    }
+    case 'fp3':
+      // Jolpica doesn't publish these — if OpenF1 didn't have them either,
+      // we have nothing to persist this tick.
+      return empty
   }
   return {
     rows,
     drivers: extractDriversFromResults(raw),
-    constructors: extractConstructorsFromResults(raw)
+    constructors: extractConstructorsFromResults(raw),
+    source: 'jolpica',
+    openF1Drivers: null
   }
 }
 
@@ -93,6 +131,23 @@ function dedupeConstructorsFromOpenF1(drivers: OpenF1DriverLookup[]) {
     if (!seen.has(id)) seen.set(id, { id, name: d.teamName, nationality: null, wikipediaUrl: null })
   }
   return [...seen.values()]
+}
+
+/// Map each row's derived OpenF1 constructorId to the canonical id already
+/// in use for this driver this season, when one exists. See the call site in
+/// runTick for the why: OpenF1's team_name strings drift mid-season and the
+/// derived id ("stake_f1_team_kick_sauber") doesn't match Jolpica's ("sauber"),
+/// which would create duplicate constructor rows.
+async function canonicaliseConstructorIds(
+  rows: SessionResultRow[],
+  seasonYear: number
+): Promise<SessionResultRow[]> {
+  const out: SessionResultRow[] = []
+  for (const r of rows) {
+    const canonical = await resultsRepo.lastConstructorIdForDriverInSeason(r.driverCode, seasonYear)
+    out.push(canonical && canonical !== r.constructorId ? { ...r, constructorId: canonical } : r)
+  }
+  return out
 }
 
 async function enrichImage(wiki: WikipediaClient, wikipediaUrl: string | null): Promise<string | null> {
@@ -120,9 +175,30 @@ export async function upsertNewConstructors(constructors: ConstructorLookup[], w
   }
 }
 
-export async function runTick(jolpica: JolpicaClient, wiki: WikipediaClient, openf1: OpenF1Client): Promise<TickSummary> {
+export type RunTickOptions = {
+  /// Limit the tick to a single session. Used by the scheduler's one-shot
+  /// path (`tickForSession`) when triggered by an external event — e.g. a
+  /// frontend FINALISED notification or an admin endpoint. When omitted, the
+  /// normal candidate query runs.
+  sessionId?: number
+}
+
+export async function runTick(
+  jolpica: JolpicaClient,
+  wiki: WikipediaClient,
+  openf1: OpenF1Client,
+  opts: RunTickOptions = {}
+): Promise<TickSummary> {
   const summary: TickSummary = { sessionsFinished: 0, sessionsSkipped: 0, errors: 0 }
-  const candidates = await sessionsRepo.listCandidates()
+  let candidates
+  if (opts.sessionId != null) {
+    const one = await sessionsRepo.getById(opts.sessionId)
+    // Only process the session if it's still scheduled — finished sessions are
+    // handled by the reconciliation pass, not the tick.
+    candidates = one && one.status === 'scheduled' ? [one] : []
+  } else {
+    candidates = await sessionsRepo.listCandidates()
+  }
   if (candidates.length === 0) return summary
 
   const eventsCache = new Map<number, Awaited<ReturnType<typeof eventsRepo.getById>>>()
@@ -140,48 +216,45 @@ export async function runTick(jolpica: JolpicaClient, wiki: WikipediaClient, ope
     try {
       const ev = await getEvent(ses.eventId)
       if (!ev) { summary.errors++; continue }
-      const jolpicaOut = await fetchByType(jolpica, openf1, ses.type, ev.seasonYear, ev.round, ses.openf1SessionKey)
+      const fetched = await fetchByType(jolpica, openf1, ses.type, ev.seasonYear, ev.round, ses.openf1SessionKey)
 
-      let rowsToPersist = jolpicaOut.rows
-      let driversToUpsert = jolpicaOut.drivers
-      let constructorsToUpsert = jolpicaOut.constructors
-      let openF1Drivers: OpenF1DriverLookup[] | null = null
-
-      const isCrossCheckable = ses.type === 'race' || ses.type === 'qualifying' || ses.type === 'sprint'
-      if (isCrossCheckable && ses.openf1SessionKey != null) {
-        try {
-          const sr = await openf1.getSessionResult(ses.openf1SessionKey)
-          const drv = await openf1.getDrivers(ses.openf1SessionKey)
-          if (sr && drv) {
-            openF1Drivers = parseOpenF1Drivers(drv)
-            const oRows = parseOpenF1SessionResult(sr, openF1Drivers)
-            if (rowsToPersist.length === 0 && oRows.length > 0) {
-              rowsToPersist = oRows
-              driversToUpsert = openF1Drivers.map((d) => ({
-                code: d.code, givenName: d.givenName, familyName: d.familyName,
-                nationality: null, permanentNumber: d.driverNumber, wikipediaUrl: null
-              }))
-              constructorsToUpsert = dedupeConstructorsFromOpenF1(openF1Drivers)
-            } else if (oRows.length > 0) {
-              const cmp = compareClassifications(rowsToPersist, oRows)
-              if (cmp.kind !== 'match') {
-                console.warn('OpenF1 cross-check mismatch', { sessionId: ses.id, type: ses.type, summary: cmp })
-              }
-            }
-          }
-        } catch (err) {
-          console.warn('OpenF1 cross-check fetch failed', { sessionId: ses.id, err })
-        }
-      }
+      let rowsToPersist = fetched.rows
+      const driversToUpsert = fetched.drivers
+      const constructorsToUpsert = fetched.constructors
+      const openF1Drivers = fetched.openF1Drivers
 
       if (rowsToPersist.length === 0) { summary.sessionsSkipped++; continue }
+
+      // OpenF1's team_name strings drift mid-season ("Kick Sauber" →
+      // "Stake F1 Team Kick Sauber"), and the derived constructor id would
+      // create a duplicate row. For each row sourced from OpenF1, if the
+      // driver has already been classified under a constructor this season,
+      // reuse that canonical id instead. New teams (no prior result) take the
+      // derived id and accept the cost of an alias being created — the
+      // reconciliation pass will replace it with Jolpica's id soon enough.
+      if (fetched.source === 'openf1') {
+        rowsToPersist = await canonicaliseConstructorIds(rowsToPersist, ev.seasonYear)
+      }
 
       // Drivers/constructors must exist before session_result rows reference them via FK.
       await upsertNewDrivers(driversToUpsert, wiki)
       await upsertNewConstructors(constructorsToUpsert, wiki)
 
-      await resultsRepo.replaceForSession(ses.id!, rowsToPersist.map((r) => ({ ...r, sessionId: ses.id! })))
+      await resultsRepo.replaceForSession(
+        ses.id!,
+        rowsToPersist.map((r) => ({ ...r, sessionId: ses.id! })),
+        fetched.source
+      )
       await sessionsRepo.markFinished(ses.id!)
+      // Source=openf1 means we know this is provisional and the reconciliation
+      // pass should pick it up. Clear any previous reconciled stamp so a
+      // re-imported session gets re-reconciled. Source=jolpica is already the
+      // official classification — stamp it immediately so the reconciler skips
+      // it on its next pass.
+      await sessionsRepo.setLastReconciledAt(
+        ses.id!,
+        fetched.source === 'jolpica' ? new Date() : null
+      )
 
       // Best-lap-with-sectors snapshot for the sector-color reference view on
       // the predict screen. OpenF1-only; skip if the session has no key.

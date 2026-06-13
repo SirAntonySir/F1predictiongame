@@ -37,7 +37,12 @@ export const session = pgTable('session', {
   scheduledStart: timestamp('scheduled_start', { withTimezone: true }).notNull(),
   scheduledEnd: timestamp('scheduled_end', { withTimezone: true }).notNull(),
   status: sessionStatus('status').notNull().default('scheduled'),
-  openf1SessionKey: integer('openf1_session_key')
+  openf1SessionKey: integer('openf1_session_key'),
+  // Stamped by the reconciliation pass after it has either replaced the
+  // OpenF1-sourced result rows with Jolpica's official classification or
+  // confirmed they agree. Null = never reconciled (still provisional if
+  // session_result.source = 'openf1').
+  lastReconciledAt: timestamp('last_reconciled_at', { withTimezone: true })
 }, (t) => ({
   uqEventType: uniqueIndex('session_event_type_uq').on(t.eventId, t.type),
   idxStatusStart: index('session_status_start_idx').on(t.status, t.scheduledStart),
@@ -81,7 +86,13 @@ export const sessionResult = pgTable('session_result', {
   fastestLapSpeed: text('fastest_lap_speed'),
   q1: text('q1'),
   q2: text('q2'),
-  q3: text('q3')
+  q3: text('q3'),
+  // 'openf1' = sourced from OpenF1 (fast, may not reflect post-stewards
+  // penalties yet). 'jolpica' = official Ergast/Jolpica classification.
+  // The reconciliation pass replaces 'openf1' rows with 'jolpica' once the
+  // official classification is published. Existing rows from before this
+  // column was introduced default to 'jolpica' (matches old behaviour).
+  source: text('source').notNull().default('jolpica')
 }, (t) => ({
   pk: primaryKey({ columns: [t.sessionId, t.position] })
 }))

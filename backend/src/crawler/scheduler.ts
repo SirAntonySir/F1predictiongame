@@ -3,6 +3,7 @@ import { JolpicaClient } from '../jolpica/client.js'
 import { WikipediaClient } from '../wikipedia/client.js'
 import { OpenF1Client } from '../openf1/client.js'
 import { runTick, type TickSummary } from './tick.js'
+import { reconcileOnce, type ReconcileSummary } from './reconcile.js'
 import { runBootstrap } from './bootstrap.js'
 import * as seasonsRepo from '../repo/seasons.js'
 import { sweepExpiredSessions } from '../auth/sweeper.js'
@@ -10,11 +11,13 @@ import { sweepExpiredSessions } from '../auth/sweeper.js'
 export class Scheduler {
   private isRunningTick = false
   private isRunningWeekly = false
+  private isRunningReconcile = false
   private lastTickAt: Date | null = null
   private lastTickStatus: 'ok' | 'error' | null = null
   private tickJob: ScheduledTask | null = null
   private weeklyJob: ScheduledTask | null = null
   private sweepJob: ScheduledTask | null = null
+  private reconcileJob: ScheduledTask | null = null
 
   constructor(
     private jolpica = new JolpicaClient(),
@@ -23,13 +26,20 @@ export class Scheduler {
   ) {}
 
   start(): void {
-    // Every 5 minutes — keeps post-race result ingestion/scoring snappy
-    // (results land within ~5 min of a session becoming eligible).
-    this.tickJob = cron.schedule('*/5 * * * *', () => { void this.tickOnce() })
+    // Every minute — OpenF1 publishes session results within minutes of the
+    // chequered flag, and the tick early-returns when nothing is eligible,
+    // so the polling rate is cheap. Jolpica is only hit for sessions that
+    // OpenF1 doesn't cover (older seasons) or hasn't published yet — a
+    // narrow window in practice, since OpenF1 leads Jolpica by a lot.
+    this.tickJob = cron.schedule('* * * * *', () => { void this.tickOnce() })
     // Mondays 03:00 UTC
     this.weeklyJob = cron.schedule('0 3 * * 1', () => { void this.weeklyOnce() }, { timezone: 'UTC' })
     // Daily 04:00 UTC — delete expired sessions
     this.sweepJob = cron.schedule('0 4 * * *', () => { void this.sweepOnce() }, { timezone: 'UTC' })
+    // Hourly at :15 — fetch Jolpica's official classification for any session
+    // whose results are still OpenF1-sourced, and replace + rescore if they
+    // diverge (penalties, DSQ, post-stewards reclassification).
+    this.reconcileJob = cron.schedule('15 * * * *', () => { void this.reconcileOnce() })
   }
 
   stop(): void {
@@ -39,6 +49,8 @@ export class Scheduler {
     this.weeklyJob = null
     this.sweepJob?.stop()
     this.sweepJob = null
+    this.reconcileJob?.stop()
+    this.reconcileJob = null
   }
 
   async tickOnce(): Promise<TickSummary | null> {
@@ -59,6 +71,41 @@ export class Scheduler {
       return null
     } finally {
       this.isRunningTick = false
+    }
+  }
+
+  /// One-shot tick targeting a single session. Intended for external triggers
+  /// — e.g. an admin endpoint or a future frontend FINALISED webhook — that
+  /// know a specific session just produced its classification and want it
+  /// crawled and scored without waiting for the next cron tick. Bypasses the
+  /// eligibility window (scheduledEnd cutoff) so the caller can force a
+  /// refresh as soon as upstream data is available.
+  async tickForSession(sessionId: number): Promise<TickSummary | null> {
+    try {
+      const summary = await runTick(this.jolpica, this.wiki, this.openf1, { sessionId })
+      console.log('TickForSession complete', { sessionId, ...summary })
+      return summary
+    } catch (err) {
+      console.error('TickForSession failed', { sessionId, err })
+      return null
+    }
+  }
+
+  async reconcileOnce(): Promise<ReconcileSummary | null> {
+    if (this.isRunningReconcile) {
+      console.log('Reconcile already running, skipping')
+      return null
+    }
+    this.isRunningReconcile = true
+    try {
+      const summary = await reconcileOnce(this.jolpica, this.wiki)
+      console.log('Reconcile complete', summary)
+      return summary
+    } catch (err) {
+      console.error('Reconcile failed', err)
+      return null
+    } finally {
+      this.isRunningReconcile = false
     }
   }
 
