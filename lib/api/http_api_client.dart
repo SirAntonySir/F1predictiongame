@@ -13,6 +13,7 @@ import 'models/member_prediction.dart';
 import 'models/me_result.dart';
 import 'models/my_score.dart';
 import 'models/pick.dart';
+import 'models/import_payload.dart';
 import 'models/prediction_view.dart';
 import 'models/preseason_mine.dart';
 import 'models/reference_laps.dart';
@@ -353,5 +354,23 @@ class HttpApiClient implements ApiClient {
   Future<LeaguePreseasonView> leaguePreseason(String leagueId, {int? season}) async {
     final j = await _request('GET', '/api/leagues/$leagueId/preseason${_seasonQ(season)}') as Map<String, dynamic>;
     return LeaguePreseasonView.fromJson(j);
+  }
+
+  @override
+  Future<Map<String, dynamic>> getImportSchema(String leagueId, int seasonYear) async {
+    return await _request('GET', '/api/leagues/$leagueId/imports/schema?season=$seasonYear')
+        as Map<String, dynamic>;
+  }
+
+  @override
+  Future<ImportPreview> previewImport(String leagueId, Map<String, dynamic> body) async {
+    final j = await _request('POST', '/api/leagues/$leagueId/imports?dryRun=1', body: body) as Map<String, dynamic>;
+    return ImportPreview.fromJson(j);
+  }
+
+  @override
+  Future<ImportApplyResult> applyImport(String leagueId, Map<String, dynamic> body) async {
+    final j = await _request('POST', '/api/leagues/$leagueId/imports', body: body) as Map<String, dynamic>;
+    return ImportApplyResult.fromJson(j);
   }
 }

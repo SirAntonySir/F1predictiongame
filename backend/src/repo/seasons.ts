@@ -29,3 +29,9 @@ export async function list(): Promise<Season[]> {
   const db = getDb()
   return db.select().from(season).orderBy(desc(season.year))
 }
+
+export async function getByYear(year: number): Promise<Season | null> {
+  const db = getDb()
+  const rows = await db.select().from(season).where(eq(season.year, year)).limit(1)
+  return rows[0] ?? null
+}

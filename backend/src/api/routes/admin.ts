@@ -12,10 +12,18 @@ import * as constructorsRepo from '../../repo/constructors.js'
 import * as eventsRepo from '../../repo/events.js'
 import * as sessionsRepo from '../../repo/sessions.js'
 import * as truthRepo from '../../repo/subjectiveTruth.js'
+import * as resultsRepo from '../../repo/results.js'
+import * as standingsRepo from '../../repo/standings.js'
+import * as bestLapsRepo from '../../repo/bestLaps.js'
 import { rescoreSession } from '../../scoring/rescorer.js'
 import { rescorePreseasonForSeason } from '../../preseason/rescorer.js'
 import type { Scheduler } from '../../crawler/scheduler.js'
-import { parseDrivers as parseOpenF1Drivers } from '../../openf1/parsers.js'
+import { parseDrivers as parseOpenF1Drivers, parseBestLapsPerDriver } from '../../openf1/parsers.js'
+import {
+  parseDriverStandings, parseConstructorStandings,
+  extractDriversFromStandings, extractConstructorsFromStandings
+} from '../../jolpica/parsers.js'
+import { fetchByType, upsertNewDrivers, upsertNewConstructors } from '../../crawler/tick.js'
 
 export type AdminDeps = {
   scheduler: Scheduler | null
@@ -107,6 +115,81 @@ export async function registerAdminRoutes(app: FastifyInstance, deps: AdminDeps)
     if (!Number.isFinite(id)) throw new ApiError('BAD_REQUEST', 'id must be a number')
     const summary = await rescoreSession(id)
     return { ok: true, sessionId: id, ...summary }
+  })
+
+  // Force-refetch a single (finished) session's classification from
+  // Jolpica/OpenF1, replace its session_result rows, refresh standings if
+  // it's the current season, and rescore. Use for post-race penalty
+  // corrections that the regular tick won't pick up (it skips finished
+  // sessions).
+  //
+  // Query opts:
+  //   ?skipStandings=1 — don't refresh driver/constructor standings.
+  //   ?skipBestLaps=1  — don't re-snapshot sector best laps from OpenF1.
+  app.post<{
+    Params: { id: string }
+    Querystring: { skipStandings?: string; skipBestLaps?: string }
+  }>('/admin/refetch-session/:id', async (req) => {
+    const id = Number(req.params.id)
+    if (!Number.isFinite(id)) throw new ApiError('BAD_REQUEST', 'id must be a number')
+
+    const ses = await sessionsRepo.getById(id)
+    if (!ses) throw new ApiError('NOT_FOUND', `Session ${id} not found`)
+    const ev = await eventsRepo.getById(ses.eventId)
+    if (!ev) throw new ApiError('NOT_FOUND', `Event ${ses.eventId} not found`)
+
+    const out = await fetchByType(jolpica, openf1, ses.type, ev.seasonYear, ev.round, ses.openf1SessionKey)
+    if (out.rows.length === 0) {
+      throw new ApiError('UPSTREAM_FAILURE', `No results returned for ${ses.type} round ${ev.round}`)
+    }
+
+    await upsertNewDrivers(out.drivers, wiki)
+    await upsertNewConstructors(out.constructors, wiki)
+    await resultsRepo.replaceForSession(id, out.rows.map((r) => ({ ...r, sessionId: id })))
+
+    // Best-laps snapshot — same path as the crawler tick. Best-effort.
+    if (ses.openf1SessionKey != null && !req.query.skipBestLaps) {
+      try {
+        const lapsRaw = await openf1.getLaps(ses.openf1SessionKey)
+        const drvForLaps = parseOpenF1Drivers(await openf1.getDrivers(ses.openf1SessionKey) ?? [])
+        const best = parseBestLapsPerDriver(lapsRaw, drvForLaps)
+        await bestLapsRepo.replaceForSession(id, best)
+      } catch (err) {
+        console.warn('Best-lap refresh failed (results saved)', { id, err })
+      }
+    }
+
+    let standingsRefreshed = false
+    if (!req.query.skipStandings) {
+      try {
+        const drvRaw = await jolpica.getDriverStandings(ev.seasonYear)
+        if (drvRaw) {
+          await upsertNewDrivers(extractDriversFromStandings(drvRaw), wiki)
+          await upsertNewConstructors(extractConstructorsFromStandings(drvRaw), wiki)
+          await standingsRepo.replaceDriverStandings(ev.seasonYear, parseDriverStandings(drvRaw))
+        }
+        const ctorRaw = await jolpica.getConstructorStandings(ev.seasonYear)
+        if (ctorRaw) {
+          await upsertNewConstructors(extractConstructorsFromStandings(ctorRaw), wiki)
+          await standingsRepo.replaceConstructorStandings(ev.seasonYear, parseConstructorStandings(ctorRaw))
+        }
+        standingsRefreshed = true
+      } catch (err) {
+        console.warn('Standings refresh failed (results saved)', { id, err })
+      }
+    }
+
+    const summary = await rescoreSession(id)
+    return {
+      ok: true,
+      sessionId: id,
+      event: ev.name,
+      round: ev.round,
+      type: ses.type,
+      rowsReplaced: out.rows.length,
+      standingsRefreshed,
+      rescored: summary
+    }
   })
 
   app.post<{ Params: { year: string } }>('/admin/rescore-season/:year', async (req) => {

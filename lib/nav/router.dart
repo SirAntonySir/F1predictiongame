@@ -6,6 +6,7 @@ import '../screens/league_onboarding_screen.dart';
 import '../screens/login_screen.dart';
 import '../screens/predict_screen.dart';
 import '../screens/preseason_screen.dart';
+import '../screens/import_screen.dart';
 import '../screens/preseason_standings_screen.dart';
 import '../screens/rules_screen.dart';
 import '../screens/session_results_screen.dart';
@@ -82,6 +83,7 @@ GoRouter buildRouter(AuthController auth) {
       ),
       GoRoute(path: '/settings', builder: (_, __) => const SettingsScreen()),
       GoRoute(path: '/rules', builder: (_, __) => const RulesScreen()),
+      GoRoute(path: '/import', builder: (_, __) => const ImportScreen()),
       // Trajectory full-screen. Data arrives via `extra` (passed by the
       // insights tab); if it's missing (deep link, hot restart) we render the
       // screen with an empty session list — it falls back to a "no data" view.

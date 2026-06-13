@@ -163,10 +163,34 @@ export const prediction = pgTable('prediction', {
   userId: uuid('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
   sessionId: integer('session_id').notNull().references(() => session.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  // 'app' = entered via the in-app predict screen (default).
+  // 'import' = bulk-imported by a league owner via /imports endpoint.
+  // Surfaced in the UI so members can tell apart in-app picks from
+  // backfilled ones.
+  source: text('source').notNull().default('app'),
+  importedBy: uuid('imported_by').references(() => user.id),
+  importedAt: timestamp('imported_at', { withTimezone: true })
 }, (t) => ({
   userSessionUq: uniqueIndex('prediction_user_session_uq').on(t.userId, t.sessionId),
   sessionIdx: index('prediction_session_idx').on(t.sessionId)
+}))
+
+/// Audit row per `/imports` upload. Lets the league surface "imported by
+/// Anton on 2026-06-13: 47 applied, 2 skipped" without scanning every
+/// prediction row.
+export const predictionImport = pgTable('prediction_import', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  leagueId: uuid('league_id').notNull().references(() => league.id, { onDelete: 'cascade' }),
+  seasonYear: integer('season_year').notNull().references(() => season.year),
+  uploadedBy: uuid('uploaded_by').notNull().references(() => user.id),
+  uploadedAt: timestamp('uploaded_at', { withTimezone: true }).notNull().defaultNow(),
+  schemaVersion: integer('schema_version').notNull(),
+  appliedCount: integer('applied_count').notNull(),
+  skippedCount: integer('skipped_count').notNull(),
+  rawFilename: text('raw_filename')
+}, (t) => ({
+  leagueIdx: index('prediction_import_league_idx').on(t.leagueId, t.uploadedAt)
 }))
 
 export const predictionPick = pgTable('prediction_pick', {

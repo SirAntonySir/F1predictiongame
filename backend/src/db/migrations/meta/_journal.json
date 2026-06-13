@@ -64,6 +64,13 @@
       "when": 1781308050825,
       "tag": "0008_cool_captain_universe",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1781313900692,
+      "tag": "0009_tiny_black_bolt",
+      "breakpoints": true
     }
   ]
 }

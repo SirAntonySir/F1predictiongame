@@ -135,6 +135,15 @@ class SettingsScreen extends StatelessWidget {
               trailing: _chevron(t),
               onTap: () => context.push('/rules'),
             ),
+            if (league != null && league.role == 'owner') ...[
+              const SizedBox(height: Spacing.sm),
+              _SettingsCard(
+                title: 'Data import',
+                subtitle: 'Bulk-import predictions from JSON',
+                trailing: _chevron(t),
+                onTap: () => context.push('/import'),
+              ),
+            ],
             const SizedBox(height: Spacing.xl),
             Text('ABOUT', style: AppText.label(11)),
             const SizedBox(height: Spacing.sm),

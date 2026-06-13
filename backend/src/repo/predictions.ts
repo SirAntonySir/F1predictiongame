@@ -39,15 +39,19 @@ export async function deleteByUserAndSession(userId: string, sessionId: number):
 export async function upsertPredictionWithPicks(
   userId: string,
   sessionId: number,
-  items: PickInput[]
+  items: PickInput[],
+  options: { source?: 'app' | 'import'; importedBy?: string | null } = {}
 ): Promise<string> {
   const db = getDb()
+  const source = options.source ?? 'app'
+  const importedBy = options.importedBy ?? null
+  const importedAt = source === 'import' ? sql`now()` : sql`null`
   return db.transaction(async (tx) => {
     const [row] = await tx.insert(prediction)
-      .values({ userId, sessionId })
+      .values({ userId, sessionId, source, importedBy, importedAt: source === 'import' ? new Date() : null })
       .onConflictDoUpdate({
         target: [prediction.userId, prediction.sessionId],
-        set: { updatedAt: sql`now()` }
+        set: { updatedAt: sql`now()`, source, importedBy, importedAt }
       })
       .returning()
     const id = row!.id

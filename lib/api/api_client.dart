@@ -15,6 +15,7 @@ import 'models/preseason_mine.dart';
 import '../domain/preseason.dart';
 import 'models/season.dart';
 import 'models/session.dart';
+import 'models/import_payload.dart';
 import 'models/reference_laps.dart';
 import 'models/session_leaderboard_row.dart';
 import 'models/session_result.dart';
@@ -83,6 +84,11 @@ abstract class ApiClient {
   Future<List<PreseasonStandingsDriverPick>> putPreseasonDriverStandings(List<PreseasonStandingsDriverPick> picks);
   Future<List<PreseasonStandingsConstructorPick>> putPreseasonConstructorStandings(List<PreseasonStandingsConstructorPick> picks);
   Future<LeaguePreseasonView> leaguePreseason(String leagueId, {int? season});
+
+  // Owner-only JSON imports
+  Future<Map<String, dynamic>> getImportSchema(String leagueId, int seasonYear);
+  Future<ImportPreview> previewImport(String leagueId, Map<String, dynamic> body);
+  Future<ImportApplyResult> applyImport(String leagueId, Map<String, dynamic> body);
 }
 
 // Exceptions
