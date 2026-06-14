@@ -110,6 +110,87 @@ export function parseBestLapsPerDriver(
   return [...best.values()]
 }
 
+/// Inverse of formatDuration: parses "M:SS.mmm" or "SS.mmm" into integer ms.
+/// Returns null for malformed input.
+function parseFormattedDurationMs(s: string | null | undefined): number | null {
+  if (s == null) return null
+  const m = /^(?:(\d+):)?(\d{1,2})\.(\d{1,3})$/.exec(s.trim())
+  if (!m) return null
+  const minutes = m[1] ? Number(m[1]) : 0
+  const secs = Number(m[2])
+  const ms = Number(m[3]!.padEnd(3, '0').slice(0, 3))
+  return minutes * 60_000 + secs * 1_000 + ms
+}
+
+/// Identifies each driver's best lap in Q1/Q2/Q3 by matching the persisted
+/// session_result.q1/q2/q3 lap-time strings against OpenF1 `/laps` entries
+/// (lap_duration in seconds → ms with ±2ms tolerance). Returns one BestLap per
+/// (driver, knockout) where a match exists; missing knockouts (e.g. driver
+/// eliminated in Q1) yield no row for that segment.
+///
+/// Why match by lap_duration instead of detecting knockout boundaries: we
+/// already store the canonical per-knockout best time in session_result, and
+/// it's set by the official timing feed — no need to reconstruct the segment
+/// boundaries from race-control events.
+export function parseKnockoutBestLapsPerDriver(
+  rawLaps: unknown,
+  drivers: OpenF1DriverLookup[],
+  qualiResults: Array<{ driverCode: string; q1: string | null; q2: string | null; q3: string | null }>
+): BestLap[] {
+  const TOLERANCE_MS = 2
+  const byNumber = new Map(drivers.map((d) => [d.driverNumber, d]))
+  const resultsByCode = new Map(qualiResults.map((r) => [r.driverCode, r]))
+  const lapsByDriver = new Map<string, Array<{ lapMs: number; s1Ms: number | null; s2Ms: number | null; s3Ms: number | null; lapNumber: number | null }>>()
+  for (const l of (rawLaps as any[]) ?? []) {
+    if (l.is_pit_out_lap === true) continue
+    const lapMs = toMs(l.lap_duration)
+    if (lapMs == null) continue
+    const drv = byNumber.get(Number(l.driver_number))
+    if (!drv) continue
+    const arr = lapsByDriver.get(drv.code) ?? []
+    arr.push({
+      lapMs,
+      s1Ms: toMs(l.duration_sector_1),
+      s2Ms: toMs(l.duration_sector_2),
+      s3Ms: toMs(l.duration_sector_3),
+      lapNumber: Number.isFinite(Number(l.lap_number)) ? Number(l.lap_number) : null
+    })
+    lapsByDriver.set(drv.code, arr)
+  }
+
+  const out: BestLap[] = []
+  for (const drv of drivers) {
+    const result = resultsByCode.get(drv.code)
+    if (!result) continue
+    const driverLaps = lapsByDriver.get(drv.code) ?? []
+    for (const k of [1, 2, 3] as const) {
+      const targetText = k === 1 ? result.q1 : k === 2 ? result.q2 : result.q3
+      const targetMs = parseFormattedDurationMs(targetText)
+      if (targetMs == null) continue
+      let best: { lapMs: number; s1Ms: number | null; s2Ms: number | null; s3Ms: number | null; lapNumber: number | null } | null = null
+      let bestDelta = TOLERANCE_MS + 1
+      for (const lap of driverLaps) {
+        const delta = Math.abs(lap.lapMs - targetMs)
+        if (delta <= TOLERANCE_MS && delta < bestDelta) {
+          best = lap
+          bestDelta = delta
+        }
+      }
+      if (!best) continue
+      out.push({
+        driverCode: drv.code,
+        knockout: k,
+        lapMs: best.lapMs,
+        s1Ms: best.s1Ms,
+        s2Ms: best.s2Ms,
+        s3Ms: best.s3Ms,
+        lapNumber: best.lapNumber
+      })
+    }
+  }
+  return out
+}
+
 export function parseSessionResult(
   raw: unknown,
   drivers: OpenF1DriverLookup[]
