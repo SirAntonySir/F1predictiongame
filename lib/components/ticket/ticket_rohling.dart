@@ -23,7 +23,12 @@ class TicketRohling extends StatelessWidget {
   final String? metaRight;
   final String title;
   final String? subtitle;
+  /// Illustration painted as a low-opacity watermark behind the body content,
+  /// scaled up and clipped to the body region. Text sits on top.
   final Widget? illustration;
+  /// Opacity of the watermark illustration. Defaults to 0.16 on cream paper
+  /// and 0.22 on dark paper (dark presets need a louder watermark to read).
+  final double? illustrationOpacity;
   final TicketOrnament? ornament;
   final List<TicketDataCell> dataRow;
   final TicketStub stub;
@@ -41,6 +46,7 @@ class TicketRohling extends StatelessWidget {
     required this.title,
     this.subtitle,
     this.illustration,
+    this.illustrationOpacity,
     this.ornament,
     required this.dataRow,
     required this.stub,
@@ -57,7 +63,11 @@ class TicketRohling extends StatelessWidget {
     final stubWidth = widthFor(stub);
     final hasSplitTaps = onBodyTap != null || onStubTap != null;
 
-    final body = Padding(
+    final isDark = tokens.paperColor.computeLuminance() < 0.3;
+    final effectiveIllustrationOpacity =
+        illustrationOpacity ?? (isDark ? 0.22 : 0.16);
+
+    final foreground = Padding(
       padding: const EdgeInsets.fromLTRB(26, 12, 18, 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -71,32 +81,19 @@ class TicketRohling extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 8),
-          IntrinsicHeight(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      TicketOrnamentWidget(ornament: effectiveOrnament, color: tokens.inkColor),
-                      if (subtitle != null) ...[
-                        const SizedBox(height: 4),
-                        Text(subtitle!, style: tokens.subtitle),
-                      ],
-                      const SizedBox(height: 2),
-                      Text(title, style: tokens.title, maxLines: 2, overflow: TextOverflow.ellipsis),
-                    ],
-                  ),
-                ),
-                if (illustration != null) ...[
-                  const SizedBox(width: 8),
-                  SizedBox(width: 90, height: 46, child: illustration),
-                ],
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TicketOrnamentWidget(ornament: effectiveOrnament, color: tokens.inkColor),
+              if (subtitle != null) ...[
+                const SizedBox(height: 4),
+                Text(subtitle!, style: tokens.subtitle),
               ],
-            ),
+              const SizedBox(height: 2),
+              Text(title, style: tokens.title, maxLines: 2, overflow: TextOverflow.ellipsis),
+            ],
           ),
           if (dataRow.isNotEmpty) ...[
             const SizedBox(height: 10),
@@ -129,6 +126,32 @@ class TicketRohling extends StatelessWidget {
           ],
         ],
       ),
+    );
+
+    // Body = watermark illustration (scaled up, low-opacity, clipped) + the
+    // text/data column on top. The watermark sits inside the body region only,
+    // so it never crosses the perforation into the stub.
+    final body = Stack(
+      children: [
+        if (illustration != null)
+          Positioned.fill(
+            child: ClipRect(
+              child: Opacity(
+                opacity: effectiveIllustrationOpacity,
+                child: FittedBox(
+                  fit: BoxFit.cover,
+                  alignment: Alignment.centerRight,
+                  child: SizedBox(
+                    width: 400,
+                    height: 180,
+                    child: illustration,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        foreground,
+      ],
     );
 
     final stubContent = TicketStubContent(stub: stub, titleHint: title, textStyle: tokens.meta);
