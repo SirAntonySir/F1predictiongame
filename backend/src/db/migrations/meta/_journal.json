@@ -85,6 +85,13 @@
       "when": 1781352590372,
       "tag": "0011_tidy_sersi",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1781432611442,
+      "tag": "0012_square_meltdown",
+      "breakpoints": true
     }
   ]
 }

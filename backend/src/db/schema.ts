@@ -297,6 +297,11 @@ export const preseasonProjectionSnapshot = pgTable('preseason_projection_snapsho
 export const sessionBestLap = pgTable('session_best_lap', {
   sessionId: integer('session_id').notNull().references(() => session.id, { onDelete: 'cascade' }),
   driverCode: text('driver_code').notNull().references(() => driver.code),
+  /// 1/2/3 for qualifying knockout segments (Q1/Q2/Q3 or SQ1/SQ2/SQ3).
+  /// 0 for non-knockout sessions (FP/race/sprint). Always non-null so it can
+  /// participate in the primary key — using 0 instead of nullable avoids
+  /// PostgreSQL's "nulls are distinct" PK semantics.
+  knockout: integer('knockout').notNull().default(0),
   lapMs: integer('lap_ms').notNull(),
   s1Ms: integer('s1_ms'),
   s2Ms: integer('s2_ms'),
@@ -304,7 +309,7 @@ export const sessionBestLap = pgTable('session_best_lap', {
   lapNumber: integer('lap_number'),
   computedAt: timestamp('computed_at', { withTimezone: true }).notNull().defaultNow()
 }, (t) => ({
-  pk: primaryKey({ columns: [t.sessionId, t.driverCode] }),
+  pk: primaryKey({ columns: [t.sessionId, t.driverCode, t.knockout] }),
   sessionIdx: index('session_best_lap_session_idx').on(t.sessionId)
 }))
 
