@@ -26,9 +26,12 @@ class PickTicket extends StatelessWidget {
   final double? illustrationScale;
   /// Null before the race has been scored.
   final int? scorePoints;
-  /// Optional caller-friendly meta (e.g. "FRI · 17:00"). Null falls through
-  /// to a default round / weekday label.
-  final String? metaRight;
+  /// Player name shown in the top-right meta cell (uppercased). When combined
+  /// with [dayTime], the two are joined with a centre-dot separator.
+  final String? playerName;
+  /// Day + local time label, e.g. "SUN 12:00". Renders next to [playerName]
+  /// in the top-right meta cell when set.
+  final String? dayTime;
   final TicketStyle? styleOverride;
   final VoidCallback? onBodyTap;
   final VoidCallback? onStubTap;
@@ -43,7 +46,8 @@ class PickTicket extends StatelessWidget {
     this.illustrationAlignment,
     this.illustrationScale,
     this.scorePoints,
-    this.metaRight,
+    this.playerName,
+    this.dayTime,
     this.styleOverride,
     this.onBodyTap,
     this.onStubTap,
@@ -54,11 +58,15 @@ class PickTicket extends StatelessWidget {
   Widget build(BuildContext context) {
     final style = styleOverride ?? styleForEvent(event);
     final scored = scorePoints != null;
+    final right = <String>[
+      if (playerName != null && playerName!.isNotEmpty) playerName!.toUpperCase(),
+      if (dayTime != null && dayTime!.isNotEmpty) dayTime!,
+    ].join(' · ');
     return TicketRohling(
       style: style,
       edgeSerial: 'RD ${event.round.toString().padLeft(2, '0')} · ${event.name.toUpperCase()}',
       metaLeft: 'RD ${event.round.toString().padLeft(2, '0')} · ${event.name.toUpperCase()}',
-      metaRight: metaRight ?? 'YOUR PICK',
+      metaRight: right.isEmpty ? null : right,
       title: event.name.toUpperCase(),
       subtitle: event.circuitName.toUpperCase(),
       illustration: illustration ??

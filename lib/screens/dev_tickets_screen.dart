@@ -110,6 +110,8 @@ class DevTicketsScreen extends StatelessWidget {
               PickTicket(
                 event: s.event,
                 driverCodes: _picks,
+                playerName: 'Anton',
+                dayTime: 'SUN 12:00',
                 illustration: _sampleCar(s.style),
                 illustrationAlignment: _alignFor(s.style),
                 illustrationScale: _scaleFor(s.style),
@@ -124,6 +126,8 @@ class DevTicketsScreen extends StatelessWidget {
                 event: s.event,
                 driverCodes: _picks,
                 scorePoints: _scorePoints,
+                playerName: 'Anton',
+                dayTime: 'SUN 12:00',
                 illustration: _sampleCar(s.style),
                 illustrationAlignment: _alignFor(s.style),
                 illustrationScale: _scaleFor(s.style),
