@@ -8,7 +8,7 @@ import {
   extractDriversFromStandings, extractConstructorsFromStandings,
   type DriverLookup, type ConstructorLookup
 } from '../jolpica/parsers.js'
-import { parseSessionResult as parseOpenF1SessionResult, parseDrivers as parseOpenF1Drivers, parseBestLapsPerDriver, type OpenF1DriverLookup } from '../openf1/parsers.js'
+import { parseSessionResult as parseOpenF1SessionResult, parseDrivers as parseOpenF1Drivers, parseBestLapsPerDriver, parseKnockoutBestLapsPerDriver, type OpenF1DriverLookup } from '../openf1/parsers.js'
 import * as sessionsRepo from '../repo/sessions.js'
 import * as eventsRepo from '../repo/events.js'
 import * as resultsRepo from '../repo/results.js'
@@ -257,16 +257,24 @@ export async function runTick(
       )
 
       // Best-lap-with-sectors snapshot for the sector-color reference view on
-      // the predict screen. OpenF1-only; skip if the session has no key.
-      // Failures here don't block the tick — the result row is what matters
-      // for scoring; sector data is decorative.
+      // the predict screen. For quali / sprint_quali we write one row per
+      // (driver, knockout) so the Q1/Q2/Q3 columns get real sector tiers;
+      // otherwise one row per driver (knockout=0). OpenF1-only; skip if the
+      // session has no key. Failures here don't block the tick — the result
+      // row is what matters for scoring; sector data is decorative.
       if (ses.openf1SessionKey != null) {
         try {
           const lapsRaw = await openf1.getLaps(ses.openf1SessionKey)
           const drvForLaps = openF1Drivers
             ?? parseOpenF1Drivers(await openf1.getDrivers(ses.openf1SessionKey) ?? [])
-          const best = parseBestLapsPerDriver(lapsRaw, drvForLaps)
-          await bestLapsRepo.replaceForSession(ses.id!, best)
+          if (ses.type === 'qualifying' || ses.type === 'sprint_quali') {
+            const persistedResults = await resultsRepo.listForSession(ses.id!)
+            const best = parseKnockoutBestLapsPerDriver(lapsRaw, drvForLaps, persistedResults)
+            await bestLapsRepo.replaceForSession(ses.id!, best)
+          } else {
+            const best = parseBestLapsPerDriver(lapsRaw, drvForLaps)
+            await bestLapsRepo.replaceForSession(ses.id!, best)
+          }
         } catch (err) {
           console.warn('Best-lap snapshot failed (session result saved)', { sessionId: ses.id, err })
         }
