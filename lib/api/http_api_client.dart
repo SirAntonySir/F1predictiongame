@@ -409,4 +409,22 @@ class HttpApiClient implements ApiClient {
       return null;
     }
   }
+
+  @override
+  Future<String?> constructorCarSvg(String constructorId, {String variant = 'outline'}) async {
+    try {
+      final headers = <String, String>{};
+      final token = _tokenProvider();
+      if (token != null) headers['Authorization'] = 'Bearer $token';
+      final res = await client.get(
+        Uri.parse('$baseUrl/api/constructors/$constructorId/car-svg?variant=$variant'),
+        headers: headers,
+      );
+      if (res.statusCode == 404) return null;
+      if (res.statusCode >= 200 && res.statusCode < 300) return res.body;
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
 }

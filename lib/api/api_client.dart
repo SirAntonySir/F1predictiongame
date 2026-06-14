@@ -97,6 +97,10 @@ abstract class ApiClient {
   // Raw SVG body for a circuit. Returns null when the circuit / variant is
   // not stored in the backend (treated as "no map available" by the UI).
   Future<String?> circuitSvg(String circuitId, {String detail = 'detailed', String variant = 'white', String? layout});
+
+  /// Raw SVG body for a constructor's car illustration. Returns null when the
+  /// constructor / variant is not stored. Used by [CarSvg] on ticket cards.
+  Future<String?> constructorCarSvg(String constructorId, {String variant = 'outline'});
 }
 
 // Exceptions
