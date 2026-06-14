@@ -44,6 +44,23 @@ const LABEL: Record<SessionType, string> = {
   qualifying: 'Q', sprint_quali: 'SQ', sprint: 'SPR', race: 'R'
 }
 
+const KNOCKOUT_LABEL_PREFIX: Partial<Record<SessionType, string>> = {
+  qualifying: 'Q',
+  sprint_quali: 'SQ'
+}
+
+/// Inverse of openf1/parsers.formatDuration. Accepts "M:SS.mmm" (e.g.
+/// "1:30.500") and "SS.mmm" (no minute). Returns null for malformed input.
+function parseLapMs(s: string | null): number | null {
+  if (s == null) return null
+  const m = /^(?:(\d+):)?(\d{1,2})\.(\d{1,3})$/.exec(s.trim())
+  if (!m) return null
+  const minutes = m[1] ? Number(m[1]) : 0
+  const secs = Number(m[2])
+  const ms = Number(m[3]!.padEnd(3, '0').slice(0, 3))
+  return minutes * 60_000 + secs * 1_000 + ms
+}
+
 const TIER_RANK: Record<Tier, number> = { sessionBest: 2, personalBest: 1, neutral: 0 }
 const topTier = (a: Tier, b: Tier): Tier => (TIER_RANK[a] >= TIER_RANK[b] ? a : b)
 
@@ -70,6 +87,39 @@ export async function registerReferenceLapsRoutes(app: FastifyInstance): Promise
       const { predict, refs } = await pickReferenceSessions(id)
       if (refs.length === 0) {
         return { predictSessionId: predict.id, predictSessionType: predict.type, references: [] }
+      }
+
+      // Qualifying breakdown: when a (sprint-)quali is among the references it
+      // carries more predictive signal as three knockout segments than as one
+      // best-of-session column, so we expand it into Q1/Q2/Q3 (or SQ1/SQ2/SQ3)
+      // and drop the other references — keeps the predict-screen header at
+      // ≤3 columns. Lap-time strings live in session_result.q1/q2/q3; we don't
+      // have per-knockout sectors so the expanded entries are lap-only.
+      const knockoutRef = refs.find((r) => KNOCKOUT_LABEL_PREFIX[r.type] != null)
+      if (knockoutRef != null) {
+        const prefix = KNOCKOUT_LABEL_PREFIX[knockoutRef.type]!
+        const rows = await resultsRepo.listForSession(knockoutRef.id)
+        const segments: ReferenceSession[] = [1, 2, 3].map((k) => {
+          const laps: LapRow[] = []
+          for (const r of rows) {
+            const raw = k === 1 ? r.q1 : k === 2 ? r.q2 : r.q3
+            const lapMs = parseLapMs(raw)
+            if (lapMs == null) continue
+            laps.push({
+              driverCode: r.driverCode,
+              constructorId: r.constructorId,
+              lapMs,
+              lapTier: 'neutral',
+              s1Ms: null, s1Tier: 'neutral',
+              s2Ms: null, s2Tier: 'neutral',
+              s3Ms: null, s3Tier: 'neutral',
+              lapNumber: null
+            })
+          }
+          laps.sort((a, b) => a.lapMs - b.lapMs)
+          return { sessionId: knockoutRef.id, type: knockoutRef.type, label: `${prefix}${k}`, laps }
+        })
+        return { predictSessionId: predict.id, predictSessionType: predict.type, references: segments }
       }
 
       const sessionIds = refs.map((r) => r.id)
