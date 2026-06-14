@@ -131,3 +131,28 @@ describe('GET /api/sessions/:id/reference-laps — qualifying expansion', () => 
     expect(body.references.map((r) => r.label)).toEqual(['FP2', 'FP3'])
   })
 })
+
+describe('GET /api/sessions/:id/reference-laps — sector tiers from knockout-tagged rows', () => {
+  it('returns sector tiers per Q-segment when knockout rows are seeded', async () => {
+    const { raceId, qualiId } = await seedRaceWeekend()
+    // VER fastest s1 in Q3 (sessionBest within Q3); NOR fastest s2 in Q2.
+    await bestLaps.replaceForSession(qualiId, [
+      { driverCode: 'VER', knockout: 1, lapMs: 90500, s1Ms: 30000, s2Ms: 30000, s3Ms: 30500, lapNumber: 3 },
+      { driverCode: 'VER', knockout: 2, lapMs: 90000, s1Ms: 29800, s2Ms: 30000, s3Ms: 30200, lapNumber: 8 },
+      { driverCode: 'VER', knockout: 3, lapMs: 89800, s1Ms: 29700, s2Ms: 29800, s3Ms: 30300, lapNumber: 14 },
+      { driverCode: 'NOR', knockout: 1, lapMs: 90700, s1Ms: 30200, s2Ms: 30200, s3Ms: 30300, lapNumber: 4 },
+      { driverCode: 'NOR', knockout: 2, lapMs: 90200, s1Ms: 30000, s2Ms: 29900, s3Ms: 30300, lapNumber: 9 }
+    ])
+    const app = await buildApp({ scheduler: null })
+    const res = await app.inject({ method: 'GET', url: `/api/sessions/${raceId}/reference-laps` })
+    const body = res.json() as {
+      references: { label: string; laps: { driverCode: string; s1Tier: string; s2Tier: string; lapNumber: number | null }[] }[]
+    }
+    expect(body.references.map((r) => r.label)).toEqual(['Q1', 'Q2', 'Q3'])
+    const verQ3 = body.references[2]!.laps.find((l) => l.driverCode === 'VER')!
+    expect(verQ3.s1Tier).toBe('sessionBest')
+    expect(verQ3.lapNumber).toBe(14)
+    const norQ2 = body.references[1]!.laps.find((l) => l.driverCode === 'NOR')!
+    expect(norQ2.s2Tier).toBe('sessionBest')
+  })
+})

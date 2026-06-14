@@ -98,10 +98,70 @@ export async function registerReferenceLapsRoutes(app: FastifyInstance): Promise
       const knockoutRef = refs.find((r) => KNOCKOUT_LABEL_PREFIX[r.type] != null)
       if (knockoutRef != null) {
         const prefix = KNOCKOUT_LABEL_PREFIX[knockoutRef.type]!
-        const rows = await resultsRepo.listForSession(knockoutRef.id)
+        // Prefer knockout-tagged best-lap rows when ingestion has populated
+        // them (post-backfill quali): three rows per driver with real sector
+        // splits, full session/personal-best tiering. Falls back to the
+        // session_result.q1/q2/q3 lap-only path when no knockout rows exist
+        // (pre-backfill quali, or session_best_lap was never populated).
+        const knockoutLaps = (await bestLapsRepo.listForSessions([knockoutRef.id]))
+          .filter((r) => r.knockout >= 1 && r.knockout <= 3)
+        const resultRows = await resultsRepo.listForSession(knockoutRef.id)
+        const constructorByDriver = new Map<string, string>()
+        for (const r of resultRows) {
+          if (!constructorByDriver.has(r.driverCode)) constructorByDriver.set(r.driverCode, r.constructorId)
+        }
+
+        if (knockoutLaps.length > 0) {
+          // Personal-best per (driver, sector) across the three knockout
+          // segments — mirrors the session-level pb map used by the fallthrough
+          // path, but scoped to this single quali session.
+          const pb = new Map<string, { s1: number | null; s2: number | null; s3: number | null }>()
+          for (const r of knockoutLaps) {
+            const e = pb.get(r.driverCode) ?? { s1: null, s2: null, s3: null }
+            if (r.s1Ms != null) e.s1 = e.s1 == null ? r.s1Ms : Math.min(e.s1, r.s1Ms)
+            if (r.s2Ms != null) e.s2 = e.s2 == null ? r.s2Ms : Math.min(e.s2, r.s2Ms)
+            if (r.s3Ms != null) e.s3 = e.s3 == null ? r.s3Ms : Math.min(e.s3, r.s3Ms)
+            pb.set(r.driverCode, e)
+          }
+          const segments: ReferenceSession[] = [1, 2, 3].map((k) => {
+            const rowsK = knockoutLaps.filter((r) => r.knockout === k)
+            const sb = { s1: null as number | null, s2: null as number | null, s3: null as number | null }
+            for (const r of rowsK) {
+              if (r.s1Ms != null) sb.s1 = sb.s1 == null ? r.s1Ms : Math.min(sb.s1, r.s1Ms)
+              if (r.s2Ms != null) sb.s2 = sb.s2 == null ? r.s2Ms : Math.min(sb.s2, r.s2Ms)
+              if (r.s3Ms != null) sb.s3 = sb.s3 == null ? r.s3Ms : Math.min(sb.s3, r.s3Ms)
+            }
+            const laps: LapRow[] = rowsK.map((r) => {
+              const pbE = pb.get(r.driverCode)!
+              const tier = (cur: number | null, s: number | null, p: number | null): Tier => {
+                if (cur == null) return 'neutral'
+                if (s != null && cur === s) return 'sessionBest'
+                if (p != null && cur === p) return 'personalBest'
+                return 'neutral'
+              }
+              const s1Tier = tier(r.s1Ms, sb.s1, pbE.s1)
+              const s2Tier = tier(r.s2Ms, sb.s2, pbE.s2)
+              const s3Tier = tier(r.s3Ms, sb.s3, pbE.s3)
+              return {
+                driverCode: r.driverCode,
+                constructorId: constructorByDriver.get(r.driverCode) ?? null,
+                lapMs: r.lapMs,
+                lapTier: topTier(topTier(s1Tier, s2Tier), s3Tier),
+                s1Ms: r.s1Ms, s1Tier,
+                s2Ms: r.s2Ms, s2Tier,
+                s3Ms: r.s3Ms, s3Tier,
+                lapNumber: r.lapNumber
+              }
+            })
+            laps.sort((a, b) => a.lapMs - b.lapMs)
+            return { sessionId: knockoutRef.id, type: knockoutRef.type, label: `${prefix}${k}`, laps }
+          })
+          return { predictSessionId: predict.id, predictSessionType: predict.type, references: segments }
+        }
+
         const segments: ReferenceSession[] = [1, 2, 3].map((k) => {
           const laps: LapRow[] = []
-          for (const r of rows) {
+          for (const r of resultRows) {
             const raw = k === 1 ? r.q1 : k === 2 ? r.q2 : r.q3
             const lapMs = parseLapMs(raw)
             if (lapMs == null) continue
