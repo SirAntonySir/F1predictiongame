@@ -22,7 +22,7 @@ export async function replaceForSession(sessionId: number, laps: BestLap[]): Pro
     await tx.insert(sessionBestLap).values(laps.map((l) => ({
       sessionId,
       driverCode: l.driverCode,
-      knockout: l.knockout ?? 0,
+      knockout: l.knockout,
       lapMs: l.lapMs,
       s1Ms: l.s1Ms,
       s2Ms: l.s2Ms,

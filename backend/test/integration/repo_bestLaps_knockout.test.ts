@@ -38,10 +38,10 @@ describe('bestLaps repo — knockout column', () => {
     expect(q3.s1Ms).toBe(29700)
   })
 
-  it('defaults knockout=0 for non-quali sessions', async () => {
+  it('round-trips knockout=0 for non-quali sessions', async () => {
     const id = await seedSession('fp1')
     await bestLaps.replaceForSession(id, [
-      { driverCode: 'VER', lapMs: 92000, s1Ms: null, s2Ms: null, s3Ms: null, lapNumber: 4 }
+      { driverCode: 'VER', knockout: 0, lapMs: 92000, s1Ms: null, s2Ms: null, s3Ms: null, lapNumber: 4 }
     ])
     const rows = await bestLaps.listForSessions([id])
     expect(rows).toHaveLength(1)
