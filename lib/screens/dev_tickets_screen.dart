@@ -12,7 +12,7 @@ import '../components/ticket/ticket_style.dart';
 class DevTicketsScreen extends StatelessWidget {
   const DevTicketsScreen({super.key});
 
-  static const _picks = ['VER', 'NOR', 'LEC'];
+  static const _picks = ['VER', 'NOR', 'LEC', 'HAM', 'PIA'];
   static const _scorePoints = 18;
 
   // Three sample events, each chosen to exercise a different default style

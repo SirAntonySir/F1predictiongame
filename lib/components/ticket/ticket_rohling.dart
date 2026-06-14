@@ -105,21 +105,23 @@ class TicketRohling extends StatelessWidget {
               decoration: BoxDecoration(
                 border: Border(top: BorderSide(color: tokens.inkColor.withOpacity(0.4))),
               ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              // Wrap so 5 picks + status spill onto a second row when the
+              // ticket isn't wide enough for them all — keeps the paper-ticket
+              // aesthetic without horizontal clipping.
+              child: Wrap(
+                spacing: 10,
+                runSpacing: 6,
+                crossAxisAlignment: WrapCrossAlignment.start,
                 children: [
                   for (final cell in dataRow)
-                    Padding(
-                      padding: const EdgeInsets.only(right: 14),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(cell.label, style: tokens.dataLabel),
-                          const SizedBox(height: 3),
-                          Text(cell.value, style: tokens.dataValue),
-                        ],
-                      ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(cell.label, style: tokens.dataLabel),
+                        const SizedBox(height: 3),
+                        Text(cell.value, style: tokens.dataValue),
+                      ],
                     ),
                 ],
               ),

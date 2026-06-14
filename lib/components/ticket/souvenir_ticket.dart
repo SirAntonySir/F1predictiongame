@@ -40,7 +40,7 @@ class SouvenirTicket extends StatelessWidget {
       illustration: p1ConstructorId == null ? null : CarSvg(constructorId: p1ConstructorId),
       ornament: TicketOrnament.crossedFlags,
       dataRow: [
-        for (var i = 0; i < driverCodes.length && i < 3; i++)
+        for (var i = 0; i < driverCodes.length && i < 5; i++)
           TicketDataCell(label: 'P${i + 1}', value: driverCodes[i]),
         TicketDataCell(label: 'GRADE', value: _grade(scorePoints)),
         TicketDataCell(label: 'POINTS', value: '+$scorePoints'),
