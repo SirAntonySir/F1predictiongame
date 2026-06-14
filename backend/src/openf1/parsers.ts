@@ -163,20 +163,36 @@ export function parseKnockoutBestLapsPerDriver(
     const result = resultsByCode.get(drv.code)
     if (!result) continue
     const driverLaps = lapsByDriver.get(drv.code) ?? []
+    // Knockouts are processed in order so an earlier segment's chosen lap
+    // can't be re-bound by a later segment when two q-times are within
+    // tolerance of each other (a Q1 best of 1:30.500 and Q2 best of 1:30.501
+    // would otherwise share the same physical lap).
+    const usedLapIdx = new Set<number>()
     for (const k of [1, 2, 3] as const) {
       const targetText = k === 1 ? result.q1 : k === 2 ? result.q2 : result.q3
       const targetMs = parseFormattedDurationMs(targetText)
       if (targetMs == null) continue
-      let best: { lapMs: number; s1Ms: number | null; s2Ms: number | null; s3Ms: number | null; lapNumber: number | null } | null = null
+      let bestIdx = -1
       let bestDelta = TOLERANCE_MS + 1
-      for (const lap of driverLaps) {
+      let bestLapNumber = Number.POSITIVE_INFINITY
+      for (let i = 0; i < driverLaps.length; i++) {
+        if (usedLapIdx.has(i)) continue
+        const lap = driverLaps[i]!
         const delta = Math.abs(lap.lapMs - targetMs)
-        if (delta <= TOLERANCE_MS && delta < bestDelta) {
-          best = lap
+        if (delta > TOLERANCE_MS) continue
+        const lapNum = lap.lapNumber ?? Number.POSITIVE_INFINITY
+        // Tiebreaker: when two laps have the same delta, prefer the
+        // chronologically-earlier one (smaller lap_number). Keeps re-ingestion
+        // deterministic regardless of OpenF1 pagination order.
+        if (delta < bestDelta || (delta === bestDelta && lapNum < bestLapNumber)) {
+          bestIdx = i
           bestDelta = delta
+          bestLapNumber = lapNum
         }
       }
-      if (!best) continue
+      if (bestIdx < 0) continue
+      const best = driverLaps[bestIdx]!
+      usedLapIdx.add(bestIdx)
       out.push({
         driverCode: drv.code,
         knockout: k,

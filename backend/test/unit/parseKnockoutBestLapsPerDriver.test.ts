@@ -33,6 +33,12 @@ describe('parseKnockoutBestLapsPerDriver', () => {
     expect(ver3.lapMs).toBe(89800)
     expect(ver3.s1Ms).toBe(29700)
     expect(ver3.lapNumber).toBe(14)
+    const ver1 = out.find((b) => b.driverCode === 'VER' && b.knockout === 1)!
+    const ver2 = out.find((b) => b.driverCode === 'VER' && b.knockout === 2)!
+    expect(ver1.lapNumber).toBe(3)
+    expect(ver1.lapMs).toBe(90500)
+    expect(ver2.lapNumber).toBe(8)
+    expect(ver2.lapMs).toBe(90000)
     expect(out.find((b) => b.driverCode === 'NOR' && b.knockout === 3)).toBeUndefined()
   })
 
@@ -65,5 +71,50 @@ describe('parseKnockoutBestLapsPerDriver', () => {
     ]
     const out = parseKnockoutBestLapsPerDriver(laps, drivers, rows)
     expect(out).toHaveLength(0)
+  })
+
+  it('does not bind the same physical lap to two knockouts when q-times are within tolerance', () => {
+    // VER posts Q1 = 1:30.500 and Q2 = 1:30.501 (1ms apart, well within the
+    // ±2ms tolerance). Without used-lap tracking, the single 1:30.500 lap
+    // would be bound to both knockouts. With it, the lap is consumed by Q1
+    // and Q2 falls through with no match.
+    const rows = [{ driverCode: 'VER', q1: '1:30.500', q2: '1:30.501', q3: null }]
+    const laps = [
+      { driver_number: 1, lap_duration: 90.500, duration_sector_1: 30, duration_sector_2: 30, duration_sector_3: 30.5, lap_number: 5, is_pit_out_lap: false }
+    ]
+    const out = parseKnockoutBestLapsPerDriver(laps, drivers, rows)
+    expect(out).toHaveLength(1)
+    expect(out[0]!.knockout).toBe(1)
+  })
+
+  it('emits nothing for a driver in qualiResults with no laps in the payload', () => {
+    const rows = [{ driverCode: 'VER', q1: '1:30.500', q2: null, q3: null }]
+    const out = parseKnockoutBestLapsPerDriver([], drivers, rows)
+    expect(out).toHaveLength(0)
+  })
+
+  it('emits nothing for a driver who has laps but is missing from qualiResults', () => {
+    // NOR ran flying laps but isn't in qualiResults (e.g. test driver / FP2
+    // substitute). No row should leak through.
+    const rows = [{ driverCode: 'VER', q1: '1:30.500', q2: null, q3: null }]
+    const laps = [
+      { driver_number: 4, lap_duration: 90.700, duration_sector_1: 30.2, duration_sector_2: 30.2, duration_sector_3: 30.3, lap_number: 4, is_pit_out_lap: false }
+    ]
+    const out = parseKnockoutBestLapsPerDriver(laps, drivers, rows)
+    expect(out.every((b) => b.driverCode !== 'NOR')).toBe(true)
+  })
+
+  it('prefers the earlier lap_number when two laps have equal delta', () => {
+    // Two flying laps with identical lap_duration; without the lapNumber
+    // tiebreaker, the choice would depend on iteration order. Q1 should
+    // bind the earlier lap.
+    const rows = [{ driverCode: 'VER', q1: '1:30.500', q2: null, q3: null }]
+    const laps = [
+      { driver_number: 1, lap_duration: 90.500, duration_sector_1: 30, duration_sector_2: 30, duration_sector_3: 30.5, lap_number: 10, is_pit_out_lap: false },
+      { driver_number: 1, lap_duration: 90.500, duration_sector_1: 30, duration_sector_2: 30, duration_sector_3: 30.5, lap_number: 3, is_pit_out_lap: false }
+    ]
+    const out = parseKnockoutBestLapsPerDriver(laps, drivers, rows)
+    expect(out).toHaveLength(1)
+    expect(out[0]!.lapNumber).toBe(3)
   })
 })
