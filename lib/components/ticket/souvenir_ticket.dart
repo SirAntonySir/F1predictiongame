@@ -15,6 +15,8 @@ class SouvenirTicket extends StatelessWidget {
   final Event event;
   final List<String> driverCodes;
   final String? p1ConstructorId;
+  /// Optional pre-built illustration override (see [PickTicket.illustration]).
+  final Widget? illustration;
   final int scorePoints;
   final TicketStyle? styleOverride;
 
@@ -24,6 +26,7 @@ class SouvenirTicket extends StatelessWidget {
     required this.driverCodes,
     required this.scorePoints,
     this.p1ConstructorId,
+    this.illustration,
     this.styleOverride,
   });
 
@@ -37,7 +40,8 @@ class SouvenirTicket extends StatelessWidget {
       metaRight: 'SEALED',
       title: '${event.name.toUpperCase()} GP',
       subtitle: event.circuitName.toUpperCase(),
-      illustration: p1ConstructorId == null ? null : CarSvg(constructorId: p1ConstructorId),
+      illustration: illustration ??
+          (p1ConstructorId == null ? null : CarSvg(constructorId: p1ConstructorId)),
       ornament: TicketOrnament.crossedFlags,
       dataRow: [
         for (var i = 0; i < driverCodes.length && i < 5; i++)

@@ -16,6 +16,10 @@ class PickTicket extends StatelessWidget {
   /// Optional team id for the illustration slot (typically the P1 pick's
   /// constructor). Null means no car illustration is rendered.
   final String? p1ConstructorId;
+  /// Optional pre-built illustration widget. Takes precedence over
+  /// [p1ConstructorId] — useful in tests, dev previews, or when the caller
+  /// already has the SVG resolved.
+  final Widget? illustration;
   /// Null before the race has been scored.
   final int? scorePoints;
   /// Optional caller-friendly meta (e.g. "FRI · 17:00"). Null falls through
@@ -31,6 +35,7 @@ class PickTicket extends StatelessWidget {
     required this.event,
     required this.driverCodes,
     this.p1ConstructorId,
+    this.illustration,
     this.scorePoints,
     this.metaRight,
     this.styleOverride,
@@ -50,7 +55,8 @@ class PickTicket extends StatelessWidget {
       metaRight: metaRight ?? 'YOUR PICK',
       title: event.name.toUpperCase(),
       subtitle: event.circuitName.toUpperCase(),
-      illustration: p1ConstructorId == null ? null : CarSvg(constructorId: p1ConstructorId),
+      illustration: illustration ??
+          (p1ConstructorId == null ? null : CarSvg(constructorId: p1ConstructorId)),
       dataRow: [
         for (var i = 0; i < driverCodes.length && i < 5; i++)
           TicketDataCell(label: 'P${i + 1}', value: driverCodes[i]),

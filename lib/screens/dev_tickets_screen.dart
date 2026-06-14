@@ -1,5 +1,6 @@
 // ignore_for_file: deprecated_member_use
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 import '../api/models/event.dart';
 import '../components/ticket/pick_ticket.dart';
@@ -21,6 +22,7 @@ class DevTicketsScreen extends StatelessWidget {
   static const _events = <_Sample>[
     _Sample(
       label: 'Monaco GP (heritage → vintageStencil)',
+      style: TicketStyle.vintageStencil,
       event: Event(
         round: 7,
         name: 'Monaco',
@@ -32,6 +34,7 @@ class DevTicketsScreen extends StatelessWidget {
     ),
     _Sample(
       label: 'Bahrain GP (default → posterSprint)',
+      style: TicketStyle.posterSprint,
       event: Event(
         round: 1,
         name: 'Bahrain',
@@ -43,6 +46,7 @@ class DevTicketsScreen extends StatelessWidget {
     ),
     _Sample(
       label: 'Las Vegas GP (night → darkBoardingPass)',
+      style: TicketStyle.darkBoardingPass,
       event: Event(
         round: 22,
         name: 'Las Vegas',
@@ -53,6 +57,20 @@ class DevTicketsScreen extends StatelessWidget {
       ),
     ),
   ];
+
+  /// Tinted SVG widget for the illustration slot. We pull the asset and let
+  /// the Rohling's preset ink colour drive the tint, so the same drawing
+  /// looks right on cream-on-dark and dark-on-cream tickets alike.
+  Widget _sampleCar(TicketStyle style) {
+    final ink = style == TicketStyle.darkBoardingPass
+        ? const Color(0xFFF1DD95)
+        : const Color(0xFF1B1206);
+    return SvgPicture.asset(
+      'assets/dev_car_outline.svg',
+      fit: BoxFit.contain,
+      colorFilter: ColorFilter.mode(ink, BlendMode.srcIn),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -71,6 +89,7 @@ class DevTicketsScreen extends StatelessWidget {
               PickTicket(
                 event: s.event,
                 driverCodes: _picks,
+                illustration: _sampleCar(s.style),
               ),
               const SizedBox(height: 18),
             ],
@@ -82,6 +101,7 @@ class DevTicketsScreen extends StatelessWidget {
                 event: s.event,
                 driverCodes: _picks,
                 scorePoints: _scorePoints,
+                illustration: _sampleCar(s.style),
               ),
               const SizedBox(height: 18),
             ],
@@ -93,6 +113,7 @@ class DevTicketsScreen extends StatelessWidget {
                 event: s.event,
                 driverCodes: _picks,
                 scorePoints: 28,
+                illustration: _sampleCar(s.style),
               ),
               const SizedBox(height: 18),
             ],
@@ -107,6 +128,7 @@ class DevTicketsScreen extends StatelessWidget {
                 metaRight: 'SUN 12:00',
                 title: 'MONACO',
                 subtitle: 'CIRCUIT DE MONACO',
+                illustration: _sampleCar(style),
                 dataRow: const [
                   TicketDataCell(label: 'P1', value: 'VER'),
                   TicketDataCell(label: 'P2', value: 'NOR'),
@@ -143,6 +165,7 @@ class DevTicketsScreen extends StatelessWidget {
 
 class _Sample {
   final String label;
+  final TicketStyle style;
   final Event event;
-  const _Sample({required this.label, required this.event});
+  const _Sample({required this.label, required this.style, required this.event});
 }
