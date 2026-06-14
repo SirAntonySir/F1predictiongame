@@ -6,6 +6,7 @@ import type { BestLap } from '../openf1/parsers.js'
 export type BestLapRow = {
   sessionId: number
   driverCode: string
+  knockout: number
   lapMs: number
   s1Ms: number | null
   s2Ms: number | null
@@ -21,6 +22,7 @@ export async function replaceForSession(sessionId: number, laps: BestLap[]): Pro
     await tx.insert(sessionBestLap).values(laps.map((l) => ({
       sessionId,
       driverCode: l.driverCode,
+      knockout: l.knockout ?? 0,
       lapMs: l.lapMs,
       s1Ms: l.s1Ms,
       s2Ms: l.s2Ms,

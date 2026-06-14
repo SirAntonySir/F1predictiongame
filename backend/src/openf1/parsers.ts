@@ -58,6 +58,10 @@ function statusFrom(r: { dnf?: boolean; dns?: boolean; dsq?: boolean }): string 
 
 export type BestLap = {
   driverCode: string
+  /// 0 for non-knockout sessions (FP/race/sprint), 1/2/3 for the qualifying
+  /// knockout segment this best lap belongs to. Optional in producers — the
+  /// repo defaults it to 0 if omitted.
+  knockout?: number
   lapMs: number
   s1Ms: number | null
   s2Ms: number | null
