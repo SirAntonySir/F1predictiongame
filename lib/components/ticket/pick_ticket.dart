@@ -20,6 +20,10 @@ class PickTicket extends StatelessWidget {
   /// [p1ConstructorId] — useful in tests, dev previews, or when the caller
   /// already has the SVG resolved.
   final Widget? illustration;
+  /// Watermark alignment override. Falls through to the Rohling default.
+  final Alignment? illustrationAlignment;
+  /// Watermark scale override. Falls through to the Rohling default.
+  final double? illustrationScale;
   /// Null before the race has been scored.
   final int? scorePoints;
   /// Optional caller-friendly meta (e.g. "FRI · 17:00"). Null falls through
@@ -36,6 +40,8 @@ class PickTicket extends StatelessWidget {
     required this.driverCodes,
     this.p1ConstructorId,
     this.illustration,
+    this.illustrationAlignment,
+    this.illustrationScale,
     this.scorePoints,
     this.metaRight,
     this.styleOverride,
@@ -57,6 +63,8 @@ class PickTicket extends StatelessWidget {
       subtitle: event.circuitName.toUpperCase(),
       illustration: illustration ??
           (p1ConstructorId == null ? null : CarSvg(constructorId: p1ConstructorId)),
+      illustrationAlignment: illustrationAlignment ?? Alignment.centerRight,
+      illustrationScale: illustrationScale ?? 1.0,
       dataRow: [
         for (var i = 0; i < driverCodes.length && i < 5; i++)
           TicketDataCell(label: 'P${i + 1}', value: driverCodes[i]),

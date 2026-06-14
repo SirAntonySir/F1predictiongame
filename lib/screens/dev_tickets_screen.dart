@@ -58,19 +58,40 @@ class DevTicketsScreen extends StatelessWidget {
     ),
   ];
 
-  /// Tinted SVG widget for the illustration slot. We pull the asset and let
-  /// the Rohling's preset ink colour drive the tint, so the same drawing
-  /// looks right on cream-on-dark and dark-on-cream tickets alike.
+  /// Tinted SVG widget for the watermark slot. Each style preset picks a
+  /// different sample car so the dev screen also doubles as a "do all three
+  /// SVGs render correctly" smoke test.
   Widget _sampleCar(TicketStyle style) {
     final ink = style == TicketStyle.darkBoardingPass
         ? const Color(0xFFF1DD95)
         : const Color(0xFF1B1206);
+    final asset = switch (style) {
+      TicketStyle.vintageStencil   => 'assets/dev_car_b.svg',       // vintage open-wheel
+      TicketStyle.posterSprint     => 'assets/dev_car_outline.svg', // modern silhouette
+      TicketStyle.darkBoardingPass => 'assets/dev_car_c.svg',       // alt silhouette
+    };
     return SvgPicture.asset(
-      'assets/dev_car_outline.svg',
+      asset,
       fit: BoxFit.contain,
       colorFilter: ColorFilter.mode(ink, BlendMode.srcIn),
     );
   }
+
+  /// Default watermark alignment per preset — keeps the silhouette out of the
+  /// title's reading column while feeling intentional to each style.
+  Alignment _alignFor(TicketStyle style) => switch (style) {
+        TicketStyle.vintageStencil => Alignment.centerRight,
+        TicketStyle.posterSprint => Alignment.bottomLeft,
+        TicketStyle.darkBoardingPass => Alignment.center,
+      };
+
+  /// Per-preset scale tweaks: tighter crop on vintage so the car reads as
+  /// detailed; bigger bleed on dark so the silhouette dominates.
+  double _scaleFor(TicketStyle style) => switch (style) {
+        TicketStyle.vintageStencil => 0.95,
+        TicketStyle.posterSprint => 1.1,
+        TicketStyle.darkBoardingPass => 1.3,
+      };
 
   @override
   Widget build(BuildContext context) {
@@ -90,6 +111,8 @@ class DevTicketsScreen extends StatelessWidget {
                 event: s.event,
                 driverCodes: _picks,
                 illustration: _sampleCar(s.style),
+                illustrationAlignment: _alignFor(s.style),
+                illustrationScale: _scaleFor(s.style),
               ),
               const SizedBox(height: 18),
             ],
@@ -102,6 +125,8 @@ class DevTicketsScreen extends StatelessWidget {
                 driverCodes: _picks,
                 scorePoints: _scorePoints,
                 illustration: _sampleCar(s.style),
+                illustrationAlignment: _alignFor(s.style),
+                illustrationScale: _scaleFor(s.style),
               ),
               const SizedBox(height: 18),
             ],
@@ -114,10 +139,39 @@ class DevTicketsScreen extends StatelessWidget {
                 driverCodes: _picks,
                 scorePoints: 28,
                 illustration: _sampleCar(s.style),
+                illustrationAlignment: _alignFor(s.style),
+                illustrationScale: _scaleFor(s.style),
               ),
               const SizedBox(height: 18),
             ],
-            _section(context, 'Raw Rohling (all three styles, identical content)'),
+            _section(context, 'Alignment matrix · poster preset, three positions'),
+            for (final pos in const <(String, Alignment)>[
+              ('centerLeft', Alignment.centerLeft),
+              ('center', Alignment.center),
+              ('centerRight', Alignment.centerRight),
+            ]) ...[
+              _label(context, 'alignment: ${pos.$1}'),
+              const SizedBox(height: 6),
+              TicketRohling(
+                style: TicketStyle.posterSprint,
+                edgeSerial: 'RD 07 · MONACO',
+                metaLeft: 'RD 07 · MONACO',
+                metaRight: 'SUN 12:00',
+                title: 'MONACO',
+                subtitle: 'CIRCUIT DE MONACO',
+                illustration: _sampleCar(TicketStyle.posterSprint),
+                illustrationAlignment: pos.$2,
+                illustrationScale: 1.1,
+                dataRow: const [
+                  TicketDataCell(label: 'P1', value: 'VER'),
+                  TicketDataCell(label: 'P2', value: 'NOR'),
+                  TicketDataCell(label: 'STATUS', value: 'LOCKED'),
+                ],
+                stub: tokensFor(TicketStyle.posterSprint).defaultStub,
+              ),
+              const SizedBox(height: 18),
+            ],
+            _section(context, 'Raw Rohling (all three styles, per-preset car + alignment)'),
             for (final style in TicketStyle.values) ...[
               _label(context, style.name),
               const SizedBox(height: 6),
@@ -129,6 +183,8 @@ class DevTicketsScreen extends StatelessWidget {
                 title: 'MONACO',
                 subtitle: 'CIRCUIT DE MONACO',
                 illustration: _sampleCar(style),
+                illustrationAlignment: _alignFor(style),
+                illustrationScale: _scaleFor(style),
                 dataRow: const [
                   TicketDataCell(label: 'P1', value: 'VER'),
                   TicketDataCell(label: 'P2', value: 'NOR'),

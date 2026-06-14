@@ -29,6 +29,12 @@ class TicketRohling extends StatelessWidget {
   /// Opacity of the watermark illustration. Defaults to 0.16 on cream paper
   /// and 0.22 on dark paper (dark presets need a louder watermark to read).
   final double? illustrationOpacity;
+  /// Where the watermark sits inside the body. centerRight is the default —
+  /// keeps the silhouette away from the left meta and title columns.
+  final Alignment illustrationAlignment;
+  /// Multiplier on the watermark's natural size. >1 lets the SVG bleed past
+  /// the body bounds (ClipRect handles the overflow).
+  final double illustrationScale;
   final TicketOrnament? ornament;
   final List<TicketDataCell> dataRow;
   final TicketStub stub;
@@ -47,6 +53,8 @@ class TicketRohling extends StatelessWidget {
     this.subtitle,
     this.illustration,
     this.illustrationOpacity,
+    this.illustrationAlignment = Alignment.centerRight,
+    this.illustrationScale = 1.0,
     this.ornament,
     required this.dataRow,
     required this.stub,
@@ -140,10 +148,10 @@ class TicketRohling extends StatelessWidget {
                 opacity: effectiveIllustrationOpacity,
                 child: FittedBox(
                   fit: BoxFit.cover,
-                  alignment: Alignment.centerRight,
+                  alignment: illustrationAlignment,
                   child: SizedBox(
-                    width: 400,
-                    height: 180,
+                    width: 400 * illustrationScale,
+                    height: 180 * illustrationScale,
                     child: illustration,
                   ),
                 ),
