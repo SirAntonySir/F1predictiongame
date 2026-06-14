@@ -35,6 +35,18 @@ class CircuitSvg extends StatefulWidget {
 }
 
 class _CircuitSvgState extends State<CircuitSvg> {
+  // Process-wide cache of resolved SVG strings, keyed by `id|detail|variant`.
+  // Once a circuit is fetched the first time, every subsequent CircuitSvg
+  // for the same (id, detail, variant) renders synchronously on the first
+  // frame — no more empty SizedBox flash while the HTTP roundtrip is in
+  // flight (which is what made the watermark look "lazy" on the home pick
+  // ticket every time the cache rebuilt). The values are tiny SVG strings
+  // (~2 KB each) and there are <30 circuits, so memory cost is negligible.
+  static final Map<String, String?> _cache = {};
+  // In-flight fetches keyed the same way, so two CircuitSvg widgets that
+  // mount in the same frame share one network call instead of two.
+  static final Map<String, Future<String?>> _inFlight = {};
+
   Future<String?>? _svgFuture;
   String? _circuitId;
 
@@ -62,19 +74,32 @@ class _CircuitSvgState extends State<CircuitSvg> {
     );
     if (id == _circuitId && _svgFuture != null) return;
     _circuitId = id;
-    // Plain assignment — didChangeDependencies/didUpdateWidget already runs
-    // inside the framework's build cycle; FutureBuilder picks up the new
-    // future on the next build.
-    _svgFuture = id == null ? Future.value(null) : _load(id);
+    if (id == null) {
+      _svgFuture = Future.value(null);
+      return;
+    }
+    final key = '$id|${widget.detail}|${widget.variant}';
+    final cached = _cache[key];
+    if (cached != null) {
+      // Already resolved — return a synchronous future so the FutureBuilder
+      // paints the SVG on the very first frame.
+      _svgFuture = Future.value(cached);
+      return;
+    }
+    _svgFuture = _inFlight.putIfAbsent(key, () => _load(id, key));
   }
 
-  Future<String?> _load(String id) async {
-    final scope = AppState.of(context);
+  Future<String?> _load(String id, String key) async {
     try {
-      return await scope.api.circuitSvg(id,
+      final scope = AppState.of(context);
+      final svg = await scope.api.circuitSvg(id,
           detail: widget.detail, variant: widget.variant);
+      if (svg != null && svg.isNotEmpty) _cache[key] = svg;
+      return svg;
     } catch (_) {
       return null;
+    } finally {
+      _inFlight.remove(key);
     }
   }
 

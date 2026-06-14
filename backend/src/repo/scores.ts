@@ -10,6 +10,12 @@ export type LeaderboardRow = {
   preseasonPoints: number
   pointsTotal: number
   sessionsScored: number
+  /// Points totals as of *before* the most recently scored event — used by
+  /// the frontend to render position-change arrows ("you moved up 3 since
+  /// last race"). Null when no event has been scored yet this season (the
+  /// trend is meaningless before the first race).
+  prevInSeasonPoints: number | null
+  prevPointsTotal: number | null
 }
 
 export type UserScoreRow = Score & {
@@ -98,9 +104,27 @@ export async function listForUser(userId: string, seasonYear: number): Promise<U
 
 /**
  * Per-league leaderboard for a season. Every league member appears, even those with zero score.
+ *
+ * Also returns the "as of before the most recently scored event" totals
+ * (`prevInSeasonPoints` / `prevPointsTotal`) so the frontend can rank the
+ * previous standings and render position-change arrows. These are null when
+ * no in-season event has been scored yet — there's no meaningful prior
+ * ranking before the first race.
  */
 export async function leagueLeaderboard(leagueId: string, seasonYear: number): Promise<LeaderboardRow[]> {
   const db = getDb()
+  // Find the most-recently-scored event round so we can recompute totals
+  // excluding it. NULL when nothing has been scored yet → the FILTER below
+  // returns NULL and the frontend treats trend as "n/a".
+  const latestRoundRes = await db.execute(sql`
+    SELECT MAX(ev.round) AS "latest_round"
+    FROM ${score} s
+    JOIN ${session} ses ON ses.id = s.session_id
+    JOIN ${event}   ev  ON ev.id  = ses.event_id
+    WHERE s.kind = 'session' AND ev.season_year = ${seasonYear}
+  `)
+  const latestRoundRow = (latestRoundRes as unknown as { rows: { latest_round: number | null }[] }).rows[0]
+  const latestRound = latestRoundRow?.latest_round ?? null
   const rows = await db.execute(sql`
     SELECT
       lm.user_id::text AS "userId",
@@ -108,17 +132,26 @@ export async function leagueLeaderboard(leagueId: string, seasonYear: number): P
       COALESCE(SUM(s.points_total) FILTER (WHERE s.kind = 'session'),   0)::int AS "inSeasonPoints",
       COALESCE(SUM(s.points_total) FILTER (WHERE s.kind = 'preseason'), 0)::int AS "preseasonPoints",
       COALESCE(SUM(s.points_total), 0)::int                                     AS "pointsTotal",
-      COUNT(*) FILTER (WHERE s.kind = 'session')::int                           AS "sessionsScored"
+      COUNT(*) FILTER (WHERE s.kind = 'session')::int                           AS "sessionsScored",
+      CASE WHEN ${latestRound}::int IS NULL THEN NULL ELSE
+        COALESCE(SUM(s.points_total) FILTER (WHERE s.kind = 'session' AND s.event_round < ${latestRound}::int), 0)::int
+      END AS "prevInSeasonPoints",
+      CASE WHEN ${latestRound}::int IS NULL THEN NULL ELSE
+        COALESCE(SUM(s.points_total) FILTER (
+          WHERE s.kind = 'preseason'
+             OR (s.kind = 'session' AND s.event_round < ${latestRound}::int)
+        ), 0)::int
+      END AS "prevPointsTotal"
     FROM ${leagueMember} lm
     JOIN ${user} u ON u.id = lm.user_id
     LEFT JOIN (
-      SELECT s.user_id, s.kind, s.points_total
+      SELECT s.user_id, s.kind, s.points_total, ev.round AS event_round
       FROM ${score} s
       JOIN ${session} ses ON ses.id = s.session_id
       JOIN ${event}   ev  ON ev.id  = ses.event_id
       WHERE s.kind = 'session' AND ev.season_year = ${seasonYear}
       UNION ALL
-      SELECT s.user_id, s.kind, s.points_total
+      SELECT s.user_id, s.kind, s.points_total, NULL::int AS event_round
       FROM ${score} s
       WHERE s.kind = 'preseason' AND s.season_year = ${seasonYear}
     ) s ON s.user_id = lm.user_id

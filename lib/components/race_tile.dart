@@ -1,4 +1,5 @@
 // ignore_for_file: deprecated_member_use
+import 'package:country_flags/country_flags.dart';
 import 'package:flutter/material.dart';
 import '../api/models/event.dart';
 import '../domain/race_phase.dart';
@@ -11,6 +12,19 @@ import 'circuit_svg.dart';
 // RaceState lives in the domain layer (so the calendar's pure classifier can
 // produce it); re-exported here for existing importers of this component.
 export '../domain/race_phase.dart' show RaceState;
+
+/// Derive the ISO 3166-1 alpha-2 code from a regional-indicator flag emoji
+/// (🇫🇷 → "FR"). Returns null when the input isn't a two-codepoint flag.
+String? _isoFromEmoji(String? emoji) {
+  if (emoji == null || emoji.isEmpty) return null;
+  final runes = emoji.runes.toList();
+  if (runes.length < 2) return null;
+  const base = 0x1F1E6;
+  final a = runes[0] - base;
+  final b = runes[1] - base;
+  if (a < 0 || a > 25 || b < 0 || b > 25) return null;
+  return String.fromCharCodes([65 + a, 65 + b]);
+}
 
 class RaceTile extends StatelessWidget {
   final int round;
@@ -105,7 +119,24 @@ class RaceTile extends StatelessWidget {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             if (flag != null) ...[
-                              Text(flag!, style: const TextStyle(fontSize: 16, height: 1)),
+                              // Render the SVG flag from the country_flags
+                              // package when we can derive an ISO code from
+                              // the emoji — fall back to the emoji itself
+                              // for any country we can't map (no-op for
+                              // every F1 country in 2026, but defensive).
+                              if (_isoFromEmoji(flag) case final code?)
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(2.5),
+                                  child: CountryFlag.fromCountryCode(
+                                    code,
+                                    height: 12,
+                                    width: 18,
+                                  ),
+                                )
+                              else
+                                Text(flag!,
+                                    style: const TextStyle(
+                                        fontSize: 16, height: 1)),
                               const SizedBox(width: 6),
                             ],
                             Flexible(

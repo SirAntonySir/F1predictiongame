@@ -1,7 +1,6 @@
 import 'package:go_router/go_router.dart';
 import '../screens/calendar_screen.dart';
 import '../screens/change_password_screen.dart';
-import '../screens/dev_tickets_screen.dart';
 import '../screens/home_screen.dart';
 import '../screens/league_onboarding_screen.dart';
 import '../screens/login_screen.dart';
@@ -13,6 +12,7 @@ import '../screens/player_preseason_screen.dart';
 import '../screens/player_screen.dart';
 import '../screens/preseason_standings_screen.dart';
 import '../screens/rules_screen.dart';
+import '../screens/search_screen.dart';
 import '../screens/session_results_screen.dart';
 import '../screens/settings_screen.dart';
 import '../screens/signup_screen.dart';
@@ -109,9 +109,9 @@ GoRouter buildRouter(AuthController auth) {
       ),
       GoRoute(path: '/settings', builder: (_, __) => const SettingsScreen()),
       GoRoute(path: '/notifications', builder: (_, __) => const NotificationsScreen()),
+      GoRoute(path: '/search', builder: (_, __) => const SearchScreen()),
       GoRoute(path: '/rules', builder: (_, __) => const RulesScreen()),
       GoRoute(path: '/import', builder: (_, __) => const ImportScreen()),
-      GoRoute(path: '/dev/tickets', builder: (_, __) => const DevTicketsScreen()),
       GoRoute(
         path: '/league/:leagueId/player/:userId',
         builder: (_, s) => PlayerScreen(

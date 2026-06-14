@@ -8,24 +8,22 @@ import '../api/models/leaderboard_row.dart';
 import '../api/models/prediction_view.dart';
 import '../api/models/live_snapshot.dart';
 import '../api/models/session.dart';
-import '../api/models/session_result.dart';
 import '../components/app_card.dart';
 import '../components/circuit_svg.dart';
 import '../components/countdown.dart';
 import '../components/league_row.dart' show LeagueRowYouBadge;
 import '../components/error_view.dart';
-import '../components/pod_tile.dart';
+import '../components/trend_badge.dart';
+import '../domain/leaderboard_trend.dart';
 import '../components/racing_stripes.dart';
 import '../components/session_chip.dart';
-import '../components/ticket_card.dart';
-import '../domain/prediction.dart';
-import '../domain/scoring.dart';
+import '../components/ticket/pick_ticket.dart';
+import '../components/ticket/souvenir_ticket.dart';
 import '../state/app_state.dart';
 import '../state/home_cache_controller.dart';
 import '../theme/app_theme.dart';
 import '../theme/colors.dart';
 import '../theme/country_flags.dart';
-import '../theme/team_colors.dart';
 import '../theme/tokens.dart';
 import '../theme/typography.dart';
 
@@ -110,9 +108,10 @@ class _HomeScreenState extends State<HomeScreen> {
             final yourPickHeader = (d.next == null)
                 ? null
                 : _section('Your pick', onTap: () => context.go('/predict'));
-            Widget pickCard() => ListenableBuilder(
+            Widget pickCard({Session? sessionOverride}) => ListenableBuilder(
                   listenable: scope.predictions,
-                  builder: (_, __) => _pickCard(d, scope, t),
+                  builder: (_, __) =>
+                      _pickCard(d, scope, t, sessionOverride: sessionOverride),
                 );
             final lastRaceHeader =
                 (d.lastEvent == null || d.lastRaceSession == null)
@@ -139,6 +138,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     scope.auth.currentUserId,
                     t,
                     points: (r) => r.inSeasonPoints,
+                    prevPoints: (r) => r.prevInSeasonPoints,
                   ),
                 ),
               ],
@@ -155,6 +155,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     scope.auth.currentUserId,
                     t,
                     points: (r) => r.pointsTotal,
+                    prevPoints: (r) => r.prevPointsTotal,
                   ),
                 ),
               ],
@@ -170,9 +171,14 @@ class _HomeScreenState extends State<HomeScreen> {
                   builder: (_, __) {
                     final live = scope.live;
                     final snap = live.snapshot;
+                    // Only show the live hero while the session is actually
+                    // running. Once results have landed (provisional) or been
+                    // finalised, fall through to the normal next-event hero —
+                    // the souvenir for the just-finished race appears under
+                    // "Last race" by then.
                     if (live.liveSessionId != null &&
                         snap != null &&
-                        snap.state != LiveState.finalised) {
+                        snap.state == LiveState.live) {
                       final ev = d.events.firstWhere(
                         (e) =>
                             e.sessions.any((s) => s.id == live.liveSessionId),
@@ -194,62 +200,101 @@ class _HomeScreenState extends State<HomeScreen> {
                     return _noNextHero(t);
                   },
                 ),
-                LayoutBuilder(
-                  builder: (ctx, constraints) {
-                    final twoCol = constraints.maxWidth >= 700;
-                    if (!twoCol) {
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          if (yourPickHeader != null) yourPickHeader,
-                          if (d.next != null) pickCard(),
-                          if (lastRaceHeader != null) lastRaceHeader,
-                          if (d.lastEvent != null) lastCard(),
-                          inSeasonBlock,
-                          totalBlock,
-                        ],
-                      );
+                ListenableBuilder(
+                  // Rebuild when a session goes live / finalises so the
+                  // Your-pick block can swap from the *next* pickable session
+                  // to the *currently live* one (showing the locked ticket
+                  // for what's actually running instead of the next race).
+                  listenable: scope.live,
+                  builder: (_, __) {
+                    final live = scope.live;
+                    final snap = live.snapshot;
+                    // "Live" pick swap is gated to actually-running sessions
+                    // only; once we hit provisional/finalised, fall through
+                    // to the next pickable session's card.
+                    final isLive = live.liveSessionId != null &&
+                        snap != null &&
+                        snap.state == LiveState.live;
+                    // When live, find the active session object inside the
+                    // events list so PickTicket can resolve its event/round.
+                    Session? liveSession;
+                    if (isLive) {
+                      for (final e in d.events) {
+                        for (final s in e.sessions) {
+                          if (s.id == live.liveSessionId) {
+                            liveSession = s;
+                            break;
+                          }
+                        }
+                        if (liveSession != null) break;
+                      }
                     }
-                    // 2-col top row. We deliberately do NOT wrap in
-                    // IntrinsicHeight here: the pick card contains a `Wrap`,
-                    // which can't report intrinsic dimensions (its height
-                    // depends on its width), and IntrinsicHeight would hang
-                    // layout on iPad. Cards end up top-aligned with their
-                    // natural heights — minor visual asymmetry, but loads.
-                    Widget cardSide(Widget? header, Widget card) => Column(
+                    final showPick = isLive ? liveSession != null : d.next != null;
+                    final pickHeader = !showPick
+                        ? null
+                        : (isLive
+                            ? _section('Your pick · Locked')
+                            : yourPickHeader);
+                    Widget thePickCard() =>
+                        pickCard(sessionOverride: liveSession);
+                    return LayoutBuilder(
+                      builder: (ctx, constraints) {
+                        final twoCol = constraints.maxWidth >= 700;
+                        if (!twoCol) {
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              if (pickHeader != null) pickHeader,
+                              if (showPick) thePickCard(),
+                              if (lastRaceHeader != null) lastRaceHeader,
+                              if (d.lastEvent != null) lastCard(),
+                              inSeasonBlock,
+                              totalBlock,
+                            ],
+                          );
+                        }
+                        // 2-col top row. We deliberately do NOT wrap in
+                        // IntrinsicHeight here: the pick card contains a `Wrap`,
+                        // which can't report intrinsic dimensions (its height
+                        // depends on its width), and IntrinsicHeight would hang
+                        // layout on iPad. Cards end up top-aligned with their
+                        // natural heights — minor visual asymmetry, but loads.
+                        Widget cardSide(Widget? header, Widget card) => Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (header != null) header,
+                                card,
+                              ],
+                            );
+                        return Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
-                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            if (header != null) header,
-                            card,
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(
+                                  child: !showPick
+                                      ? const SizedBox.shrink()
+                                      : cardSide(pickHeader, thePickCard()),
+                                ),
+                                Expanded(
+                                  child: d.lastEvent == null
+                                      ? const SizedBox.shrink()
+                                      : cardSide(lastRaceHeader, lastCard()),
+                                ),
+                              ],
+                            ),
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(child: inSeasonBlock),
+                                Expanded(child: totalBlock),
+                              ],
+                            ),
                           ],
                         );
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              child: d.next == null
-                                  ? const SizedBox.shrink()
-                                  : cardSide(yourPickHeader, pickCard()),
-                            ),
-                            Expanded(
-                              child: d.lastEvent == null
-                                  ? const SizedBox.shrink()
-                                  : cardSide(lastRaceHeader, lastCard()),
-                            ),
-                          ],
-                        ),
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(child: inSeasonBlock),
-                            Expanded(child: totalBlock),
-                          ],
-                        ),
-                      ],
+                      },
                     );
                   },
                 ),
@@ -334,6 +379,13 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
           const SizedBox(width: Spacing.sm),
+          Skeleton.keep(
+            child: IconButton(
+              onPressed: () => context.push('/search'),
+              icon: const Icon(Icons.search),
+              tooltip: 'Search',
+            ),
+          ),
           Skeleton.keep(
             child: IconButton(
               onPressed: () => context.push('/notifications'),
@@ -605,12 +657,21 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _pickCard(HomeData d, scope, ThemeData t) {
+  Widget _pickCard(HomeData d, scope, ThemeData t, {Session? sessionOverride}) {
     // Use the next *pickable* session — d.next can be FP1 which has no
     // prediction. Falls back to d.next for the rare case where there's no
     // upcoming scorable session at all (shouldn't normally happen).
-    final pickSession = d.nextPickable ?? d.next!;
+    // [sessionOverride] takes priority — used while a race is live to show
+    // the locked ticket for the running session instead of the next one.
+    final pickSession = sessionOverride ?? d.nextPickable ?? d.next!;
     final sessionId = pickSession.id;
+    // Lazy + idempotent fetch — the predictions controller dedupes concurrent
+    // requests and re-renders this card via its ListenableBuilder once the
+    // response lands. Without this the home card stays on "NO PICKS" until
+    // you visit the predict screen, because `prediction(id)` only reads the
+    // local cache and the home screen never warms it.
+    // ignore: discarded_futures
+    scope.predictions.fetchPrediction(sessionId);
     // `scope` is dynamic here (private InheritedWidget type can't appear in
     // public method signatures), so cast the prediction lookup to restore
     // static typing — otherwise `.toList()` produces List<dynamic>.
@@ -624,197 +685,110 @@ class _HomeScreenState extends State<HomeScreen> {
     // Split tap zones: tapping the body opens the race-detail view (same
     // route the calendar uses), tapping the EDIT/PICK stub jumps straight
     // into the predict screen.
-    final round = d.pickEvent?.round ?? d.nextEvent?.round;
+    // When a sessionOverride is in play (live session), resolve its parent
+    // event from the events list instead of falling through to nextEvent —
+    // otherwise the live ticket would carry the wrong round/circuit/style.
+    Event? overrideEvent;
+    if (sessionOverride != null) {
+      for (final e in d.events) {
+        if (e.sessions.any((s) => s.id == sessionOverride.id)) {
+          overrideEvent = e;
+          break;
+        }
+      }
+    }
+    final event = overrideEvent ?? d.pickEvent ?? d.nextEvent;
+    final round = event?.round;
+    if (event == null) {
+      // No upcoming event at all — exit early so PickTicket has a real event.
+      return const SizedBox.shrink();
+    }
+    // Pick.driverCode → constructorId via the most recent finished session's
+    // classification — gives the P1 car silhouette its right team palette.
+    // Resolves null when the driver wasn't in the last lineup (rare; reserve
+    // drivers, mid-season swaps); PickTicket then renders without the car.
+    final constructorByDriver = <String, String>{
+      for (final r in d.lastResult) r.driverCode: r.constructorId,
+    };
+    final p1ConstructorId =
+        picks.isEmpty ? null : constructorByDriver[picks.first];
+    final dayTime = _formatDayTime(pickSession.scheduledStart);
+    final status = empty ? 'NO PICKS' : (locked ? 'LOCKED' : 'DRAFT');
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
-      child: TicketCard(
+      child: PickTicket(
+        event: event,
+        driverCodes: picks,
+        p1ConstructorId: p1ConstructorId,
+        circuitWatermark: CircuitSvg(event: event),
+        dayTime: '$sessionLabel · $dayTime',
+        statusOverride: status,
+        sessionType: pickSession.type,
         onBodyTap: round == null
             ? null
             : () => context.push('/race/$round/$sessionId'),
         onStubTap: () => context.go('/predict?session=$sessionId'),
-        stubWidth: 80,
-        body: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
-              children: [
-                // Hardcoded black tones because the ticket card is cream in
-                // both themes — using t.colorScheme.onSurface would render
-                // white-on-cream in dark mode.
-                Text(sessionLabel,
-                    style: AppText.label(10,
-                        color: Colors.black.withOpacity(0.6))),
-                const SizedBox(width: 6),
-                _statusDot(t, empty: empty, locked: locked),
-                const SizedBox(width: 4),
-                Text(empty ? 'no picks' : (locked ? 'locked' : 'draft'),
-                    style: AppText.label(10,
-                        color: Colors.black.withOpacity(0.6))),
-                const Spacer(),
-                Text('YOUR PICK',
-                    style: AppText.label(9,
-                        color: Colors.black.withOpacity(0.45))),
-              ],
-            ),
-            const SizedBox(height: 10),
-            if (empty)
-              Text('Tap to make your pick',
-                  style: AppText.body(13,
-                      color: Colors.black.withOpacity(0.5))
-                      .copyWith(fontStyle: FontStyle.italic))
-            else
-              Wrap(
-                spacing: 12,
-                runSpacing: 6,
-                children: [
-                  for (var i = 0; i < picks.length; i++)
-                    _pickChip(t, i + 1, picks[i]),
-                ],
-              ),
-          ],
-        ),
-        stub: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(empty ? 'PICK' : (locked ? 'LOCKED' : 'EDIT'),
-                style: AppText.display(15,
-                    color: empty ? BrandColors.accent : Colors.black)),
-            const SizedBox(height: 4),
-            Text(empty ? 'tap →' : (locked ? '✦' : 'tap →'),
-                style: AppText.label(9,
-                    color: Colors.black.withOpacity(0.55))),
-          ],
-        ),
       ),
     );
   }
 
-  Widget _statusDot(ThemeData t, {required bool empty, required bool locked}) {
-    final color = empty
-        ? BrandColors.accent
-        : (locked ? Colors.black : Colors.black.withOpacity(0.4));
-    return Container(
-      width: 6,
-      height: 6,
-      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-    );
-  }
-
-  Widget _pickChip(ThemeData t, int position, String driverCode) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-          decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.08),
-            borderRadius: const BorderRadius.all(Radius.circular(4)),
-          ),
-          child: Text('P$position',
-              style: AppText.label(9, color: Colors.black.withOpacity(0.7))),
-        ),
-        const SizedBox(width: 6),
-        Text(driverCode,
-            style: AppText.body(14, weight: FontWeight.w800, color: Colors.black)),
-      ],
-    );
+  static const _weekday = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
+  String _formatDayTime(DateTime t) {
+    final local = t.toLocal();
+    final hh = local.hour.toString().padLeft(2, '0');
+    final mm = local.minute.toString().padLeft(2, '0');
+    return '${_weekday[local.weekday - 1]} $hh:$mm';
   }
 
   Widget _lastCard(HomeData d, scope, ThemeData t) {
+    final lastEvent = d.lastEvent;
     final lastSession = d.lastRaceSession;
-    final PredictionView? pred = lastSession == null
-        ? null
-        : scope.predictions.prediction(lastSession.id) as PredictionView?;
+    if (lastEvent == null || lastSession == null) {
+      return const SizedBox.shrink();
+    }
+    // ignore: discarded_futures
+    scope.predictions.fetchPrediction(lastSession.id);
+    final PredictionView? pred =
+        scope.predictions.prediction(lastSession.id) as PredictionView?;
     final picks =
         pred?.picks.map((p) => p.driverCode).toList() ?? const <String>[];
-    // Render as many finisher tiles as the session's pick depth (race = 5,
-    // sprint = 3, qualifying = 2, sprint-quali = 1) so users see every slot
-    // they were asked to predict, not a fixed top-3. Falls back to 3 when
-    // there's no session for some reason.
-    final topN = lastSession != null ? requiredPicks(lastSession.type) : 3;
-    // Points come from the backend's authoritative score (it includes the team
-    // bonus and DNF/standings logic the client can't reproduce). Null until the
-    // scores load or the session is scored — in which case we show the
-    // exact-count alone rather than recompute with the client's diverging
-    // formula (which would print a wrong figure, e.g. +8 instead of +4).
-    final int? score = lastSession == null
-        ? null
-        : scope.predictions.score(lastSession.id)?.pointsTotal;
-    int exactHits = 0;
-    if (lastSession != null && picks.isNotEmpty && d.lastResult.isNotEmpty) {
-      for (var i = 0; i < picks.length; i++) {
-        if (outcomeFor(picks[i], i + 1, d.lastResult, topN) ==
-            PickOutcome.exact) {
-          exactHits++;
+    // Backend's authoritative score (includes team bonus + DNF logic). Null
+    // until the session is scored — souvenir then reads as +0 / OFF-PACE
+    // until the scorer catches up, which is what you'd expect right after
+    // the chequered flag too.
+    final score =
+        scope.predictions.score(lastSession.id)?.pointsTotal ?? 0;
+    String? p1ConstructorId;
+    if (picks.isNotEmpty) {
+      for (final r in d.lastResult) {
+        if (r.driverCode == picks.first) {
+          p1ConstructorId = r.constructorId;
+          break;
         }
       }
     }
-    final route = lastSession == null || d.lastEvent == null
-        ? null
-        : '/race/${d.lastEvent!.round}/${lastSession.id}';
+    // Exact-position match per pick slot — those cells get the hand-drawn
+    // tick painted on top inside SouvenirTicket. We compare against
+    // `d.lastResult` (sorted by finishing position) so slot 0 = P1 etc.
+    final correctSlots = <int>{
+      for (var i = 0; i < picks.length; i++)
+        if (i < d.lastResult.length &&
+            d.lastResult[i].driverCode == picks[i])
+          i,
+    };
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
-      child: InkWell(
-        onTap: route == null ? null : () => context.push(route),
-        borderRadius: const BorderRadius.all(Radius.circular(14)),
-        child: AppCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text('Top $topN',
-                      style: AppText.label(11,
-                          color: t.colorScheme.onSurface.withOpacity(0.6))),
-                  if (picks.isNotEmpty)
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 7, vertical: 3),
-                      decoration: const BoxDecoration(
-                        color: BrandColors.ok,
-                        borderRadius: BorderRadius.all(Radius.circular(6)),
-                      ),
-                      child: Text(
-                          score != null
-                              ? '+$score pts · $exactHits exact'
-                              : '$exactHits exact',
-                          style: AppText.label(9, color: Colors.black)),
-                    ),
-                ],
-              ),
-              const SizedBox(height: Spacing.sm),
-              Row(children: [
-                for (final r in d.lastResult.take(topN))
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.only(right: 6),
-                      child: PodTile(
-                        position: r.position,
-                        driverCode: r.driverCode,
-                        constructorId: r.constructorId,
-                        mark: _markFor(picks, r),
-                      ),
-                    ),
-                  ),
-              ]),
-            ],
-          ),
-        ),
+      child: SouvenirTicket(
+        event: lastEvent,
+        driverCodes: picks,
+        scorePoints: score,
+        p1ConstructorId: p1ConstructorId,
+        circuitWatermark: CircuitSvg(event: lastEvent),
+        correctSlots: correctSlots,
+        onTap: () =>
+            context.push('/race/${lastEvent.round}/${lastSession.id}'),
       ),
     );
-  }
-
-  PodMark _markFor(List<String> picks, SessionResult r) {
-    if (picks.isEmpty) return PodMark.none;
-    final slotIndex = r.position - 1;
-    if (slotIndex < picks.length && picks[slotIndex] == r.driverCode) {
-      return PodMark.exact;
-    }
-    return picks.contains(r.driverCode) ? PodMark.nearMiss : PodMark.miss;
   }
 
   Widget _leagueCard(
@@ -822,11 +796,18 @@ class _HomeScreenState extends State<HomeScreen> {
     String? meId,
     ThemeData t, {
     required int Function(LeaderboardRow) points,
+    required int? Function(LeaderboardRow) prevPoints,
   }) {
     // Hide players who haven't scored in the current metric yet — a row of
     // zeros adds noise to the home preview without conveying any standing.
     final preview = [...rows.where((r) => points(r) > 0)]
       ..sort((a, b) => points(b).compareTo(points(a)));
+    // Trend across the FULL filtered preview, not just the visible 4 — the
+    // arrow on row 4 should reflect what happened across the whole league.
+    final trendByUser = computeLeaderboardTrend(
+      sortedRows: preview,
+      prevPoints: prevPoints,
+    );
     if (preview.isEmpty) {
       return Padding(
         padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
@@ -906,6 +887,18 @@ class _HomeScreenState extends State<HomeScreen> {
                         ],
                       ),
                     ),
+                    Builder(builder: (_) {
+                      final tr = trendByUser[r.userId] ?? PositionTrend.equal;
+                      if (tr.direction == TrendDirection.equal) {
+                        return const SizedBox.shrink();
+                      }
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 6),
+                        child: TrendBadge(
+                            direction: tr.direction,
+                            label: '${tr.magnitude}'),
+                      );
+                    }),
                     SizedBox(
                       width: 40,
                       child: Text('${points(r)}',
@@ -959,10 +952,7 @@ class LiveHeroCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = Theme.of(context);
     final flag = flagFor(event.country);
-    final top = snap.order.take(5).toList();
-    final pts = snap.myPointsTotal;
     final badge = snap.state == LiveState.provisional ? 'PROVISIONAL' : 'LIVE';
 
     return Padding(
@@ -980,20 +970,17 @@ class LiveHeroCard extends StatelessWidget {
                   child: CustomPaint(painter: RacingStripesPainter()),
                 ),
               ),
-              // Circuit map — red watermark on the live hero. The next-race
-              // hero uses a white tint instead; this one is the LIVE accent.
               Positioned(
                 top: Spacing.xxl + Spacing.sm,
                 right: Spacing.lg,
                 child: IgnorePointer(
                   child: Opacity(
-                    opacity: 0.6,
+                    opacity: 0.5,
                     child: CircuitSvg(
                       event: event,
                       variant: 'white',
                       width: 150,
                       height: 150,
-                      color: BrandColors.accent,
                     ),
                   ),
                 ),
@@ -1029,78 +1016,6 @@ class LiveHeroCard extends StatelessWidget {
                       const SizedBox(height: Spacing.sm),
                       Text(event.name.toUpperCase(),
                           style: AppText.display(24, color: Colors.white)),
-                      const SizedBox(height: Spacing.md),
-                      Container(
-                        decoration: BoxDecoration(
-                          color: t.colorScheme.surface,
-                          borderRadius:
-                              const BorderRadius.all(Radius.circular(12)),
-                        ),
-                        padding: const EdgeInsets.all(Spacing.sm),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            for (final r in top)
-                              Padding(
-                                padding: const EdgeInsets.only(bottom: Spacing.xs),
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: Spacing.sm, vertical: Spacing.xs),
-                                  decoration: BoxDecoration(
-                                    border: Border.all(color: t.strokeColor, width: Strokes.card),
-                                    borderRadius: Radii.rLg,
-                                  ),
-                                  child: Row(children: [
-                                    SizedBox(
-                                        width: 22,
-                                        child: Text('${r.position}',
-                                            style: AppText.display(13,
-                                                color: t.colorScheme.onSurface))),
-                                    const SizedBox(width: Spacing.xs),
-                                    Container(
-                                      width: 5,
-                                      height: 22,
-                                      decoration: BoxDecoration(
-                                        color: teamColor(r.constructorId,
-                                            fallbackHex: r.teamColour),
-                                        borderRadius: BorderRadius.circular(2),
-                                      ),
-                                    ),
-                                    const SizedBox(width: Spacing.sm),
-                                    SizedBox(
-                                        width: 42,
-                                        child: Text(r.driverCode,
-                                            style: AppText.body(12,
-                                                weight: FontWeight.w800,
-                                                color: t.colorScheme.onSurface))),
-                                    Expanded(
-                                        child: Text(r.driverName,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: AppText.body(12,
-                                                color: t.colorScheme.onSurface
-                                                    .withOpacity(0.7)))),
-                                  ]),
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-                      if (pts != null) ...[
-                        const SizedBox(height: Spacing.md),
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.baseline,
-                          textBaseline: TextBaseline.alphabetic,
-                          children: [
-                            Text('YOUR PROJECTED',
-                                style: AppText.label(10,
-                                    color: Colors.white.withOpacity(0.85))),
-                            const SizedBox(width: Spacing.sm),
-                            Text('+$pts',
-                                style:
-                                    AppText.display(26, color: Colors.white)),
-                          ],
-                        ),
-                      ],
                     ],
                   ),
                 ),

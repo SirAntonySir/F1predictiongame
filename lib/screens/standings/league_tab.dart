@@ -7,7 +7,7 @@ import '../../components/app_card.dart';
 import '../../components/cached_view.dart';
 import '../../components/league_row.dart';
 import '../../components/racing_stripes.dart';
-import '../../components/trend_badge.dart';
+import '../../domain/leaderboard_trend.dart';
 import '../../state/app_state.dart';
 import '../../state/async_cache.dart';
 import '../../theme/app_theme.dart';
@@ -26,6 +26,11 @@ extension on _Metric {
   int Function(LeaderboardRow) get extractor => switch (this) {
         _Metric.inSeason => (r) => r.inSeasonPoints,
         _Metric.total => (r) => r.pointsTotal,
+      };
+
+  int? Function(LeaderboardRow) get prevExtractor => switch (this) {
+        _Metric.inSeason => (r) => r.prevInSeasonPoints,
+        _Metric.total => (r) => r.prevPointsTotal,
       };
 }
 
@@ -151,38 +156,49 @@ class _LeagueTabState extends State<LeagueTab> {
                   // own per-row border has been swapped for a thin internal
                   // divider drawn between siblings; the last row passes
                   // isLast=true to suppress its divider.
-                  Container(
-                    decoration: BoxDecoration(
-                      border: Border.all(color: Theme.of(context).strokeColor, width: Strokes.card),
-                      borderRadius: Radii.rLg,
-                    ),
-                    clipBehavior: Clip.antiAlias,
-                    child: Column(
-                      children: List.generate(sorted.length, (i) {
-                        final r = sorted[i];
-                        final isMe = r.userId == me;
-                        final leagueId = AppState.of(context).league.league?.id;
-                        return InkWell(
-                          onTap: leagueId == null
-                              ? null
-                              : () => context.push('/league/$leagueId/player/${r.userId}'),
-                          child: LeagueRow(
-                            rank: i + 1,
-                            name: r.displayName,
-                            inSeasonPoints: r.inSeasonPoints,
-                            preseasonPoints: r.preseasonPoints,
-                            pointsTotal: r.pointsTotal,
-                            trend: TrendDirection.equal,
-                            isMe: isMe,
-                            isLast: i == sorted.length - 1,
-                            focus: _metric == _Metric.inSeason
-                                ? LeagueRowFocus.inSeason
-                                : LeagueRowFocus.total,
-                          ),
-                        );
-                      }),
-                    ),
-                  ),
+                  Builder(builder: (context) {
+                    // Compute position trend vs the previous event's standings
+                    // using the matching prev*Points field for the active
+                    // metric. Empty map → backend says no event scored yet.
+                    final trendByUser = computeLeaderboardTrend(
+                      sortedRows: sorted,
+                      prevPoints: _metric.prevExtractor,
+                    );
+                    return Container(
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Theme.of(context).strokeColor, width: Strokes.card),
+                        borderRadius: Radii.rLg,
+                      ),
+                      clipBehavior: Clip.antiAlias,
+                      child: Column(
+                        children: List.generate(sorted.length, (i) {
+                          final r = sorted[i];
+                          final isMe = r.userId == me;
+                          final leagueId = AppState.of(context).league.league?.id;
+                          final trend = trendByUser[r.userId] ?? PositionTrend.equal;
+                          return InkWell(
+                            onTap: leagueId == null
+                                ? null
+                                : () => context.push('/league/$leagueId/player/${r.userId}'),
+                            child: LeagueRow(
+                              rank: i + 1,
+                              name: r.displayName,
+                              inSeasonPoints: r.inSeasonPoints,
+                              preseasonPoints: r.preseasonPoints,
+                              pointsTotal: r.pointsTotal,
+                              trend: trend.direction,
+                              trendMagnitude: trend.magnitude,
+                              isMe: isMe,
+                              isLast: i == sorted.length - 1,
+                              focus: _metric == _Metric.inSeason
+                                  ? LeagueRowFocus.inSeason
+                                  : LeagueRowFocus.total,
+                            ),
+                          );
+                        }),
+                      ),
+                    );
+                  }),
                 ],
               ),
             ),

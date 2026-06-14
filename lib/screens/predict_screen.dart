@@ -13,7 +13,6 @@ import '../components/app_card.dart';
 import '../components/branded_sheet.dart';
 import '../components/branded_toast.dart';
 import '../components/driver_sector_row.dart';
-import '../components/driver_tile.dart';
 import '../components/error_view.dart';
 import '../components/slot.dart';
 import '../domain/prediction.dart';
@@ -158,6 +157,15 @@ class _PredictScreenState extends State<PredictScreen> {
     } catch (_) {
       refLaps = null;
     }
+    // WDC standings — used as the fallback sort when no reference laps exist
+    // yet (pre-FP1). Best-effort: failure just falls back to alphabetical.
+    Map<String, int> standingsOrder = const {};
+    try {
+      final st = await scope.api.driverStandings();
+      standingsOrder = {for (final s in st) s.driverCode: s.position};
+    } catch (_) {
+      standingsOrder = const {};
+    }
     // Build the chronological nav list of all upcoming pickable sessions in
     // events whose lock hasn't passed (event lock = earliest session start).
     final chronological = <_NavRef>[];
@@ -184,6 +192,7 @@ class _PredictScreenState extends State<PredictScreen> {
       referenceSession: weekendRef,
       referenceTimes: referenceTimes,
       referenceLaps: refLaps,
+      standingsOrder: standingsOrder,
     );
   }
 
@@ -468,43 +477,12 @@ class _PredictScreenState extends State<PredictScreen> {
                     ],
                   ),
                 ),
-                if (d.referenceLaps != null && d.referenceLaps!.references.isNotEmpty)
-                  _SectorReferenceList(
-                    data: d,
-                    picks: _picks,
-                    canEdit: canEdit,
-                    onToggle: _toggleDriver,
-                  )
-                else
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
-                    child: LayoutBuilder(
-                      builder: (ctx, constraints) {
-                        const targetTileWidth = 95.0;
-                        final cols = (constraints.maxWidth / targetTileWidth)
-                            .floor()
-                            .clamp(4, 10);
-                        return GridView.count(
-                          crossAxisCount: cols,
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          mainAxisSpacing: 6,
-                          crossAxisSpacing: 6,
-                          childAspectRatio: 1.4,
-                          children: d.drivers.map((r) {
-                            final slot = _picks.indexOf(r.driverCode);
-                            return DriverTile(
-                              code: r.driverCode,
-                              constructorId: r.constructorId,
-                              pickedSlot: slot == -1 ? null : slot + 1,
-                              lapTime: d.referenceTimes[r.driverCode],
-                              onTap: canEdit ? () => _toggleDriver(r.driverCode) : null,
-                            );
-                          }).toList(),
-                        );
-                      },
-                    ),
-                  ),
+                _SectorReferenceList(
+                  data: d,
+                  picks: _picks,
+                  canEdit: canEdit,
+                  onToggle: _toggleDriver,
+                ),
               ],
               );
           },
@@ -517,7 +495,14 @@ class _PredictScreenState extends State<PredictScreen> {
   String _lockLabel(DateTime when) {
     final diff = when.difference(DateTime.now());
     if (diff.isNegative) return 'LOCKED';
-    return 'LOCKS IN ${diff.inHours}h ${diff.inMinutes.remainder(60)}m';
+    // Break out days so a far-future lock reads as "12d 21h 50m" instead of
+    // "309h 50m" — which is technically correct but hard to scan. Days only
+    // shown when ≥1d so a same-day lock stays compact ("3h 12m").
+    final days = diff.inDays;
+    final hours = diff.inHours.remainder(24);
+    final mins = diff.inMinutes.remainder(60);
+    if (days > 0) return 'LOCKS IN ${days}d ${hours}h ${mins}m';
+    return 'LOCKS IN ${hours}h ${mins}m';
   }
 }
 
@@ -606,6 +591,10 @@ class _PredictData {
   /// reference sessions have run yet — list falls back to the legacy
   /// grid+lap-time view.
   final ReferenceLapsResponse? referenceLaps;
+  /// driverCode → WDC position. Used to sort the driver list when no
+  /// reference laps are available yet (pre-FP1 of the season opener etc).
+  /// Empty when the standings endpoint fails or hasn't been called.
+  final Map<String, int> standingsOrder;
   _PredictData({
     required this.event,
     required this.session,
@@ -615,6 +604,7 @@ class _PredictData {
     this.referenceSession,
     this.referenceTimes = const {},
     this.referenceLaps,
+    this.standingsOrder = const {},
   });
 }
 
@@ -807,8 +797,9 @@ class _SectorReferenceList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final refs = data.referenceLaps!;
-    final byDriver = refs.byDriver;
+    final refs = data.referenceLaps;
+    final hasRefs = refs != null && refs.references.isNotEmpty;
+    final byDriver = hasRefs ? refs.byDriver : const <String, List<ReferenceLap?>>{};
     final byCode = {for (final r in data.drivers) r.driverCode: r};
 
     // Build sortable rows for every driver in either the driver list or the
@@ -817,7 +808,10 @@ class _SectorReferenceList extends StatelessWidget {
     final allCodes = <String>{...byCode.keys, ...byDriver.keys};
     final rows = <_DriverSectorRowModel>[];
     for (final code in allCodes) {
-      final laps = byDriver[code] ?? List<ReferenceLap?>.filled(refs.references.length, null);
+      final laps = byDriver[code] ??
+          (hasRefs
+              ? List<ReferenceLap?>.filled(refs.references.length, null)
+              : const <ReferenceLap?>[]);
       ReferenceLap? best;
       for (final l in laps) {
         if (l == null) continue;
@@ -846,8 +840,18 @@ class _SectorReferenceList extends StatelessWidget {
         pickedSlot: pickIdx == -1 ? null : pickIdx + 1,
       ));
     }
-    // Fastest first, no-laps last.
+    // With sector refs: fastest first, no-laps last (alphabetical tiebreaker).
+    // Without refs: sort by current WDC position; drivers not in the
+    // standings sink to the bottom (alphabetical among themselves).
     rows.sort((a, b) {
+      if (!hasRefs) {
+        final pa = data.standingsOrder[a.driverCode];
+        final pb = data.standingsOrder[b.driverCode];
+        if (pa == null && pb == null) return a.driverCode.compareTo(b.driverCode);
+        if (pa == null) return 1;
+        if (pb == null) return -1;
+        return pa.compareTo(pb);
+      }
       if (a.bestLapMs == null && b.bestLapMs == null) return a.driverCode.compareTo(b.driverCode);
       if (a.bestLapMs == null) return 1;
       if (b.bestLapMs == null) return -1;
@@ -858,7 +862,7 @@ class _SectorReferenceList extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
       child: Column(
         children: [
-          _SectorReferenceHeader(refs: refs),
+          if (hasRefs) _SectorReferenceHeader(refs: refs),
           for (final r in rows)
             Padding(
               padding: const EdgeInsets.only(bottom: Spacing.xs),
@@ -868,6 +872,7 @@ class _SectorReferenceList extends StatelessWidget {
                 teamColorHex: r.teamColorHex,
                 referenceLaps: r.laps,
                 pickedSlot: r.pickedSlot,
+                bestLapOverride: hasRefs ? null : data.referenceTimes[r.driverCode],
                 onTap: canEdit ? () => onToggle(r.driverCode) : null,
               ),
             ),

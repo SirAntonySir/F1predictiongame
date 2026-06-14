@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:predictiongame/api/models/event.dart';
 import 'package:predictiongame/api/models/live_snapshot.dart';
 import 'package:predictiongame/api/models/member_prediction.dart';
 import 'package:predictiongame/api/models/session.dart';
@@ -39,6 +40,14 @@ void main() {
         home: Scaffold(
             body: SingleChildScrollView(
                 child: LiveResultsBody(
+                    event: Event(
+                      round: 7,
+                      name: 'Monaco',
+                      country: 'Monaco',
+                      circuitName: 'Circuit de Monaco',
+                      hasSprint: false,
+                      sessions: [],
+                    ),
                     sessionType: SessionType.race,
                     myPicks: ['VER', 'LEC', 'X', 'Y', 'Z'],
                     snap: snap)))));

@@ -26,6 +26,9 @@ class LeagueRow extends StatelessWidget {
   final int preseasonPoints;
   final int pointsTotal;
   final TrendDirection trend;
+  /// Number of positions moved since the previous event. Rendered as the
+  /// digit inside the trend badge ("▲ 3"). Ignored when [trend] is equal.
+  final int trendMagnitude;
   final bool isMe;
   final LeagueRowFocus focus;
   /// When true the row omits its bottom divider — used by the caller to
@@ -41,6 +44,7 @@ class LeagueRow extends StatelessWidget {
     required this.preseasonPoints,
     required this.pointsTotal,
     required this.trend,
+    this.trendMagnitude = 1,
     this.isMe = false,
     this.focus = LeagueRowFocus.total,
     this.isLast = false,
@@ -108,7 +112,7 @@ class LeagueRow extends StatelessWidget {
               width: leagueRowTrendCol,
               child: trend == TrendDirection.equal
                   ? const SizedBox.shrink()
-                  : Center(child: TrendBadge(direction: trend, label: '1')),
+                  : Center(child: TrendBadge(direction: trend, label: '$trendMagnitude')),
             ),
             const SizedBox(width: Spacing.sm),
             // In-season tab: pre on the left, season (big) on the right so the

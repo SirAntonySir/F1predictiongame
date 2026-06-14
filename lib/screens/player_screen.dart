@@ -759,9 +759,9 @@ class _PickLine extends StatelessWidget {
         child: Text(pick.driverCode,
             style: AppText.body(13, weight: FontWeight.w800)),
       ),
-      const Spacer(),
-      // Right side: actual finisher (when the pick wasn't exact), outcome
-      // pill, points pill.
+      // `actual CODE` sits immediately to the right of the picked code (left-
+      // aligned within the row) so the eye can scan pick → finisher on a
+      // single line. The outcome pill + points still pin to the right edge.
       if (actual != null && bd != null && !bd.exact) ...[
         Text('actual ',
             style: AppText.label(9,
@@ -770,8 +770,8 @@ class _PickLine extends StatelessWidget {
             style: AppText.body(12,
                 weight: FontWeight.w800,
                 color: t.colorScheme.onSurface.withOpacity(0.7))),
-        const SizedBox(width: Spacing.sm),
       ],
+      const Spacer(),
       Text(tag, style: AppText.label(9, color: tagColor)),
       if (bd != null) ...[
         const SizedBox(width: 6),

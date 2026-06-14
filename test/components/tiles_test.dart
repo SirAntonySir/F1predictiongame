@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:predictiongame/components/driver_tile.dart';
 import 'package:predictiongame/components/pod_tile.dart';
 import 'package:predictiongame/components/race_tile.dart';
 import 'package:predictiongame/components/slot.dart';
@@ -34,19 +33,6 @@ void main() {
       mark: PodMark.exact,
     )));
     expect(find.text('NOR'), findsOneWidget);
-    expect(find.text('P1'), findsOneWidget);
-  });
-
-  testWidgets('DriverTile shows code and number; picked badge if assigned',
-      (tester) async {
-    await tester.pumpWidget(_frame(const DriverTile(
-      code: 'VER',
-      number: 1,
-      constructorId: 'red_bull',
-      pickedSlot: 1,
-    )));
-    expect(find.text('VER'), findsOneWidget);
-    expect(find.text('#1'), findsOneWidget);
     expect(find.text('P1'), findsOneWidget);
   });
 

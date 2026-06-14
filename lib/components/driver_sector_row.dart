@@ -26,6 +26,10 @@ class DriverSectorRow extends StatelessWidget {
   final List<ReferenceLap?> referenceLaps;
   /// 1-indexed pick slot (P1..P5) when this driver is currently picked.
   final int? pickedSlot;
+  /// Pre-formatted lap string used in the BEST column when no sector
+  /// reference data is available (early-weekend / refs endpoint unavailable).
+  /// Ignored when [referenceLaps] yields a non-null best lap.
+  final String? bestLapOverride;
   final VoidCallback? onTap;
   const DriverSectorRow({
     super.key,
@@ -35,6 +39,7 @@ class DriverSectorRow extends StatelessWidget {
     required this.referenceLaps,
     required this.pickedSlot,
     required this.onTap,
+    this.bestLapOverride,
   });
 
   @override
@@ -95,7 +100,9 @@ class DriverSectorRow extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(
-                    best == null ? '—' : _formatLap(best.lapMs),
+                    best != null
+                        ? _formatLap(best.lapMs)
+                        : (bestLapOverride ?? '—'),
                     style: AppText.display(14,
                         color: picked
                             ? Colors.white

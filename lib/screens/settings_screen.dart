@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
@@ -143,17 +142,6 @@ class SettingsScreen extends StatelessWidget {
                 subtitle: 'Bulk-import predictions from JSON',
                 trailing: _chevron(t),
                 onTap: () => context.push('/import'),
-              ),
-            ],
-            if (kDebugMode) ...[
-              const SizedBox(height: Spacing.xl),
-              Text('DEBUG', style: AppText.label(11)),
-              const SizedBox(height: Spacing.sm),
-              _SettingsCard(
-                title: 'Ticket preview',
-                subtitle: 'All ticket variants × style presets',
-                trailing: _chevron(t),
-                onTap: () => context.push('/dev/tickets'),
               ),
             ],
             const SizedBox(height: Spacing.xl),

@@ -1,7 +1,6 @@
 // ignore_for_file: deprecated_member_use
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
 import '../api/api_client.dart';
 import '../api/models/event.dart';
 import '../api/models/member_prediction.dart';
@@ -9,16 +8,16 @@ import '../api/models/session.dart';
 import '../api/models/live_snapshot.dart';
 import '../api/models/session_result.dart';
 import '../components/app_card.dart';
-import '../components/countdown.dart';
+import '../components/circuit_svg.dart';
 import '../components/error_view.dart';
-import '../components/ticket_card.dart' show TicketCard, TicketTear;
+import '../components/ticket/pick_ticket.dart';
+import '../components/ticket/souvenir_ticket.dart';
 import '../domain/prediction.dart';
 import '../domain/result_display.dart';
 import '../domain/scoring.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
 import '../theme/colors.dart';
-import '../theme/country_flags.dart';
 import '../theme/team_colors.dart';
 import '../theme/tokens.dart';
 import '../theme/typography.dart';
@@ -240,6 +239,7 @@ class _SessionResultsScreenState extends State<SessionResultsScreen> {
                                   .toList() ??
                               const <String>[];
                           return LiveResultsBody(
+                            event: event,
                             sessionType: active.type,
                             myPicks: myPicks,
                             snap: snap,
@@ -433,22 +433,7 @@ class _Body extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = Theme.of(context);
     final topN = _topN;
-    final picksHits = payload.picks
-        .asMap()
-        .entries
-        .map((e) => (
-              slot: e.key + 1,
-              code: e.value,
-              outcome: outcomeFor(e.value, e.key + 1, payload.result, topN),
-            ))
-        .toList();
     final score = _score();
-    final exactCount =
-        picksHits.where((p) => p.outcome == PickOutcome.exact).length;
-    final nearCount =
-        picksHits.where((p) => p.outcome == PickOutcome.inTopN).length;
-    final missCount =
-        picksHits.where((p) => p.outcome == PickOutcome.miss).length;
 
     // Practice sessions are view-only and have no picks → skip the score /
     // upcoming-session tickets entirely and let the classification stand
@@ -471,10 +456,11 @@ class _Body extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
             child: _YourScoreTicket(
+              event: event,
+              sessionType: session.type,
+              picks: payload.picks,
+              classification: payload.result,
               score: score,
-              subtitle: payload.picks.isEmpty
-                  ? 'No picks for this session'
-                  : '$exactCount exact · $nearCount in top-$topN · $missCount miss',
             ),
           ),
         ] else if (payload.result.isEmpty) ...[
@@ -608,24 +594,38 @@ class _Body extends StatelessWidget {
             ),
           ),
         ],
-        if (isPickable && payload.leagueMemberPredictions.isNotEmpty) ...[
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-                Spacing.lg, Spacing.xl, Spacing.lg, Spacing.xs),
-            child: Text('LEAGUE PICKS',
-                style: AppText.label(11,
-                    color: t.colorScheme.onSurface.withOpacity(0.6))),
-          ),
-          for (final m in payload.leagueMemberPredictions)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                  Spacing.lg, 0, Spacing.lg, Spacing.sm),
-              child: _MemberFormCard(
-                member: m,
-                result: payload.result,
-                sessionType: session.type,
-              ),
-            ),
+        if (isPickable) ...[
+          // Hide league members who didn't pick this session — the empty
+          // "NO PICKS" row was noise. Section header only renders when at
+          // least one member has something to show.
+          Builder(builder: (_) {
+            final entered = payload.leagueMemberPredictions
+                .where((m) => m.picks.isNotEmpty)
+                .toList();
+            if (entered.isEmpty) return const SizedBox.shrink();
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                      Spacing.lg, Spacing.xl, Spacing.lg, Spacing.xs),
+                  child: Text('LEAGUE PICKS',
+                      style: AppText.label(11,
+                          color: t.colorScheme.onSurface.withOpacity(0.6))),
+                ),
+                for (final m in entered)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                        Spacing.lg, 0, Spacing.lg, Spacing.sm),
+                    child: _MemberFormCard(
+                      member: m,
+                      result: payload.result,
+                      sessionType: session.type,
+                    ),
+                  ),
+              ],
+            );
+          }),
         ],
       ],
     );
@@ -755,205 +755,89 @@ class _FutureSessionHero extends StatelessWidget {
 
   bool get _isPickable => _pickableTypes.contains(session.type);
 
+  static const _weekday = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
+
+  String _dayTimeLabel() {
+    final local = session.scheduledStart.toLocal();
+    final hh = local.hour.toString().padLeft(2, '0');
+    final mm = local.minute.toString().padLeft(2, '0');
+    return '${_weekday[local.weekday - 1]} $hh:$mm';
+  }
+
   @override
   Widget build(BuildContext context) {
-    final flag = flagFor(event.country);
-    final dateLabel = DateFormat('EEE d MMM').format(session.scheduledStart);
-    final timeLabel = DateFormat('HH:mm').format(session.scheduledStart);
+    final empty = picks.isEmpty;
     final typeLabel =
         _typeLabels[session.type] ?? session.type.name.toUpperCase();
-    final inFuture = session.scheduledStart.isAfter(DateTime.now());
-    final empty = picks.isEmpty;
-
-    final body = Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Expanded(
-              child: Text(
-                '${flag != null ? '$flag  ' : ''}${event.country.toUpperCase()} · ROUND ${event.round}',
-                style: AppText.label(10, color: Colors.black.withOpacity(0.65)),
-              ),
-            ),
-            const SizedBox(width: Spacing.sm),
-            Text(typeLabel,
-                style:
-                    AppText.label(10, color: Colors.black.withOpacity(0.65))),
-          ],
-        ),
-        const SizedBox(height: Spacing.sm),
-        Text(event.name.toUpperCase(),
-            style: AppText.display(22, color: Colors.black)),
-        const SizedBox(height: Spacing.xs),
-        Text(
-          '$dateLabel · $timeLabel · ${event.circuitName}',
-          style: AppText.body(12, color: Colors.black.withOpacity(0.7)),
-        ),
-        if (inFuture) ...[
-          const SizedBox(height: Spacing.md),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text('STARTS IN',
-                  style:
-                      AppText.label(10, color: Colors.black.withOpacity(0.55))),
-              const SizedBox(width: 8),
-              Countdown(target: session.scheduledStart, size: 22),
-            ],
-          ),
-        ],
-        const SizedBox(height: Spacing.md),
-        // Inner horizontal perforation separating the event info from the picks.
-        CustomPaint(
-          size: const Size.fromHeight(1),
-          painter: _HorizontalDashedLinePainter(
-              color: Colors.black.withOpacity(0.4)),
-        ),
-        const SizedBox(height: Spacing.md),
-        Text(empty ? 'YOUR PICKS · DRAFT' : 'YOUR PICKS',
-            style: AppText.label(10, color: Colors.black.withOpacity(0.55))),
-        const SizedBox(height: 8),
-        if (empty)
-          Text(
-            _isPickable
-                ? 'No picks yet — tap → to start'
-                : 'No predictions for this session',
-            style: AppText.body(12, color: Colors.black.withOpacity(0.55))
-                .copyWith(fontStyle: FontStyle.italic),
-          )
-        else
-          Wrap(
-            spacing: 14,
-            runSpacing: 6,
-            children: [
-              for (var i = 0; i < picks.length; i++)
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.1),
-                        borderRadius:
-                            const BorderRadius.all(Radius.circular(4)),
-                      ),
-                      child: Text('P${i + 1}',
-                          style: AppText.label(9,
-                              color: Colors.black.withOpacity(0.7))),
-                    ),
-                    const SizedBox(width: 6),
-                    Text(picks[i],
-                        style: AppText.body(14,
-                            weight: FontWeight.w800, color: Colors.black)),
-                  ],
-                ),
-            ],
-          ),
-      ],
-    );
-
-    return TicketCard(
-      stubWidth: 76,
-      bodyPadding: const EdgeInsets.fromLTRB(
-          Spacing.lg, Spacing.lg, Spacing.lg, Spacing.lg),
-      stubPadding: const EdgeInsets.symmetric(
-          horizontal: Spacing.sm, vertical: Spacing.md),
-      body: body,
-      stub: _isPickable ? _stub(context, empty: empty) : _viewOnlyStub(),
-    );
-  }
-
-  Widget _stub(BuildContext context, {required bool empty}) {
-    return InkWell(
-      onTap: () => context.go('/predict?session=${session.id}'),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 6),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(empty ? 'PICK' : 'EDIT',
-                style: AppText.display(18, color: Colors.black)),
-            const SizedBox(height: 4),
-            Text('tap →',
-                style: AppText.label(9, color: Colors.black.withOpacity(0.55))),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _viewOnlyStub() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text('VIEW', style: AppText.display(14, color: Colors.black)),
-          const SizedBox(height: 4),
-          Text('only',
-              style: AppText.label(9, color: Colors.black.withOpacity(0.55))),
-        ],
-      ),
+    final status = empty
+        ? (_isPickable ? 'NO PICKS' : 'NO ENTRY')
+        : 'DRAFT';
+    return PickTicket(
+      event: event,
+      driverCodes: picks,
+      circuitWatermark: CircuitSvg(event: event),
+      dayTime: '$typeLabel · ${_dayTimeLabel()}',
+      statusOverride: status,
+      sessionType: session.type,
+      // No onBodyTap — we're already on the race screen for this session,
+      // so pushing /race/{round}/{session} would loop the route stack onto
+      // itself.
+      onStubTap: _isPickable
+          ? () => context.go('/predict?session=${session.id}')
+          : null,
     );
   }
 }
 
-class _HorizontalDashedLinePainter extends CustomPainter {
-  final Color color;
-  _HorizontalDashedLinePainter({required this.color});
 
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..strokeWidth = 1;
-    const dashLen = 4.0;
-    const gapLen = 4.0;
-    var x = 0.0;
-    while (x < size.width) {
-      canvas.drawLine(Offset(x, 0), Offset(x + dashLen, 0), paint);
-      x += dashLen + gapLen;
-    }
-  }
-
-  @override
-  bool shouldRepaint(_HorizontalDashedLinePainter old) => old.color != color;
-}
-
-/// Caller's session score, presented in the same torn cream stock as the
-/// member tickets below — just so it reads as part of the same visual
-/// family. Wording matches the old red ScoreBanner: small caps label, big
-/// `+score`, exact/in-top-N/miss breakdown subtitle.
+/// Caller's session score, rendered as a [SouvenirTicket] — same styled
+/// paper as the rest of the ticket family. The P1 driver's constructor
+/// (resolved from [classification]) drives the car silhouette watermark;
+/// the event's circuit drives the secondary watermark.
 class _YourScoreTicket extends StatelessWidget {
+  final Event event;
+  final SessionType sessionType;
+  final List<String> picks;
+  final List<SessionResult> classification;
   final int score;
-  final String subtitle;
-  const _YourScoreTicket({required this.score, required this.subtitle});
+  const _YourScoreTicket({
+    required this.event,
+    required this.sessionType,
+    required this.picks,
+    required this.classification,
+    required this.score,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return TicketCard(
-      tear: TicketTear.ghosted,
-      bodyPadding: const EdgeInsets.fromLTRB(
-          Spacing.lg, Spacing.md, Spacing.xl, Spacing.md),
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text('YOUR SCORE',
-              style: AppText.label(10, color: Colors.black.withOpacity(0.7))),
-          const SizedBox(height: 4),
-          Text('+$score', style: AppText.display(36, color: Colors.black)),
-          const SizedBox(height: 4),
-          Text(subtitle,
-              style: AppText.body(12, color: Colors.black.withOpacity(0.7))),
-        ],
-      ),
+    String? p1ConstructorId;
+    if (picks.isNotEmpty) {
+      for (final r in classification) {
+        if (r.driverCode == picks.first) {
+          p1ConstructorId = r.constructorId;
+          break;
+        }
+      }
+    }
+    // Find the driver code at each finishing position and mark our slot as
+    // correct when the pick matched. `classification` is sorted by position
+    // but may be partial during provisional/live; the lookup is per-position
+    // so missing entries just leave the slot un-marked.
+    final byPosition = <int, String>{
+      for (final r in classification) r.position: r.driverCode,
+    };
+    final correctSlots = <int>{
+      for (var i = 0; i < picks.length; i++)
+        if (byPosition[i + 1] == picks[i]) i,
+    };
+    return SouvenirTicket(
+      event: event,
+      driverCodes: picks,
+      correctSlots: correctSlots,
+      p1ConstructorId: p1ConstructorId,
+      circuitWatermark: CircuitSvg(event: event),
+      scorePoints: score,
+      sessionType: sessionType,
     );
   }
 }
@@ -1009,20 +893,28 @@ class _MemberFormCard extends StatelessWidget {
                       style: AppText.label(9,
                           color: t.colorScheme.onSurface.withOpacity(0.55)))
                 else
-                  Wrap(
-                    spacing: Spacing.md,
-                    runSpacing: 4,
-                    children: [
-                      for (final p in picksSorted)
-                        _MemberFormPick(
-                          position: p.position,
-                          driverCode: p.driverCode,
-                          outcome: result.isEmpty
-                              ? null
-                              : outcomeFor(
-                                  p.driverCode, p.position, result, topN),
-                        ),
-                    ],
+                  // FittedBox(scaleDown) so all picks stay on a single row —
+                  // on narrow screens the whole strip shrinks uniformly
+                  // instead of P5 wrapping to its own line.
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        for (var i = 0; i < picksSorted.length; i++) ...[
+                          if (i > 0) const SizedBox(width: Spacing.md),
+                          _MemberFormPick(
+                            position: picksSorted[i].position,
+                            driverCode: picksSorted[i].driverCode,
+                            outcome: result.isEmpty
+                                ? null
+                                : outcomeFor(picksSorted[i].driverCode,
+                                    picksSorted[i].position, result, topN),
+                          ),
+                        ],
+                      ],
+                    ),
                   ),
               ],
             ),
@@ -1092,11 +984,13 @@ class _MemberFormPick extends StatelessWidget {
 /// Row tinting uses the position-based [outcomeFor]; point totals come from the
 /// backend (no on-device scoring). Team colours fall back to OpenF1's hex.
 class LiveResultsBody extends StatelessWidget {
+  final Event event;
   final SessionType sessionType;
   final List<String> myPicks;
   final LiveSnapshot snap;
   const LiveResultsBody({
     super.key,
+    required this.event,
     required this.sessionType,
     required this.myPicks,
     required this.snap,
@@ -1118,10 +1012,11 @@ class LiveResultsBody extends StatelessWidget {
       Padding(
         padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
         child: _YourScoreTicket(
+          event: event,
+          sessionType: sessionType,
+          picks: myPicks,
+          classification: snap.order,
           score: myPts ?? 0,
-          subtitle: myPts == null
-              ? 'No picks for this session'
-              : 'projected · $badge',
         ),
       ),
       Padding(

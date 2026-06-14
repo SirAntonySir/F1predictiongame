@@ -66,23 +66,52 @@ class _CarSvgState extends State<CarSvg> {
     }
   }
 
+  /// Bundled silhouettes used when the backend doesn't have a stored car SVG
+  /// for the constructor. Picking is deterministic on constructorId so the
+  /// same team always gets the same shape — different teams get different
+  /// shapes so the wall of tickets isn't a single repeated silhouette.
+  static const _fallbackAssets = <String>[
+    'assets/dev_car_outline.svg',
+    'assets/dev_car_b.svg',
+    'assets/dev_car_c.svg',
+  ];
+
+  String _fallbackAssetFor(String id) {
+    var h = 0;
+    for (final c in id.codeUnits) {
+      h = (h * 31 + c) & 0x7fffffff;
+    }
+    return _fallbackAssets[h % _fallbackAssets.length];
+  }
+
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<String?>(
       future: _svgFuture,
       builder: (_, snap) {
         final svg = snap.data;
+        final colorFilter = widget.color == null
+            ? null
+            : ColorFilter.mode(widget.color!, BlendMode.srcIn);
         if (svg == null || svg.isEmpty) {
-          return SizedBox(width: widget.width, height: widget.height);
+          final id = widget.constructorId;
+          if (id == null || id.isEmpty) {
+            return SizedBox(width: widget.width, height: widget.height);
+          }
+          return SvgPicture.asset(
+            _fallbackAssetFor(id),
+            width: widget.width,
+            height: widget.height,
+            fit: BoxFit.contain,
+            colorFilter: colorFilter,
+          );
         }
         return SvgPicture.string(
           svg,
           width: widget.width,
           height: widget.height,
           fit: BoxFit.contain,
-          colorFilter: widget.color == null
-              ? null
-              : ColorFilter.mode(widget.color!, BlendMode.srcIn),
+          colorFilter: colorFilter,
         );
       },
     );

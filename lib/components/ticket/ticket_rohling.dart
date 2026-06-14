@@ -1,14 +1,31 @@
 // ignore_for_file: deprecated_member_use
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import 'package:skeletonizer/skeletonizer.dart';
+
+import '../../theme/colors.dart';
 
 import 'ticket_ornament.dart';
 import 'ticket_stub.dart';
 import 'ticket_style.dart';
+import 'ticket_watermark_config.dart';
+
+// Re-export the watermark config + presets so existing call sites that
+// already import 'ticket_rohling.dart' (e.g. dev preview, debugging tools)
+// keep compiling without an extra import line.
+export 'ticket_watermark_config.dart';
 
 class TicketDataCell {
   final String label;
   final String value;
-  const TicketDataCell({required this.label, required this.value});
+  /// When true, the ticket overlays `assets/tick.svg` on top of this cell —
+  /// used by [SouvenirTicket] to flag picks that turned out to be correct.
+  final bool marked;
+  const TicketDataCell({
+    required this.label,
+    required this.value,
+    this.marked = false,
+  });
 }
 
 enum TicketTear { none, cut, ghosted }
@@ -23,25 +40,74 @@ class TicketRohling extends StatelessWidget {
   final String? metaRight;
   final String title;
   final String? subtitle;
+
   /// Illustration painted as a low-opacity watermark behind the body content,
   /// scaled up and clipped to the body region. Text sits on top.
   final Widget? illustration;
+
   /// Opacity of the watermark illustration. Defaults to 0.16 on cream paper
   /// and 0.22 on dark paper (dark presets need a louder watermark to read).
   final double? illustrationOpacity;
-  /// Where the watermark sits inside the body. centerRight is the default —
-  /// keeps the silhouette away from the left meta and title columns.
-  final Alignment illustrationAlignment;
-  /// Multiplier on the watermark's natural size. >1 lets the SVG bleed past
-  /// the body bounds (ClipRect handles the overflow).
-  final double illustrationScale;
+
+  /// Where the watermark sits inside the body. Nullable so a parent variant
+  /// can pass through null and let Rohling's default win; resolved to
+  /// [_kDefaultIllustrationAlignment] in build().
+  final Alignment? illustrationAlignment;
+
+  /// Multiplier on the watermark's natural size. Nullable for the same reason
+  /// — resolves to [_kDefaultIllustrationScale] in build(). >1 lets the SVG
+  /// bleed past the body bounds (ClipRect handles the overflow).
+  final double? illustrationScale;
+
+  /// Secondary watermark painted behind [illustration] — typically a circuit
+  /// track outline that layers under the car silhouette. Same clipping rules.
+  final Widget? secondaryIllustration;
+  final double? secondaryIllustrationOpacity;
+  final Alignment? secondaryIllustrationAlignment;
+  final double? secondaryIllustrationScale;
   final TicketOrnament? ornament;
   final List<TicketDataCell> dataRow;
   final TicketStub stub;
   final TicketTear tear;
+
+  /// Free-form body content. When set, replaces the structured
+  /// metaLeft/metaRight/title/subtitle/dataRow column entirely — the caller
+  /// is responsible for its own padding. Watermark illustrations still paint
+  /// behind it. Used to host bespoke layouts (countdowns, perforated inner
+  /// dividers, pick chips) that don't fit the structured slots.
+  final Widget? bodyOverride;
+
+  /// Free-form stub content. Replaces the sealed [TicketStub] rendering. The
+  /// strip is still sized by [stub] (via [widthFor]) unless [stubWidthOverride]
+  /// is set, so the perforation line stays consistent across variants.
+  final Widget? stubOverride;
+
+  /// Explicit stub strip width. Overrides [widthFor]([stub]) — useful when the
+  /// caller has a wider/narrower custom stub via [stubOverride].
+  final double? stubWidthOverride;
   final VoidCallback? onTap;
   final VoidCallback? onBodyTap;
   final VoidCallback? onStubTap;
+
+  /// Fires on a long-press anywhere on the ticket. Used by [PickTicket] and
+  /// [SouvenirTicket] to invoke their default share-as-image action — set
+  /// explicitly here when using [TicketRohling] directly. Composes with the
+  /// tap handlers above (the gesture detector sits outside any InkWell).
+  final VoidCallback? onLongPress;
+
+  /// Overrides the LEFT edge serial only. When set, the left side renders
+  /// this string (centered vertically, rotated 270°) instead of duplicating
+  /// [edgeSerial]. The right edge serial still uses [edgeSerial]. Used to
+  /// stamp the session type (RACE / QUALIFYING / SPRINT…) across the left
+  /// edge prominently while keeping the round/event reference on the right.
+  final String? leftEdgeSerial;
+
+  /// Italic script accent rendered immediately below the title — "Grand
+  /// Prix" / "Racing" / "Championship" in the variant's cursive flourish.
+  /// Only paints when the active style's tokens declare a [scriptAccent]
+  /// style; otherwise silently ignored (so callers can pass it for every
+  /// ticket without bloating the older paper variants).
+  final String? scriptAccent;
 
   const TicketRohling({
     super.key,
@@ -49,178 +115,387 @@ class TicketRohling extends StatelessWidget {
     this.edgeSerial,
     this.metaLeft,
     this.metaRight,
-    required this.title,
+    this.title = '',
     this.subtitle,
     this.illustration,
     this.illustrationOpacity,
-    this.illustrationAlignment = Alignment.centerRight,
-    this.illustrationScale = 1.0,
+    this.illustrationAlignment,
+    this.illustrationScale,
+    this.secondaryIllustration,
+    this.secondaryIllustrationOpacity,
+    this.secondaryIllustrationAlignment,
+    this.secondaryIllustrationScale,
     this.ornament,
-    required this.dataRow,
+    this.dataRow = const [],
     required this.stub,
     this.tear = TicketTear.none,
+    this.bodyOverride,
+    this.stubOverride,
+    this.stubWidthOverride,
     this.onTap,
     this.onBodyTap,
     this.onStubTap,
+    this.onLongPress,
+    this.leftEdgeSerial,
+    this.scriptAccent,
   });
 
   @override
   Widget build(BuildContext context) {
     final tokens = tokensFor(style);
     final effectiveOrnament = ornament ?? tokens.defaultOrnament;
-    final stubWidth = widthFor(stub);
+    // Ghosted tear reserves the stub strip width even when there's no stub
+    // widget — the painter draws the carved-out silhouette where the stub
+    // would have been.
+    final stubWidth = stubWidthOverride ??
+        (stub is StubNone && tear == TicketTear.ghosted
+            ? kStubWidth
+            : widthFor(stub));
     final hasSplitTaps = onBodyTap != null || onStubTap != null;
 
     final isDark = tokens.paperColor.computeLuminance() < 0.3;
-    final effectiveIllustrationOpacity =
-        illustrationOpacity ?? (isDark ? 0.22 : 0.16);
+    // Resolve every watermark knob from the per-instance override → config
+    // default chain. PickTicket / SouvenirTicket pass null so the config wins.
+    final effectiveIllustrationOpacity = illustrationOpacity ??
+        (isDark
+            ? kPrimaryWatermark.opacityDark
+            : kPrimaryWatermark.opacityCream);
+    final effectiveSecondaryOpacity = secondaryIllustrationOpacity ??
+        (isDark
+            ? kSecondaryWatermark.opacityDark
+            : kSecondaryWatermark.opacityCream);
+    final effectiveIllustrationAlignment =
+        illustrationAlignment ?? kPrimaryWatermark.alignment;
+    final effectiveIllustrationScale =
+        illustrationScale ?? kPrimaryWatermark.scale;
+    final effectiveSecondaryAlignment =
+        secondaryIllustrationAlignment ?? kSecondaryWatermark.alignment;
+    final effectiveSecondaryScale =
+        secondaryIllustrationScale ?? kSecondaryWatermark.scale;
 
-    final foreground = Padding(
-      padding: const EdgeInsets.fromLTRB(26, 12, 18, 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Flexible(child: Text(metaLeft ?? '', style: tokens.meta, overflow: TextOverflow.ellipsis)),
-              Text(metaRight ?? '', style: tokens.meta),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.center,
+    final foreground = bodyOverride ??
+        Padding(
+          padding: const EdgeInsets.fromLTRB(26, 12, 18, 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             mainAxisSize: MainAxisSize.min,
             children: [
-              TicketOrnamentWidget(ornament: effectiveOrnament, color: tokens.inkColor),
-              if (subtitle != null) ...[
-                const SizedBox(height: 4),
-                Text(subtitle!, style: tokens.subtitle),
-              ],
-              const SizedBox(height: 2),
-              Text(title, style: tokens.title, maxLines: 2, overflow: TextOverflow.ellipsis),
-            ],
-          ),
-          if (dataRow.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            Container(
-              padding: const EdgeInsets.only(top: 6),
-              decoration: BoxDecoration(
-                border: Border(top: BorderSide(color: tokens.inkColor.withOpacity(0.4))),
-              ),
-              // Wrap so 5 picks + status spill onto a second row when the
-              // ticket isn't wide enough for them all — keeps the paper-ticket
-              // aesthetic without horizontal clipping.
-              child: Wrap(
-                spacing: 10,
-                runSpacing: 6,
-                crossAxisAlignment: WrapCrossAlignment.start,
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  for (final cell in dataRow)
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(cell.label, style: tokens.dataLabel),
-                        const SizedBox(height: 3),
-                        Text(cell.value, style: tokens.dataValue),
-                      ],
-                    ),
+                  Flexible(
+                      child: Text(metaLeft ?? '',
+                          style: tokens.meta, overflow: TextOverflow.ellipsis)),
+                  Text(metaRight ?? '', style: tokens.meta),
                 ],
               ),
-            ),
-          ],
-        ],
-      ),
-    );
+              const SizedBox(height: 8),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TicketOrnamentWidget(
+                      ornament: effectiveOrnament, color: tokens.inkColor),
+                  if (subtitle != null) ...[
+                    const SizedBox(height: 4),
+                    Text(subtitle!, style: tokens.subtitle),
+                  ],
+                  const SizedBox(height: 2),
+                  Text(title,
+                      style: tokens.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis),
+                  // Italic script accent — only renders when both the
+                  // caller passes a string AND the variant declares a
+                  // [scriptAccent] style. Older paper variants silently
+                  // drop it.
+                  if (scriptAccent != null && tokens.scriptAccent != null) ...[
+                    const SizedBox(height: 4),
+                    Text(scriptAccent!,
+                        style: tokens.scriptAccent,
+                        maxLines: 1,
+                        overflow: TextOverflow.fade),
+                  ],
+                ],
+              ),
+              if (dataRow.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                Container(
+                  padding: const EdgeInsets.only(top: 6),
+                  decoration: BoxDecoration(
+                    border: Border(
+                        top: BorderSide(
+                            color: tokens.inkColor.withOpacity(0.4))),
+                  ),
+                  // Wrap so 5 picks + status spill onto a second row when the
+                  // ticket isn't wide enough for them all — keeps the paper-ticket
+                  // aesthetic without horizontal clipping.
+                  child: Wrap(
+                    spacing: 10,
+                    runSpacing: 6,
+                    crossAxisAlignment: WrapCrossAlignment.start,
+                    children: [
+                      for (final cell in dataRow)
+                        // Marked cells get a hand-drawn tick painted on top of
+                        // both the label and value, sized to the cell's
+                        // natural width and slightly oversized vertically so
+                        // the strokes hug the text instead of looking pasted.
+                        Stack(
+                          clipBehavior: Clip.none,
+                          alignment: Alignment.center,
+                          children: [
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(cell.label, style: tokens.dataLabel),
+                                const SizedBox(height: 3),
+                                Text(cell.value, style: tokens.dataValue),
+                              ],
+                            ),
+                            if (cell.marked)
+                              Positioned.fill(
+                                child: IgnorePointer(
+                                  child: SvgPicture.asset(
+                                    'assets/tick.svg',
+                                    fit: BoxFit.contain,
+                                    // Brand green so the tick reads as a
+                                    // correctness signal regardless of paper
+                                    // colour (would disappear into the ink on
+                                    // cream / dark presets otherwise).
+                                    colorFilter: const ColorFilter.mode(
+                                      BrandColors.ok,
+                                      BlendMode.srcIn,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ],
+          ),
+        );
 
     // Body = watermark illustration (scaled up, low-opacity, clipped) + the
     // text/data column on top. The watermark sits inside the body region only,
     // so it never crosses the perforation into the stub.
-    final body = Stack(
-      children: [
-        if (illustration != null)
-          Positioned.fill(
-            child: ClipRect(
-              child: Opacity(
-                opacity: effectiveIllustrationOpacity,
-                child: FittedBox(
-                  fit: BoxFit.cover,
-                  alignment: illustrationAlignment,
-                  child: SizedBox(
-                    width: 400 * illustrationScale,
-                    height: 180 * illustrationScale,
-                    child: illustration,
+    // Primary uses BoxFit.cover so the car silhouette can bleed off-edge;
+    // secondary uses BoxFit.contain so the circuit outline stays fully visible.
+    // Caller-provided SVG widgets often render with their authored stroke /
+    // fill (white for the circuit outline asset, black for stencils) — we
+    // recolor them to the style's ink so they read against any paper. srcIn
+    // keeps only the opaque pixels and tints them; the alpha channel survives.
+    final inkFilter = ColorFilter.mode(tokens.inkColor, BlendMode.srcIn);
+    // [boxW] / [boxH] set the watermark "frame" aspect. Choice matters because
+    // FittedBox+cover/contain pick which axis becomes the slack the alignment
+    // can consume — a wide 400×180 frame (aspect 2.22) inside a body that's
+    // closer to square forces cover into height-fill, so vertical alignment
+    // becomes a no-op. The primary (car) passes a more square frame so cover
+    // overflows vertically and `bottomRight` actually crops the top.
+    Widget watermark(Widget w, double opacity, Alignment align, double scale,
+            {required BoxFit fit, double boxW = 400, double boxH = 180}) =>
+        Positioned.fill(
+          // Skeleton.ignore: skeletonizer would otherwise paint the SVG's
+          // opaque silhouette as a solid black slab. Watermarks are decorative
+          // — render at their real low opacity (or empty while loading)
+          // instead of joining the skeleton shading pass.
+          child: Skeleton.ignore(
+            child: IgnorePointer(
+              child: ClipRect(
+                child: Opacity(
+                  opacity: opacity,
+                  // Transform.scale wraps the FITTED output so scale > 1
+                  // actually grows the rendered watermark (bleeding into the
+                  // ClipRect's crop). Putting the scale on the SizedBox alone
+                  // is a no-op: the outer FittedBox immediately refits to the
+                  // parent, so width × scale and height × scale cancel for the
+                  // visible aspect. scale=0 looked special only because it
+                  // collapsed the SizedBox to 0×0.
+                  child: Transform.scale(
+                    scale: scale,
+                    alignment: align,
+                    child: FittedBox(
+                      fit: fit,
+                      alignment: align,
+                      child: SizedBox(
+                        width: boxW,
+                        height: boxH,
+                        // Align(align) so the inner SVG hugs the requested edge
+                        // INSIDE the frame — without this, SvgPicture's own
+                        // centering would park a square asset in the middle of
+                        // the frame, and the outer FittedBox couldn't push it
+                        // further when the fit had already filled the
+                        // constrained axis.
+                        child: Align(
+                          alignment: align,
+                          child:
+                              ColorFiltered(colorFilter: inkFilter, child: w),
+                        ),
+                      ),
+                    ),
                   ),
                 ),
               ),
             ),
           ),
+        );
+
+    // Stack order: paper (already painted by CustomPainter) → car silhouette
+    // (primary, bleeds off-edge per [kPrimaryWatermark]) → foreground.
+    // The secondary watermark (circuit) is lifted to the OUTER stack below
+    // so it spans the full ticket width and bleeds across the perforation
+    // into the stub area.
+    final body = Stack(
+      children: [
+        if (illustration != null)
+          watermark(illustration!, effectiveIllustrationOpacity,
+              effectiveIllustrationAlignment, effectiveIllustrationScale,
+              fit: kPrimaryWatermark.fit,
+              boxW: kPrimaryWatermark.boxW,
+              boxH: kPrimaryWatermark.boxH),
         foreground,
       ],
     );
 
-    final stubContent = TicketStubContent(stub: stub, titleHint: title, textStyle: tokens.meta);
+    final stubContent = stubOverride ??
+        TicketStubContent(stub: stub, titleHint: title, textStyle: tokens.meta);
 
-    final row = Row(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Expanded(
-          child: hasSplitTaps
-              ? InkWell(onTap: onBodyTap, child: body)
-              : body,
-        ),
-        if (stubWidth > 0)
-          SizedBox(
-            width: stubWidth,
-            child: hasSplitTaps
-                ? InkWell(onTap: onStubTap, child: stubContent)
-                : stubContent,
-          ),
-      ],
-    );
+    // Size the ticket from the body's natural height instead of going through
+    // IntrinsicHeight + Row + Expanded — that combination mismeasures here
+    // (Wrap inside a flex child trips up the dry-intrinsic chain) and squeezes
+    // the body until it overflows. Body is the non-positioned child of an
+    // inner Stack so it determines size; the stub fills the reserved right
+    // strip via Positioned.
+    final bodyChild =
+        hasSplitTaps ? InkWell(onTap: onBodyTap, child: body) : body;
+    final stubChild = hasSplitTaps
+        ? InkWell(onTap: onStubTap, child: stubContent)
+        : stubContent;
+
+    // Circuit watermark sits ABOVE the body padding but BELOW the stub —
+    // bleeds full-width while the stub stays legible. Must be a direct child
+    // of Stack so the Positioned.fill inside `watermark(...)` applies.
+    final inner = stubWidth > 0
+        ? Stack(
+            children: [
+              Padding(
+                padding: EdgeInsets.only(right: stubWidth),
+                child: bodyChild,
+              ),
+              if (secondaryIllustration != null)
+                watermark(secondaryIllustration!, effectiveSecondaryOpacity,
+                    effectiveSecondaryAlignment, effectiveSecondaryScale,
+                    fit: kSecondaryWatermark.fit,
+                    boxW: kSecondaryWatermark.boxW,
+                    boxH: kSecondaryWatermark.boxH),
+              Positioned(
+                top: 0,
+                bottom: 0,
+                right: 0,
+                width: stubWidth,
+                child: stubChild,
+              ),
+            ],
+          )
+        : Stack(
+            children: [
+              bodyChild,
+              if (secondaryIllustration != null)
+                watermark(secondaryIllustration!, effectiveSecondaryOpacity,
+                    effectiveSecondaryAlignment, effectiveSecondaryScale,
+                    fit: kSecondaryWatermark.fit,
+                    boxW: kSecondaryWatermark.boxW,
+                    boxH: kSecondaryWatermark.boxH),
+            ],
+          );
 
     final core = CustomPaint(
       painter: _TicketPainter(tokens: tokens, stubWidth: stubWidth, tear: tear),
-      child: row,
+      child: inner,
     );
 
     final serialStyle = tokens.meta.copyWith(letterSpacing: 3);
     final stack = Stack(
       children: [
         core,
-        if (edgeSerial != null) ...[
-          Positioned(
-            left: 4, top: 0, bottom: 0,
-            child: Center(
+        if (edgeSerial != null || leftEdgeSerial != null) ...[
+          // LEFT edge: when [leftEdgeSerial] is set, render it centered
+          // vertically so the session-type stamp sits in the middle of the
+          // ticket. Otherwise duplicate [edgeSerial], top-anchored
+          // shrink-wrap (so long round/event names don't reserve invisible
+          // space that pushes into the data row).
+          if (leftEdgeSerial != null)
+            Positioned(
+              left: 4,
+              top: 0,
+              bottom: 0,
+              child: Center(
+                child: RotatedBox(
+                  quarterTurns: 3,
+                  child: Text(leftEdgeSerial!,
+                      style: serialStyle,
+                      maxLines: 1,
+                      overflow: TextOverflow.fade,
+                      softWrap: false),
+                ),
+              ),
+            )
+          else if (edgeSerial != null)
+            Positioned(
+              left: 4,
+              top: 0,
               child: RotatedBox(
                 quarterTurns: 3,
-                child: Text(edgeSerial!, style: serialStyle, maxLines: 1, overflow: TextOverflow.fade, softWrap: false),
+                child: Text(edgeSerial!,
+                    style: serialStyle,
+                    maxLines: 1,
+                    overflow: TextOverflow.fade,
+                    softWrap: false),
               ),
             ),
-          ),
-          Positioned(
-            right: 4, top: 0, bottom: 0,
-            child: Center(
+          // RIGHT edge: always uses [edgeSerial] (top-anchored shrink-wrap).
+          if (edgeSerial != null)
+            Positioned(
+              right: 4,
+              top: 0,
               child: RotatedBox(
                 quarterTurns: 1,
-                child: Text(edgeSerial!, style: serialStyle, maxLines: 1, overflow: TextOverflow.fade, softWrap: false),
+                child: Text(edgeSerial!,
+                    style: serialStyle,
+                    maxLines: 1,
+                    overflow: TextOverflow.fade,
+                    softWrap: false),
               ),
             ),
-          ),
         ],
       ],
     );
 
-    final ticket = IntrinsicHeight(child: stack);
-    if (hasSplitTaps || onTap == null) return ticket;
-    return InkWell(
-      onTap: onTap,
-      borderRadius: const BorderRadius.all(Radius.circular(12)),
-      child: ticket,
-    );
+    Widget ticket = stack;
+    if (!hasSplitTaps && onTap != null) {
+      ticket = InkWell(
+        onTap: onTap,
+        borderRadius: const BorderRadius.all(Radius.circular(12)),
+        child: ticket,
+      );
+    }
+    if (onLongPress != null) {
+      // GestureDetector sits OUTSIDE any InkWell so the long-press fires
+      // regardless of whether the ticket has split tap zones or a single
+      // outer onTap. behavior: opaque so dead-zone areas (the watermark
+      // bleed, ghosted stub region) still receive the gesture.
+      ticket = GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onLongPress: onLongPress,
+        child: ticket,
+      );
+    }
+    return ticket;
   }
 }
 
@@ -231,7 +506,8 @@ class _TicketPainter extends CustomPainter {
   static const _radius = 10.0;
   static const _notchRadius = 7.0;
 
-  _TicketPainter({required this.tokens, required this.stubWidth, required this.tear});
+  _TicketPainter(
+      {required this.tokens, required this.stubWidth, required this.tear});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -244,11 +520,28 @@ class _TicketPainter extends CustomPainter {
       ..strokeWidth = 1.5;
 
     final outline = _outline(size);
-    canvas.drawPath(outline, fill);
-    canvas.save();
-    canvas.clipPath(outline);
-    _paintBackground(canvas, size);
-    canvas.restore();
+    if (tear == TicketTear.ghosted && stubWidth > 0) {
+      // Wash the whole outline at low opacity so the stub area reads as a
+      // ghost of where the stub used to be, then paint the body region (left
+      // of the perforation) solid on top. Background patterns clip to the
+      // body region too — the stub area is intentionally bare.
+      final ghostFill = Paint()
+        ..color = tokens.paperColor.withOpacity(0.30)
+        ..style = PaintingStyle.fill;
+      canvas.drawPath(outline, ghostFill);
+      final bodyOnly = _bodyOnlyPath(size);
+      canvas.drawPath(bodyOnly, fill);
+      canvas.save();
+      canvas.clipPath(bodyOnly);
+      _paintBackground(canvas, size);
+      canvas.restore();
+    } else {
+      canvas.drawPath(outline, fill);
+      canvas.save();
+      canvas.clipPath(outline);
+      _paintBackground(canvas, size);
+      canvas.restore();
+    }
     canvas.drawPath(outline, stroke);
 
     if (tokens.innerFrame) {
@@ -311,14 +604,54 @@ class _TicketPainter extends CustomPainter {
         final bandTop = size.height * 0.30;
         final bandBottom = size.height * 0.78;
         canvas.save();
-        canvas.clipRect(Rect.fromLTRB(0, bandTop, size.width - stubWidth, bandBottom));
+        canvas.clipRect(
+            Rect.fromLTRB(0, bandTop, size.width - stubWidth, bandBottom));
         final p = Paint()
           ..color = tokens.inkColor.withOpacity(0.10)
           ..strokeWidth = 8;
         for (double d = -size.height; d < size.width + size.height; d += 22) {
-          canvas.drawLine(Offset(d, 0), Offset(d + size.height, size.height), p);
+          canvas.drawLine(
+              Offset(d, 0), Offset(d + size.height, size.height), p);
         }
         canvas.restore();
+        return;
+      case TicketBackground.chevronBand:
+        // Vintage racing-ticket trim: two thin diagonal-stripe bands
+        // hugging the top and bottom edges, leaving the body clear for
+        // the headline and watermark. Mirrors the chevron-band pattern
+        // in the City Cup / State Cup reference tickets.
+        final p = Paint()
+          ..color = tokens.inkColor.withOpacity(0.32)
+          ..strokeWidth = 1.4;
+        const bandHeight = 7.0;
+        void paintBand(double top) {
+          canvas.save();
+          canvas.clipRect(
+              Rect.fromLTWH(0, top, size.width - stubWidth, bandHeight));
+          for (double x = -10; x < size.width; x += 4) {
+            canvas.drawLine(
+              Offset(x, top + bandHeight),
+              Offset(x + bandHeight, top),
+              p,
+            );
+          }
+          canvas.restore();
+        }
+        paintBand(3);
+        paintBand(size.height - bandHeight - 3);
+        return;
+      case TicketBackground.dotBand:
+        // Repeating ink dots along the top and bottom edges — the Sage
+        // Grand Prix garden-party trim. Pairs with star-flanked meta rows
+        // when the foreground uses them.
+        final p = Paint()
+          ..color = tokens.inkColor.withOpacity(0.42)
+          ..style = PaintingStyle.fill;
+        const inset = 5.0;
+        for (double x = 8; x < size.width - stubWidth - 4; x += 7) {
+          canvas.drawCircle(Offset(x, inset), 1.3, p);
+          canvas.drawCircle(Offset(x, size.height - inset), 1.3, p);
+        }
         return;
     }
   }
@@ -330,25 +663,56 @@ class _TicketPainter extends CustomPainter {
     final p = Path()..moveTo(r, 0);
     if (stubX != null) {
       p.lineTo(stubX - n, 0);
-      p.arcToPoint(Offset(stubX + n, 0), radius: const Radius.circular(_notchRadius), clockwise: false);
+      p.arcToPoint(Offset(stubX + n, 0),
+          radius: const Radius.circular(_notchRadius), clockwise: false);
     }
     if (tear == TicketTear.cut) {
       p.lineTo(size.width - n, 0);
-      p.arcToPoint(Offset(size.width, n), radius: const Radius.circular(_notchRadius), clockwise: false);
+      p.arcToPoint(Offset(size.width, n),
+          radius: const Radius.circular(_notchRadius), clockwise: false);
       p.lineTo(size.width, size.height - n);
-      p.arcToPoint(Offset(size.width - n, size.height), radius: const Radius.circular(_notchRadius), clockwise: false);
+      p.arcToPoint(Offset(size.width - n, size.height),
+          radius: const Radius.circular(_notchRadius), clockwise: false);
     } else {
       p.lineTo(size.width - r, 0);
-      p.arcToPoint(Offset(size.width, r), radius: const Radius.circular(_radius));
+      p.arcToPoint(Offset(size.width, r),
+          radius: const Radius.circular(_radius));
       p.lineTo(size.width, size.height - r);
-      p.arcToPoint(Offset(size.width - r, size.height), radius: const Radius.circular(_radius));
+      p.arcToPoint(Offset(size.width - r, size.height),
+          radius: const Radius.circular(_radius));
     }
     if (stubX != null) {
       p.lineTo(stubX + n, size.height);
-      p.arcToPoint(Offset(stubX - n, size.height), radius: const Radius.circular(_notchRadius), clockwise: false);
+      p.arcToPoint(Offset(stubX - n, size.height),
+          radius: const Radius.circular(_notchRadius), clockwise: false);
     }
     p.lineTo(r, size.height);
-    p.arcToPoint(Offset(0, size.height - r), radius: const Radius.circular(_radius));
+    p.arcToPoint(Offset(0, size.height - r),
+        radius: const Radius.circular(_radius));
+    p.lineTo(0, r);
+    p.arcToPoint(const Offset(r, 0), radius: const Radius.circular(_radius));
+    p.close();
+    return p;
+  }
+
+  /// Path covering only the body half of a ghosted ticket. Mirrors the
+  /// outline's notches at the perforation so the body edge meets the
+  /// (translucent) stub edge cleanly — the arcs bulge INTO the body, the
+  /// inverse of what `_outline` carves out.
+  Path _bodyOnlyPath(Size size) {
+    const r = _radius;
+    const n = _notchRadius;
+    final stubX = size.width - stubWidth;
+    final p = Path()..moveTo(r, 0);
+    p.lineTo(stubX - n, 0);
+    p.arcToPoint(Offset(stubX, n),
+        radius: const Radius.circular(_notchRadius), clockwise: false);
+    p.lineTo(stubX, size.height - n);
+    p.arcToPoint(Offset(stubX - n, size.height),
+        radius: const Radius.circular(_notchRadius), clockwise: false);
+    p.lineTo(r, size.height);
+    p.arcToPoint(Offset(0, size.height - r),
+        radius: const Radius.circular(_radius));
     p.lineTo(0, r);
     p.arcToPoint(const Offset(r, 0), radius: const Radius.circular(_radius));
     p.close();
@@ -359,3 +723,4 @@ class _TicketPainter extends CustomPainter {
   bool shouldRepaint(_TicketPainter old) =>
       old.tokens != tokens || old.stubWidth != stubWidth || old.tear != tear;
 }
+
