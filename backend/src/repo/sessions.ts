@@ -92,6 +92,38 @@ export async function listForEvent(eventId: number): Promise<StoredSession[]> {
   return rows as StoredSession[]
 }
 
+/// Scheduled sessions whose start falls in (from, to]. The notification
+/// dispatcher uses this for both pick reminders (window reaching into the
+/// future) and the just-started "session live" broadcast (a short window in the
+/// recent past), bounded so the per-minute tick never scans the whole season.
+export async function listScheduledStartingBetween(from: Date, to: Date): Promise<StoredSession[]> {
+  const db = getDb()
+  const rows = await db
+    .select()
+    .from(session)
+    .where(
+      and(
+        eq(session.status, 'scheduled'),
+        gt(session.scheduledStart, from),
+        sql`${session.scheduledStart} <= ${to}`
+      )
+    )
+    .orderBy(asc(session.scheduledStart))
+  return rows as StoredSession[]
+}
+
+/// Finished sessions whose scheduled end is at/after [cutoff] — the recent set
+/// the dispatcher scans for the "results are in" notification.
+export async function listFinishedEndedSince(cutoff: Date): Promise<StoredSession[]> {
+  const db = getDb()
+  const rows = await db
+    .select()
+    .from(session)
+    .where(and(eq(session.status, 'finished'), sql`${session.scheduledEnd} >= ${cutoff}`))
+    .orderBy(asc(session.scheduledEnd))
+  return rows as StoredSession[]
+}
+
 export async function setOpenF1SessionKey(id: number, key: number | null): Promise<void> {
   const db = getDb()
   await db.update(session).set({ openf1SessionKey: key }).where(eq(session.id, id))

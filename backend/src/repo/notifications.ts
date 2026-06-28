@@ -104,6 +104,17 @@ export async function deleteToken(userId: string, token: string): Promise<void> 
     .where(and(eq(deviceToken.userId, userId), eq(deviceToken.token, token)))
 }
 
+/// Distinct user ids that have at least one active (non-disabled) token — the
+/// only users who can actually receive anything, so the dispatcher's audience.
+export async function activeTokenUserIds(): Promise<string[]> {
+  const db = getDb()
+  const rows = await db
+    .selectDistinct({ userId: deviceToken.userId })
+    .from(deviceToken)
+    .where(isNull(deviceToken.disabledAt))
+  return rows.map((r) => r.userId)
+}
+
 // ---- preferences -----------------------------------------------------------
 
 /// A user's preferences, or the shared defaults when they've never been set.

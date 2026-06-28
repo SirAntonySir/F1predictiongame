@@ -7,17 +7,21 @@ import { reconcileOnce, type ReconcileSummary } from './reconcile.js'
 import { runBootstrap } from './bootstrap.js'
 import * as seasonsRepo from '../repo/seasons.js'
 import { sweepExpiredSessions } from '../auth/sweeper.js'
+import { runNotificationsTick } from '../notifications/dispatcher.js'
+import { createSender, resolveMessaging } from '../notifications/sender.js'
 
 export class Scheduler {
   private isRunningTick = false
   private isRunningWeekly = false
   private isRunningReconcile = false
+  private isRunningNotify = false
   private lastTickAt: Date | null = null
   private lastTickStatus: 'ok' | 'error' | null = null
   private tickJob: ScheduledTask | null = null
   private weeklyJob: ScheduledTask | null = null
   private sweepJob: ScheduledTask | null = null
   private reconcileJob: ScheduledTask | null = null
+  private notifyJob: ScheduledTask | null = null
 
   constructor(
     private jolpica = new JolpicaClient(),
@@ -40,6 +44,10 @@ export class Scheduler {
     // whose results are still OpenF1-sourced, and replace + rescore if they
     // diverge (penalties, DSQ, post-stewards reclassification).
     this.reconcileJob = cron.schedule('15 * * * *', () => { void this.reconcileOnce() })
+    // Every minute — evaluate notification triggers (pick reminders, session
+    // live, results in). Cheap: early-returns when no devices are registered,
+    // and the claim ledger makes re-ticks idempotent.
+    this.notifyJob = cron.schedule('* * * * *', () => { void this.notifyOnce() })
   }
 
   stop(): void {
@@ -51,6 +59,30 @@ export class Scheduler {
     this.sweepJob = null
     this.reconcileJob?.stop()
     this.reconcileJob = null
+    this.notifyJob?.stop()
+    this.notifyJob = null
+  }
+
+  /// Evaluate notification triggers and dispatch. Guarded against overlap.
+  /// When no Firebase service account is configured, [resolveMessaging] returns
+  /// null and we skip sending (without claiming anything), so enabling FCM
+  /// later doesn't start by replaying a backlog.
+  async notifyOnce(): Promise<{ sent: number } | null> {
+    if (this.isRunningNotify) return null
+    this.isRunningNotify = true
+    try {
+      const messaging = await resolveMessaging()
+      if (!messaging) return { sent: 0 }
+      const sender = createSender(messaging)
+      const summary = await runNotificationsTick(new Date(), sender.sendToUser)
+      if (summary.sent > 0) console.log('Notifications dispatched', summary)
+      return summary
+    } catch (err) {
+      console.error('Notifications tick failed', err)
+      return null
+    } finally {
+      this.isRunningNotify = false
+    }
   }
 
   async tickOnce(): Promise<TickSummary | null> {

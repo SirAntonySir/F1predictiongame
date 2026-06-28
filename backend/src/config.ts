@@ -11,7 +11,10 @@ const Env = z.object({
   OPENF1_BASE: z.string().url().default('https://api.openf1.org/v1'),
   // Static-asset source for F1 circuit metadata + SVGs (julesr0y repo on
   // GitHub). Override in tests to point at a local fixture server.
-  CIRCUITS_BASE: z.string().url().default('https://raw.githubusercontent.com/julesr0y/f1-circuits-svg/main')
+  CIRCUITS_BASE: z.string().url().default('https://raw.githubusercontent.com/julesr0y/f1-circuits-svg/main'),
+  // Firebase service-account JSON (one line) for FCM sends. Unset → the
+  // notification dispatcher runs but skips sending (local dev / not yet wired).
+  FIREBASE_SERVICE_ACCOUNT: z.string().optional()
 })
 
 export type Config = {
@@ -23,6 +26,7 @@ export type Config = {
   wikipediaBase: string
   openf1Base: string
   circuitsBase: string
+  firebaseServiceAccount?: string
 }
 
 export function parseConfig(env: Record<string, string | undefined>): Config {
@@ -41,7 +45,8 @@ export function parseConfig(env: Record<string, string | undefined>): Config {
     jolpicaBase: parsed.JOLPICA_BASE,
     wikipediaBase: parsed.WIKIPEDIA_BASE,
     openf1Base: parsed.OPENF1_BASE,
-    circuitsBase: parsed.CIRCUITS_BASE
+    circuitsBase: parsed.CIRCUITS_BASE,
+    firebaseServiceAccount: parsed.FIREBASE_SERVICE_ACCOUNT
   }
 }
 
