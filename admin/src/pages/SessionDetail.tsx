@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { Button, Flex, Heading, Table, Text } from '@radix-ui/themes'
+import { AlertDialog, Button, Flex, Heading, Table, Text } from '@radix-ui/themes'
 import { useSession, useSessionResults, useDeleteResult } from '../api/sessions'
 import { ActionButton } from '../components/ActionButton'
 import { ResultEditDialog } from '../components/ResultEditDialog'
@@ -51,7 +51,26 @@ export function SessionDetail() {
                 <Table.Cell>
                   <Flex gap="1">
                     <Button size="1" variant="soft" onClick={() => setEditing({ mode: 'edit', row: r })}>Edit</Button>
-                    <Button size="1" variant="soft" color="red" onClick={() => del.mutate(r.position)}>Delete</Button>
+                    <AlertDialog.Root>
+                      <AlertDialog.Trigger>
+                        <Button size="1" variant="soft" color="red">Delete</Button>
+                      </AlertDialog.Trigger>
+                      <AlertDialog.Content maxWidth="420px">
+                        <AlertDialog.Title>Delete P{r.position}?</AlertDialog.Title>
+                        <AlertDialog.Description size="2">
+                          Removing {r.driverName} ({r.driverCode}) from this session re-scores it for
+                          every player. This changes live data — it can't be undone (re-fetch to restore the official result).
+                        </AlertDialog.Description>
+                        <Flex gap="2" mt="3" justify="end">
+                          <AlertDialog.Cancel>
+                            <Button variant="soft" color="gray">Cancel</Button>
+                          </AlertDialog.Cancel>
+                          <AlertDialog.Action>
+                            <Button color="red" onClick={() => del.mutate(r.position)}>Delete</Button>
+                          </AlertDialog.Action>
+                        </Flex>
+                      </AlertDialog.Content>
+                    </AlertDialog.Root>
                   </Flex>
                 </Table.Cell>
               </Table.Row>
