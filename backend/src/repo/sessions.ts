@@ -1,6 +1,6 @@
 import { and, eq, gt, sql, asc, desc } from 'drizzle-orm'
 import { getDb } from '../db/client.js'
-import { session } from '../db/schema.js'
+import { session, event, sessionResult } from '../db/schema.js'
 import type { Session } from '../domain/types.js'
 
 export type StoredSession = Session & { id: number }
@@ -132,6 +132,50 @@ export async function setOpenF1SessionKey(id: number, key: number | null): Promi
 export async function setLastReconciledAt(id: number, at: Date | null): Promise<void> {
   const db = getDb()
   await db.update(session).set({ lastReconciledAt: at }).where(eq(session.id, id))
+}
+
+export type AdminSessionRow = {
+  id: number
+  seasonYear: number
+  round: number
+  eventName: string
+  type: string
+  status: 'scheduled' | 'finished'
+  scheduledStart: Date
+  scheduledEnd: Date
+  lastReconciledAt: Date | null
+  resultCount: number
+  provisional: boolean
+}
+
+export async function listAllWithFetchMeta(seasonYear?: number): Promise<AdminSessionRow[]> {
+  const db = getDb()
+  const rows = await db
+    .select({
+      id: session.id,
+      seasonYear: event.seasonYear,
+      round: event.round,
+      eventName: event.name,
+      type: session.type,
+      status: session.status,
+      scheduledStart: session.scheduledStart,
+      scheduledEnd: session.scheduledEnd,
+      lastReconciledAt: session.lastReconciledAt,
+      resultCount: sql<number>`(
+        select count(*)::int from ${sessionResult}
+        where ${sessionResult.sessionId} = ${session.id}
+      )`,
+      provisional: sql<boolean>`exists(
+        select 1 from ${sessionResult}
+        where ${sessionResult.sessionId} = ${session.id}
+          and ${sessionResult.source} = 'openf1'
+      )`
+    })
+    .from(session)
+    .innerJoin(event, eq(event.id, session.eventId))
+    .where(seasonYear === undefined ? undefined : eq(event.seasonYear, seasonYear))
+    .orderBy(asc(session.scheduledStart))
+  return rows as AdminSessionRow[]
 }
 
 export async function listRecentFinishedWithOpenF1Key(limit: number): Promise<StoredSession[]> {

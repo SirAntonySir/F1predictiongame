@@ -1,6 +1,6 @@
 import { eq, sql } from 'drizzle-orm'
 import { getDb } from '../db/client.js'
-import { league, leagueMember } from '../db/schema.js'
+import { league, leagueMember, user } from '../db/schema.js'
 import type { League, LeagueWithSecret } from '../domain/types.js'
 
 export type NewLeague = {
@@ -116,4 +116,46 @@ export async function countMembers(leagueId: string): Promise<number> {
   const db = getDb()
   const rows = await db.select({ c: sql<number>`count(*)::int` }).from(leagueMember).where(eq(leagueMember.leagueId, leagueId))
   return rows[0]?.c ?? 0
+}
+
+export type AdminLeagueRow = {
+  id: string
+  name: string
+  ownerUserId: string
+  ownerDisplayName: string
+  memberCount: number
+  joinCode: string
+  hasPassword: boolean
+  createdAt: Date
+}
+
+export async function listAllWithMeta(): Promise<AdminLeagueRow[]> {
+  const db = getDb()
+  const rows = await db
+    .select({
+      id: league.id,
+      name: league.name,
+      ownerUserId: league.ownerUserId,
+      ownerDisplayName: user.displayName,
+      joinCode: league.joinCode,
+      passwordHash: league.passwordHash,
+      createdAt: league.createdAt,
+      memberCount: sql<number>`(
+        select count(*)::int from ${leagueMember}
+        where ${leagueMember.leagueId} = ${league.id}
+      )`
+    })
+    .from(league)
+    .innerJoin(user, eq(user.id, league.ownerUserId))
+    .orderBy(league.createdAt)
+  return rows.map((r) => ({
+    id: r.id,
+    name: r.name,
+    ownerUserId: r.ownerUserId,
+    ownerDisplayName: r.ownerDisplayName,
+    memberCount: r.memberCount,
+    joinCode: r.joinCode,
+    hasPassword: r.passwordHash !== null,
+    createdAt: r.createdAt
+  }))
 }
