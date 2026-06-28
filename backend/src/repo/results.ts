@@ -1,4 +1,4 @@
-import { eq, asc, sql } from 'drizzle-orm'
+import { eq, and, asc, sql } from 'drizzle-orm'
 import { getDb } from '../db/client.js'
 import { sessionResult } from '../db/schema.js'
 import type { SessionResultRow } from '../domain/types.js'
@@ -47,6 +47,40 @@ export async function listForSession(sessionId: number): Promise<SessionResultRo
     .where(eq(sessionResult.sessionId, sessionId))
     .orderBy(asc(sessionResult.position))
   return rows as SessionResultRow[]
+}
+
+export async function getResult(sessionId: number, position: number): Promise<SessionResultRow | null> {
+  const db = getDb()
+  const rows = await db.select().from(sessionResult)
+    .where(and(eq(sessionResult.sessionId, sessionId), eq(sessionResult.position, position)))
+    .limit(1)
+  return (rows[0] as SessionResultRow) ?? null
+}
+
+export async function updateResultFields(
+  sessionId: number,
+  position: number,
+  fields: Partial<Omit<SessionResultRow, 'sessionId' | 'position'>>
+): Promise<SessionResultRow> {
+  const db = getDb()
+  const [updated] = await db.update(sessionResult)
+    .set(fields)
+    .where(and(eq(sessionResult.sessionId, sessionId), eq(sessionResult.position, position)))
+    .returning()
+  if (!updated) throw new Error(`result not found: session ${sessionId} position ${position}`)
+  return updated as SessionResultRow
+}
+
+export async function insertResult(row: SessionResultRow): Promise<SessionResultRow> {
+  const db = getDb()
+  const [inserted] = await db.insert(sessionResult).values(row).returning()
+  return inserted as SessionResultRow
+}
+
+export async function deleteResult(sessionId: number, position: number): Promise<void> {
+  const db = getDb()
+  await db.delete(sessionResult)
+    .where(and(eq(sessionResult.sessionId, sessionId), eq(sessionResult.position, position)))
 }
 
 /// Most recent constructor id this driver was classified under in the given

@@ -5,7 +5,7 @@ import { useToast } from '../ui/toast'
 export function useAdminAction(opts: {
   path: string
   method?: string
-  invalidateKeys?: string[][]
+  invalidateKeys?: unknown[][]
   successMessage: string
 }): { run: () => void; isPending: boolean } {
   const qc = useQueryClient()
