@@ -1,108 +1,88 @@
 import 'package:flutter/foundation.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import '../api/api_client.dart';
+import '../api/models/notification_prefs.dart';
 
-/// Persisted preferences for local notifications. Backed by SharedPreferences
-/// because they're tiny, sync at boot, and don't need a server round-trip.
+/// Server-backed notification preferences. Since the backend now fires the
+/// notifications, it owns these values; this controller is a thin cache over
+/// `GET/PUT /api/notification-prefs` so the settings screen stays instant.
 ///
-/// Defaults match the spec:
-///   - reminders ON  (the user explicitly asked for pick reminders)
-///   - quiet hours OFF
-///   - quiet window 22:00–08:00 if they turn it on
-class NotificationSettings {
-  static const _kEnabled       = 'notif.enabled';
-  static const _kQuietEnabled  = 'notif.quietHours.enabled';
-  static const _kQuietStartMin = 'notif.quietHours.startMin';
-  static const _kQuietEndMin   = 'notif.quietHours.endMin';
+/// Updates are optimistic: the cached value flips immediately (so the toggle
+/// doesn't lag a round-trip) and reverts if the PUT fails. The endpoint is
+/// authenticated, so [refresh] is a no-op-until-logged-in call made after auth.
+class NotificationSettingsController extends ChangeNotifier {
+  NotificationSettingsController({required ApiClient api}) : _api = api;
 
-  bool enabled;
-  bool quietHoursEnabled;
-  /// Minutes since local midnight.
-  int quietStartMin;
-  int quietEndMin;
+  final ApiClient _api;
+  NotificationPrefs _prefs = NotificationPrefs.defaults;
+  bool _loaded = false;
 
-  NotificationSettings({
-    this.enabled = true,
-    this.quietHoursEnabled = false,
-    this.quietStartMin = 22 * 60,
-    this.quietEndMin = 8 * 60,
-  });
-
-  static Future<NotificationSettings> load() async {
-    final p = await SharedPreferences.getInstance();
-    return NotificationSettings(
-      enabled:           p.getBool(_kEnabled)         ?? true,
-      quietHoursEnabled: p.getBool(_kQuietEnabled)    ?? false,
-      quietStartMin:     p.getInt(_kQuietStartMin)    ?? 22 * 60,
-      quietEndMin:       p.getInt(_kQuietEndMin)      ?? 8 * 60,
-    );
+  /// Test seam — start from a known prefs value without hitting the network.
+  @visibleForTesting
+  factory NotificationSettingsController.forTesting({
+    required ApiClient api,
+    NotificationPrefs? prefs,
+  }) {
+    final c = NotificationSettingsController(api: api);
+    if (prefs != null) {
+      c._prefs = prefs;
+      c._loaded = true;
+    }
+    return c;
   }
 
-  Future<void> save() async {
-    final p = await SharedPreferences.getInstance();
-    await p.setBool(_kEnabled, enabled);
-    await p.setBool(_kQuietEnabled, quietHoursEnabled);
-    await p.setInt(_kQuietStartMin, quietStartMin);
-    await p.setInt(_kQuietEndMin, quietEndMin);
-  }
+  NotificationPrefs get prefs => _prefs;
+  bool get loaded => _loaded;
+  bool get enabled => _prefs.enabled;
+  bool get quietHoursEnabled => _prefs.quietEnabled;
+  int get quietStartMin => _prefs.quietStartMin;
+  int get quietEndMin => _prefs.quietEndMin;
 
-  /// Is `when` inside the configured quiet window? Returns `false` if quiet
-  /// hours are disabled. Handles overnight windows (end < start) correctly.
-  bool isInQuietHours(DateTime when) {
-    if (!quietHoursEnabled) return false;
-    final mins = when.hour * 60 + when.minute;
-    if (quietStartMin <= quietEndMin) {
-      // Same-day window, e.g. 13:00–15:00
-      return mins >= quietStartMin && mins < quietEndMin;
-    } else {
-      // Overnight window, e.g. 22:00–08:00
-      return mins >= quietStartMin || mins < quietEndMin;
+  /// Pull the latest server values. Best-effort — on failure (offline, not yet
+  /// authenticated) the cached/default values are kept.
+  Future<void> refresh() async {
+    try {
+      _prefs = await _api.getNotificationPrefs();
+      _loaded = true;
+      notifyListeners();
+    } catch (_) {
+      // keep cache
     }
   }
-}
 
-/// ChangeNotifier wrapper around [NotificationSettings] so settings screens
-/// and the [ReminderService] can react to changes without a refresh button.
-class NotificationSettingsController extends ChangeNotifier {
-  final NotificationSettings _s;
-  NotificationSettingsController._(this._s);
-
-  static Future<NotificationSettingsController> load() async {
-    return NotificationSettingsController._(await NotificationSettings.load());
+  Future<void> setEnabled(bool v) {
+    if (_prefs.enabled == v) return Future.value();
+    return _patch(_prefs.copyWith(enabled: v),
+        () => _api.putNotificationPrefs(enabled: v));
   }
 
-  /// Test-only constructor — skips SharedPreferences load. The supplied
-  /// [settings] still saves to disk when mutated; pass a fresh instance in
-  /// tests to avoid touching real storage.
-  @visibleForTesting
-  factory NotificationSettingsController.forTesting([NotificationSettings? settings]) {
-    return NotificationSettingsController._(settings ?? NotificationSettings());
+  Future<void> setQuietHoursEnabled(bool v) {
+    if (_prefs.quietEnabled == v) return Future.value();
+    return _patch(_prefs.copyWith(quietEnabled: v),
+        () => _api.putNotificationPrefs(quietEnabled: v));
   }
 
-  NotificationSettings get settings => _s;
-  bool get enabled => _s.enabled;
-  bool get quietHoursEnabled => _s.quietHoursEnabled;
-  int  get quietStartMin => _s.quietStartMin;
-  int  get quietEndMin   => _s.quietEndMin;
+  Future<void> setQuietWindow({required int startMin, required int endMin}) {
+    if (_prefs.quietStartMin == startMin && _prefs.quietEndMin == endMin) {
+      return Future.value();
+    }
+    return _patch(
+        _prefs.copyWith(quietStartMin: startMin, quietEndMin: endMin),
+        () => _api.putNotificationPrefs(
+            quietStartMin: startMin, quietEndMin: endMin));
+  }
 
-  Future<void> setEnabled(bool v) async {
-    if (_s.enabled == v) return;
-    _s.enabled = v;
-    await _s.save();
+  Future<void> _patch(
+    NotificationPrefs optimistic,
+    Future<NotificationPrefs> Function() call,
+  ) async {
+    final prev = _prefs;
+    _prefs = optimistic;
     notifyListeners();
-  }
-
-  Future<void> setQuietHoursEnabled(bool v) async {
-    if (_s.quietHoursEnabled == v) return;
-    _s.quietHoursEnabled = v;
-    await _s.save();
-    notifyListeners();
-  }
-
-  Future<void> setQuietWindow({required int startMin, required int endMin}) async {
-    if (_s.quietStartMin == startMin && _s.quietEndMin == endMin) return;
-    _s.quietStartMin = startMin;
-    _s.quietEndMin = endMin;
-    await _s.save();
+    try {
+      _prefs = await call();
+    } catch (_) {
+      _prefs = prev; // revert — never lie about what the server stored
+    }
     notifyListeners();
   }
 }

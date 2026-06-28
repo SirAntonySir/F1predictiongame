@@ -1,11 +1,15 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'api/http_api_client.dart';
 import 'app.dart';
 import 'screens/splash_screen.dart';
+import 'package:flutter_timezone/flutter_timezone.dart';
 import 'state/auth_controller.dart';
 import 'state/league_controller.dart';
-import 'services/reminder_service.dart';
+import 'services/notifications/fcm_transport.dart';
+import 'services/notifications/local_display.dart';
+import 'services/notifications/push_service.dart';
 import 'state/home_cache_controller.dart';
 import 'state/live_session_controller.dart';
 import 'state/notification_settings_controller.dart';
@@ -101,29 +105,45 @@ class _AfterBootState extends State<_AfterBoot> {
 
   Future<_LateState> _loadLate() async {
     final theme = await ThemeController.load();
-    final notifications = await NotificationSettingsController.load();
-    final reminders = ReminderService.instance;
-    // Reminders are best-effort: a plugin/TZ failure mustn't block the app's
-    // boot. Catch + swallow; the service will silently no-op on schedules
-    // when init didn't complete, and the user can still use everything else.
-    try {
-      await reminders.init();
-      reminders.attachSettings(notifications);
-    } catch (e, st) {
-      debugPrint('ReminderService init failed (continuing without): $e\n$st');
+    // Server-backed: the backend owns notification scheduling + preferences now.
+    final notifications = NotificationSettingsController(api: widget.api);
+
+    // Push: display foreground banners locally, register the device token with
+    // the backend. All best-effort — Firebase being absent/unconfigured (no
+    // native config files yet) must not block boot, so [FcmPushTransport.create]
+    // returns null and push silently stays off.
+    // Deep-link routing on tap is deferred to phase 4 (needs router access);
+    // for now taps just log.
+    void onPushRoute(String route) {
+      if (kDebugMode) debugPrint('push route (phase 4 deep-link TODO): $route');
     }
-    final preds = PredictionsController(
-      api: widget.api,
-      onUpcomingSynced: reminders.syncFromUpcoming,
-      onPredictionSaved: reminders.cancelForSession,
-    );
+    await LocalDisplay.instance.init(onTapPayload: onPushRoute);
+    // Resolve the device's IANA zone once; the server uses it to gate quiet
+    // hours. Best-effort — null just means quiet hours won't apply yet.
+    String? deviceTz;
+    try {
+      deviceTz = (await FlutterTimezone.getLocalTimezone()).identifier;
+    } catch (_) {}
+    final transport = await FcmPushTransport.create();
+    PushService? push;
+    if (transport != null) {
+      push = PushService(
+        api: widget.api,
+        transport: transport,
+        timezoneProvider: deviceTz == null ? null : () => deviceTz!,
+      );
+      attachFcmHandlers(display: LocalDisplay.instance, onRoute: onPushRoute);
+    }
+
+    final preds = PredictionsController(api: widget.api);
     widget.auth.attachPredictionsController(preds);
-    // First sync as soon as we have a session — gets reminders armed before
-    // the user even opens the home screen, and silently no-ops if the user
-    // isn't logged in (no upcoming endpoint available).
     if (widget.auth.isLoggedIn) {
       // ignore: discarded_futures
       preds.refreshUpcoming();
+      // ignore: discarded_futures
+      notifications.refresh();
+      // ignore: discarded_futures
+      push?.start();
     }
     final league = LeagueController(api: widget.api);
     if (widget.auth.leagues.isNotEmpty) {
@@ -151,6 +171,14 @@ class _AfterBootState extends State<_AfterBoot> {
       if (isNow && !wasLoggedIn) {
         // ignore: discarded_futures
         preds.refreshUpcoming();
+        // ignore: discarded_futures
+        notifications.refresh();
+        // ignore: discarded_futures
+        push?.start();
+      } else if (!isNow && wasLoggedIn) {
+        // Drop this device's token so the previous user stops getting pushes.
+        // ignore: discarded_futures
+        push?.stop();
       }
       wasLoggedIn = isNow;
     });

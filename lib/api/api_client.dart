@@ -21,6 +21,7 @@ import 'models/reference_laps.dart';
 import 'models/session_leaderboard_row.dart';
 import 'models/session_result.dart';
 import 'models/live_snapshot.dart';
+import 'models/notification_prefs.dart';
 import 'models/standing.dart';
 import 'models/upcoming_prediction.dart';
 
@@ -101,6 +102,24 @@ abstract class ApiClient {
   /// Raw SVG body for a constructor's car illustration. Returns null when the
   /// constructor / variant is not stored. Used by [CarSvg] on ticket cards.
   Future<String?> constructorCarSvg(String constructorId, {String variant = 'outline'});
+
+  // Notifications — device registration + server-side preferences.
+  /// Register (or refresh) this device's push token for the current user.
+  /// [timezone] is the IANA zone used server-side to gate quiet hours.
+  Future<void> registerDevice({required String token, required String platform, String? timezone});
+
+  /// Drop a token on logout from this device.
+  Future<void> deleteDevice(String token);
+
+  Future<NotificationPrefs> getNotificationPrefs();
+
+  /// Patch the current user's preferences. Only non-null fields change.
+  Future<NotificationPrefs> putNotificationPrefs({
+    bool? enabled,
+    bool? quietEnabled,
+    int? quietStartMin,
+    int? quietEndMin,
+  });
 }
 
 // Exceptions

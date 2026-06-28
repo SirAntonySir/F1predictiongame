@@ -34,7 +34,7 @@ Widget _withAppState({required AuthController auth, required GoRouter router}) {
     theme: ThemeController(ThemeMode.system),
     predictions: PredictionsController(api: _FakeApi()),
     preseason: PreseasonController(api: _FakeApi()),
-    notifications: NotificationSettingsController.forTesting(),
+    notifications: NotificationSettingsController.forTesting(api: _FakeApi()),
     homeCache: HomeCacheController(
       api: _FakeApi(),
       auth: auth,

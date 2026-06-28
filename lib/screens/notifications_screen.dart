@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:go_router/go_router.dart';
 
-import '../services/reminder_service.dart';
+import '../services/notifications/local_display.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
 import '../theme/colors.dart';
@@ -25,9 +25,7 @@ class NotificationsScreen extends StatefulWidget {
 
 class _NotificationsScreenState extends State<NotificationsScreen> {
   Future<List<ActiveNotification>>? _fired;
-  ({bool inited, bool permissionGranted})? _status;
-
-  static const _bucketLabels = ['5h LEAD', '1h LEAD', '10min LEAD'];
+  bool _inited = false;
 
   @override
   void initState() {
@@ -37,13 +35,13 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   void _refresh() {
     setState(() {
-      _status = ReminderService.instance.statusSnapshot();
-      _fired = ReminderService.instance.firedNotifications();
+      _inited = LocalDisplay.instance.inited;
+      _fired = LocalDisplay.instance.active();
     });
   }
 
   Future<void> _dismiss(int id) async {
-    await ReminderService.instance.dismissDelivered(id);
+    await LocalDisplay.instance.dismiss(id);
     if (mounted) _refresh();
   }
 
@@ -51,7 +49,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   Widget build(BuildContext context) {
     final t = Theme.of(context);
     final scope = AppState.of(context);
-    final settings = scope.notifications.settings;
     return Scaffold(
       backgroundColor: t.colorScheme.surface,
       body: SafeArea(
@@ -89,13 +86,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                     Spacing.lg, Spacing.sm, Spacing.lg, Spacing.xxl),
                 children: [
                   _StatusCard(
-                    settingsEnabled: settings.enabled,
-                    inited: _status?.inited ?? false,
-                    permissionGranted: _status?.permissionGranted ?? false,
+                    settingsEnabled: scope.notifications.enabled,
+                    inited: _inited,
                   ),
                   const SizedBox(height: Spacing.lg),
                   Row(children: [
-                    Text('FIRED · TAP TO DISMISS', style: AppText.label(11)),
+                    Text('IN YOUR TRAY · TAP TO DISMISS', style: AppText.label(11)),
                   ]),
                   const SizedBox(height: Spacing.sm),
                   FutureBuilder<List<ActiveNotification>>(
@@ -116,11 +112,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                       if (items.isEmpty) {
                         return const _Empty(
                           message:
-                              "No notifications in your tray. Once a reminder "
-                              "fires it'll show up here until you dismiss it.",
+                              "No notifications in your tray. Alerts the app "
+                              "sends will show up here until you dismiss them.",
                         );
                       }
-                      // Group same session's buckets together by id ascending.
                       final sorted = [...items]
                         ..sort((a, b) => (a.id ?? 0).compareTo(b.id ?? 0));
                       return Column(
@@ -149,17 +144,15 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 class _StatusCard extends StatelessWidget {
   final bool settingsEnabled;
   final bool inited;
-  final bool permissionGranted;
   const _StatusCard({
     required this.settingsEnabled,
     required this.inited,
-    required this.permissionGranted,
   });
 
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
-    final ok = settingsEnabled && inited && permissionGranted;
+    final ok = settingsEnabled && inited;
     return Container(
       padding: const EdgeInsets.all(Spacing.lg),
       decoration: BoxDecoration(
@@ -186,9 +179,7 @@ class _StatusCard extends StatelessWidget {
           ]),
           const SizedBox(height: Spacing.sm),
           _row(t, 'App toggle', settingsEnabled ? 'On' : 'Off'),
-          _row(t, 'Reminder service', inited ? 'Initialised' : 'Not started'),
-          _row(t, 'OS permission',
-              permissionGranted ? 'Granted' : 'Denied / not asked'),
+          _row(t, 'Notification display', inited ? 'Ready' : 'Not started'),
         ],
       ),
     );
@@ -213,20 +204,9 @@ class _NotifRow extends StatelessWidget {
   final VoidCallback? onTap;
   const _NotifRow({required this.notif, required this.onTap});
 
-  ({int sessionId, String bucketLabel}) _decode() {
-    final id = notif.id ?? 0;
-    final sessionId = id ~/ 10;
-    final bucket = id % 10;
-    final label = bucket >= 0 && bucket < _NotificationsScreenState._bucketLabels.length
-        ? _NotificationsScreenState._bucketLabels[bucket]
-        : 'BUCKET $bucket';
-    return (sessionId: sessionId, bucketLabel: label);
-  }
-
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
-    final decoded = _decode();
     return InkWell(
       onTap: onTap,
       borderRadius: Radii.rLg,
@@ -245,17 +225,6 @@ class _NotifRow extends StatelessWidget {
                   child: Text(notif.title ?? '(no title)',
                       style: AppText.body(14, weight: FontWeight.w800)),
                 ),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                  decoration: const BoxDecoration(
-                    color: BrandColors.accent,
-                    borderRadius: BorderRadius.all(Radius.circular(6)),
-                  ),
-                  child: Text(decoded.bucketLabel,
-                      style: AppText.label(9, color: Colors.white)),
-                ),
-                const SizedBox(width: 6),
                 Icon(Icons.close,
                     size: 16,
                     color: t.colorScheme.onSurface.withOpacity(0.5)),
@@ -273,7 +242,6 @@ class _NotifRow extends StatelessWidget {
               runSpacing: 4,
               children: [
                 _meta(t, 'ID', notif.id?.toString() ?? '—'),
-                _meta(t, 'Session', decoded.sessionId.toString()),
                 if (notif.payload != null && notif.payload!.isNotEmpty)
                   _meta(t, 'Payload', notif.payload!),
               ],

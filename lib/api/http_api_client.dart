@@ -23,6 +23,7 @@ import 'models/season.dart';
 import 'models/session.dart';
 import 'models/session_leaderboard_row.dart';
 import 'models/live_snapshot.dart';
+import 'models/notification_prefs.dart';
 import 'models/session_result.dart';
 import 'models/standing.dart';
 import 'models/upcoming_prediction.dart';
@@ -59,7 +60,7 @@ class HttpApiClient implements ApiClient {
       case 'POST':   res = await client.post(uri, headers: headers, body: encoded); break;
       case 'PUT':    res = await client.put(uri, headers: headers, body: encoded); break;
       case 'PATCH':  res = await client.patch(uri, headers: headers, body: encoded); break;
-      case 'DELETE': res = await client.delete(uri, headers: headers); break;
+      case 'DELETE': res = await client.delete(uri, headers: headers, body: encoded); break;
       default:       throw StateError('Unsupported HTTP method: $method');
     }
 
@@ -426,5 +427,41 @@ class HttpApiClient implements ApiClient {
     } catch (_) {
       return null;
     }
+  }
+
+  @override
+  Future<void> registerDevice({required String token, required String platform, String? timezone}) async {
+    await _request('POST', '/api/devices', body: {
+      'token': token,
+      'platform': platform,
+      if (timezone != null) 'timezone': timezone,
+    });
+  }
+
+  @override
+  Future<void> deleteDevice(String token) async {
+    await _request('DELETE', '/api/devices', body: {'token': token});
+  }
+
+  @override
+  Future<NotificationPrefs> getNotificationPrefs() async {
+    final j = await _request('GET', '/api/notification-prefs') as Map<String, dynamic>;
+    return NotificationPrefs.fromJson(j['prefs'] as Map<String, dynamic>);
+  }
+
+  @override
+  Future<NotificationPrefs> putNotificationPrefs({
+    bool? enabled,
+    bool? quietEnabled,
+    int? quietStartMin,
+    int? quietEndMin,
+  }) async {
+    final j = await _request('PUT', '/api/notification-prefs', body: {
+      if (enabled != null) 'enabled': enabled,
+      if (quietEnabled != null) 'quietEnabled': quietEnabled,
+      if (quietStartMin != null) 'quietStartMin': quietStartMin,
+      if (quietEndMin != null) 'quietEndMin': quietEndMin,
+    }) as Map<String, dynamic>;
+    return NotificationPrefs.fromJson(j['prefs'] as Map<String, dynamic>);
   }
 }
