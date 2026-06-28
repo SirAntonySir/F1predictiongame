@@ -37,6 +37,30 @@ export type Season = {
   isCurrent: boolean
 }
 
+export type AdminLeague = {
+  id: string
+  name: string
+  ownerUserId: string
+  ownerDisplayName: string
+  memberCount: number
+  joinCode: string
+  hasPassword: boolean
+  createdAt: string
+}
+
+export type AdminLeagueMember = {
+  userId: string
+  displayName: string
+  email: string
+  role: 'owner' | 'member'
+  joinedAt: string
+}
+
+export type AdminLeagueDetail = {
+  league: AdminLeague
+  members: AdminLeagueMember[]
+}
+
 export type SessionMeta = {
   id: number
   eventId: number

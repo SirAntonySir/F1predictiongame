@@ -4,6 +4,8 @@ import { Dashboard } from './pages/Dashboard'
 import { Placeholder } from './pages/Placeholder'
 import { Sessions } from './pages/Sessions'
 import { SessionDetail } from './pages/SessionDetail'
+import { Leagues } from './pages/Leagues'
+import { LeagueDetail } from './pages/LeagueDetail'
 
 export const router = createBrowserRouter([
   {
@@ -13,7 +15,8 @@ export const router = createBrowserRouter([
       { index: true, element: <Dashboard /> },
       { path: 'sessions', element: <Sessions /> },
       { path: 'sessions/:id', element: <SessionDetail /> },
-      { path: 'leagues', element: <Placeholder title="Leagues" /> },
+      { path: 'leagues', element: <Leagues /> },
+      { path: 'leagues/:id', element: <LeagueDetail /> },
       { path: 'users', element: <Placeholder title="Users" /> },
       { path: 'predictions', element: <Placeholder title="Predictions" /> },
       { path: 'seasons', element: <Placeholder title="Seasons" /> },
