@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify'
+import type { Scheduler } from '../../crawler/scheduler.js'
 import { ApiError } from '../errors.js'
 import * as leaguesRepo from '../../repo/leagues.js'
 import * as leagueMembersRepo from '../../repo/leagueMembers.js'
@@ -9,7 +10,10 @@ import * as predictionsRepo from '../../repo/predictions.js'
 // Read-only admin endpoints. Registered on the root app after
 // registerAdminRoutes, so the /admin/* token preHandler defined there gates
 // every route here too.
-export async function registerAdminReadRoutes(app: FastifyInstance): Promise<void> {
+export async function registerAdminReadRoutes(
+  app: FastifyInstance,
+  deps: { scheduler: Scheduler | null }
+): Promise<void> {
   app.get('/admin/leagues', async () => {
     const leagues = await leaguesRepo.listAllWithMeta()
     return { leagues }
@@ -63,4 +67,18 @@ export async function registerAdminReadRoutes(app: FastifyInstance): Promise<voi
       return { predictions }
     }
   )
+
+  app.get('/admin/crawl/status', async () => {
+    const sched = deps.scheduler?.status() ?? { lastTickAt: null, lastTickStatus: null }
+    const candidates = await sessionsRepo.listCandidates()
+    const all = await sessionsRepo.listAllWithFetchMeta()
+    return {
+      lastTickAt: sched.lastTickAt,
+      lastTickStatus: sched.lastTickStatus,
+      pendingCandidates: candidates.map((c) => ({ id: c.id, type: c.type })),
+      provisionalSessions: all
+        .filter((s) => s.provisional)
+        .map((s) => ({ id: s.id, eventName: s.eventName, type: s.type }))
+    }
+  })
 }

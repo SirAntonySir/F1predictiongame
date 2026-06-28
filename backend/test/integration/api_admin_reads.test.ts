@@ -168,3 +168,28 @@ describe('GET /admin/predictions', () => {
     await app.close()
   })
 })
+
+describe('GET /admin/crawl/status', () => {
+  it('reports tick status, pending candidates and provisional sessions', async () => {
+    await seasons.upsertSeason({ year: 2026, isCurrent: true })
+    const ev = await events.upsertEvent({ seasonYear: 2026, round: 1, name: 'GP', circuitName: 'C', country: 'X', hasSprint: false })
+    // A finished session with an openf1-sourced result => provisional.
+    const fin = await sessions.upsertSession({ eventId: ev.id, type: 'race', scheduledStart: new Date('2026-03-01T14:00:00Z'), scheduledEnd: new Date('2026-03-01T16:00:00Z'), status: 'finished', openf1SessionKey: 7 })
+    await constructors.upsertConstructor({ id: 'red_bull', name: 'Red Bull', nationality: null, wikipediaUrl: null, imageUrl: null, imageUrlOverride: null, teamColour: null })
+    await drivers.upsertDriver({ code: 'VER', givenName: 'M', familyName: 'V', nationality: null, permanentNumber: null, wikipediaUrl: null, imageUrl: null, imageUrlOverride: null, headshotUrl: null })
+    await results.replaceForSession(fin.id, [{
+      sessionId: fin.id, position: 1, driverCode: 'VER', driverName: 'Max Verstappen',
+      constructorId: 'red_bull', constructorName: 'Red Bull', raceTime: null, status: 'Finished',
+      points: 25, fastestLap: null, fastestLapTime: null, fastestLapSpeed: null, q1: null, q2: null, q3: null
+    }], 'openf1')
+
+    const app = await buildApp({ scheduler: null })
+    const res = await app.inject({ method: 'GET', url: '/admin/crawl/status', headers: TOKEN })
+    expect(res.statusCode).toBe(200)
+    const body = res.json()
+    expect(body.lastTickAt).toBeNull()
+    expect(Array.isArray(body.pendingCandidates)).toBe(true)
+    expect(body.provisionalSessions.map((s: any) => s.id)).toContain(fin.id)
+    await app.close()
+  })
+})

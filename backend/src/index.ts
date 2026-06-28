@@ -44,7 +44,7 @@ export async function buildApp(opts: BuildAppOpts): Promise<FastifyInstance> {
   await app.register(registerReferenceLapsRoutes)
   await app.register(registerLiveRoutes, { openf1: opts.openf1 })
   await registerAdminRoutes(app, { scheduler: opts.scheduler, jolpica: opts.jolpica, wiki: opts.wiki, openf1: opts.openf1 })
-  await registerAdminReadRoutes(app)
+  await registerAdminReadRoutes(app, { scheduler: opts.scheduler })
   await app.register(registerAuthRoutes)
   await app.register(registerLeagueRoutes)
   await app.register(registerPredictionRoutes)
