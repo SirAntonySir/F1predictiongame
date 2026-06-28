@@ -159,6 +159,34 @@ describe('results repo', () => {
     expect(fetched[0]!.points).toBe(26)
   })
 
+  it('drops unclassified (position 0) + duplicate-position rows instead of crashing the PK', async () => {
+    const ev = await seed()
+    for (const code of ['PER', 'HAM']) {
+      await drivers.upsertDriver({
+        code, givenName: code, familyName: code, nationality: null,
+        permanentNumber: 1, wikipediaUrl: null, imageUrl: null, imageUrlOverride: null, headshotUrl: null
+      })
+    }
+    const ses = await sessions.upsertSession({
+      eventId: ev.id, type: 'race', scheduledStart: new Date(), scheduledEnd: new Date(), status: 'scheduled',
+      openf1SessionKey: null
+    })
+    const row = (position: number, code: string) => ({
+      sessionId: ses.id!, position, driverCode: code, driverName: code,
+      constructorId: 'red_bull', constructorName: 'Red Bull',
+      raceTime: null, status: null, points: null,
+      fastestLap: null, fastestLapTime: null, fastestLapSpeed: null,
+      q1: null, q2: null, q3: null
+    })
+    // VER classified P1; PER + HAM both report position 0 (DNS/unclassified) —
+    // verbatim this is two rows at (session, 0) → the production PK crash.
+    await expect(
+      results.replaceForSession(ses.id!, [row(1, 'VER'), row(0, 'PER'), row(0, 'HAM')])
+    ).resolves.toBeUndefined()
+    const fetched = await results.listForSession(ses.id!)
+    expect(fetched.map((r) => [r.position, r.driverCode])).toEqual([[1, 'VER']])
+  })
+
   it('empty rows on a session that had results clears them', async () => {
     const ev = await seed()
     const ses = await sessions.upsertSession({

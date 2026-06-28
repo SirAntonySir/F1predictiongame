@@ -5,16 +5,37 @@ import type { SessionResultRow } from '../domain/types.js'
 
 export type ResultSource = 'openf1' | 'jolpica'
 
+/// Enforce the session_result invariant — exactly one row per (session, position)
+/// with a valid positive position — before persisting. The OpenF1 feeds report
+/// position 0/null for not-yet-classified / DNS / DSQ cars, and several can share
+/// it; persisting those verbatim violates the (session_id, position) primary key
+/// and aborts the whole tick for that session (the recurring "Key (session_id,
+/// position)=(40, 0) already exists" crash). Drop unclassified rows and keep the
+/// first row seen for any position. A no-op for a clean 1..N classification, so
+/// Jolpica/official results pass through unchanged.
+function sanitizeForPersist(rows: SessionResultRow[]): SessionResultRow[] {
+  const seen = new Set<number>()
+  const out: SessionResultRow[] = []
+  for (const r of rows) {
+    if (!Number.isFinite(r.position) || r.position <= 0) continue
+    if (seen.has(r.position)) continue
+    seen.add(r.position)
+    out.push(r)
+  }
+  return out
+}
+
 export async function replaceForSession(
   sessionId: number,
   rows: SessionResultRow[],
   source: ResultSource = 'jolpica'
 ): Promise<void> {
   const db = getDb()
+  const clean = sanitizeForPersist(rows)
   await db.transaction(async (tx) => {
     await tx.delete(sessionResult).where(eq(sessionResult.sessionId, sessionId))
-    if (rows.length === 0) return
-    await tx.insert(sessionResult).values(rows.map((r) => ({ ...r, sessionId, source })))
+    if (clean.length === 0) return
+    await tx.insert(sessionResult).values(clean.map((r) => ({ ...r, sessionId, source })))
   })
 }
 
