@@ -83,6 +83,14 @@ health:         ## GET /api/health
 
 # ---- frontend --------------------------------------------------------------
 
+.PHONY: admin-install
+admin-install:  ## install admin tool deps
+	cd admin && npm install
+
+.PHONY: admin
+admin:          ## run the admin tool dev server (vite)
+	cd admin && VITE_API_URL=$(API_URL) npm run dev
+
 .PHONY: frontend-install
 frontend-install: ## install flutter packages
 	flutter pub get
