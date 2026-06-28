@@ -2,12 +2,25 @@ import { afterEach, describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { TokenGate } from '../auth/TokenGate'
+import { ToastProvider } from '../ui/toast'
+import { AuthProvider } from '../auth/AuthContext'
+import { setUnauthorizedHandler } from '../api/client'
 
-afterEach(() => { localStorage.clear(); vi.restoreAllMocks() })
+afterEach(() => { localStorage.clear(); setUnauthorizedHandler(null); vi.restoreAllMocks() })
+
+function renderGate(children: React.ReactNode) {
+  return render(
+    <ToastProvider>
+      <AuthProvider>
+        <TokenGate>{children}</TokenGate>
+      </AuthProvider>
+    </ToastProvider>
+  )
+}
 
 describe('TokenGate', () => {
   it('shows the token form when no token is stored', () => {
-    render(<TokenGate><div>secret</div></TokenGate>)
+    renderGate(<div>secret</div>)
     expect(screen.getByLabelText(/admin token/i)).toBeInTheDocument()
     expect(screen.queryByText('secret')).not.toBeInTheDocument()
   })
@@ -18,7 +31,7 @@ describe('TokenGate', () => {
         { status: 200, headers: { 'content-type': 'application/json' } })
     )
     vi.stubGlobal('fetch', fetchMock)
-    render(<TokenGate><div>secret</div></TokenGate>)
+    renderGate(<div>secret</div>)
     await userEvent.type(screen.getByLabelText(/admin token/i), 'local-dev-token')
     await userEvent.click(screen.getByRole('button', { name: /unlock|sign in|enter/i }))
     expect(await screen.findByText('secret')).toBeInTheDocument()
@@ -31,7 +44,7 @@ describe('TokenGate', () => {
         { status: 401, headers: { 'content-type': 'application/json' } })
     )
     vi.stubGlobal('fetch', fetchMock)
-    render(<TokenGate><div>secret</div></TokenGate>)
+    renderGate(<div>secret</div>)
     await userEvent.type(screen.getByLabelText(/admin token/i), 'wrong')
     await userEvent.click(screen.getByRole('button', { name: /unlock|sign in|enter/i }))
     expect(await screen.findByText(/invalid admin token/i)).toBeInTheDocument()
