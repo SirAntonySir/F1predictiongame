@@ -21,25 +21,35 @@ export function parseLivePositions(raw: unknown, drivers: OpenF1DriverLookup[]):
     const prev = latest.get(num)
     if (!prev || date > prev.date) latest.set(num, { position: Number(r.position), date })
   }
-  const out: Array<SessionResultRow & { teamColour: string | null }> = []
-  for (const [num, { position }] of latest) {
+  const out: Array<{ row: SessionResultRow & { teamColour: string | null }; date: string }> = []
+  for (const [num, { position, date }] of latest) {
     const drv = byNumber.get(num)
     if (!drv) continue
     out.push({
-      sessionId: 0,
-      position,
-      driverCode: drv.code,
-      driverName: `${drv.givenName} ${drv.familyName}`.trim(),
-      constructorId: drv.teamName.toLowerCase().replace(/\s+/g, '_'),
-      constructorName: drv.teamName,
-      raceTime: null, status: null, points: null,
-      fastestLap: null, fastestLapTime: null, fastestLapSpeed: null,
-      q1: null, q2: null, q3: null,
-      teamColour: drv.teamColour
+      date,
+      row: {
+        sessionId: 0,
+        position,
+        driverCode: drv.code,
+        driverName: `${drv.givenName} ${drv.familyName}`.trim(),
+        constructorId: drv.teamName.toLowerCase().replace(/\s+/g, '_'),
+        constructorName: drv.teamName,
+        raceTime: null, status: null, points: null,
+        fastestLap: null, fastestLapTime: null, fastestLapSpeed: null,
+        q1: null, q2: null, q3: null,
+        teamColour: drv.teamColour
+      }
     })
   }
-  out.sort((a, b) => a.position - b.position)
-  return out
+  // Sort by reported position, breaking ties by most-recent update first so a
+  // driver who has genuinely moved into a slot ranks ahead of one holding a
+  // stale position (e.g. a retired car that stopped updating). Then RE-INDEX to
+  // a contiguous 1..N: the /position feed can transiently report the SAME
+  // position for two drivers (a retirement keeps its last slot while another
+  // advances into it), which on a clean order is a no-op but otherwise would
+  // violate the session_result (session_id, position) primary key on persist.
+  out.sort((a, b) => a.row.position - b.row.position || (a.date > b.date ? -1 : a.date < b.date ? 1 : 0))
+  return out.map(({ row }, i) => ({ ...row, position: i + 1 }))
 }
 
 const MATCH_WINDOW_MS = 6 * 60 * 60 * 1000 // 6h around scheduledStart

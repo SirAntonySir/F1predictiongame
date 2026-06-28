@@ -21,6 +21,19 @@ describe('parseLivePositions', () => {
     expect(out[0]).toMatchObject({ constructorId: 'red_bull_racing', constructorName: 'Red Bull Racing', driverName: 'Max Verstappen', teamColour: '3671c6' })
   })
 
+  it('re-indexes to contiguous unique positions when the feed reports a collision', () => {
+    // VER retired holding P1 (stale, older date); LEC advanced into P1 (newer).
+    // Both end up "latest position 1" — must not emit two rows at position 1.
+    const raw = [
+      { driver_number: 1, position: 1, date: '2026-06-07T13:00:00Z' },  // VER, stale
+      { driver_number: 16, position: 2, date: '2026-06-07T13:00:00Z' },
+      { driver_number: 16, position: 1, date: '2026-06-07T13:05:00Z' }  // LEC moves up
+    ]
+    const out = parseLivePositions(raw, drivers)
+    // Unique, contiguous positions; the genuine (newer) P1 ranks ahead.
+    expect(out.map((r) => [r.position, r.driverCode])).toEqual([[1, 'LEC'], [2, 'VER']])
+  })
+
   it('skips drivers not present in the lookup and tolerates empty input', () => {
     expect(parseLivePositions([], drivers)).toEqual([])
     expect(parseLivePositions([{ driver_number: 99, position: 1, date: 'x' }], drivers)).toEqual([])
