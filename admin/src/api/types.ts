@@ -61,6 +61,24 @@ export type AdminLeagueDetail = {
   members: AdminLeagueMember[]
 }
 
+export type AdminUserRow = {
+  id: string
+  email: string
+  displayName: string
+  createdAt: string
+  leagueCount: number
+}
+
+export type AdminPrediction = {
+  predictionId: string
+  userId: string
+  displayName: string
+  sessionId: number
+  source: string
+  updatedAt: string
+  picks: { position: number; driverCode: string }[]
+}
+
 export type SessionMeta = {
   id: number
   eventId: number
