@@ -11,6 +11,9 @@ import * as drivers from '../../src/repo/drivers.js'
 import * as constructors from '../../src/repo/constructors.js'
 import * as results from '../../src/repo/results.js'
 import * as standings from '../../src/repo/standings.js'
+import * as users from '../../src/repo/users.js'
+import * as predictions from '../../src/repo/predictions.js'
+import * as scores from '../../src/repo/scores.js'
 import { getDb } from '../../src/db/client.js'
 import { sql } from 'drizzle-orm'
 
@@ -216,6 +219,38 @@ describe('reconcileOnce', () => {
     const drv = await standings.listDriverStandings(2024)
     expect(drv.map((s) => s.driverCode)).toEqual(['VER', 'PER'])
     expect(await standings.listConstructorStandings(2024)).toHaveLength(1)
+  })
+
+  it('scores a matched session whose predictions were left unscored', async () => {
+    const ses = await seedRaceSession()
+    // Finish the session via OpenF1 while no predictions exist — so the
+    // finish-tick scores nothing and the results sit there unscored.
+    await runTick(
+      jolpicaEmpty(),
+      wikiNoop,
+      openf1Race([{ position: 1, code: 'VER' }, { position: 2, code: 'PER' }])
+    )
+    // A prediction lands after the fact — present but never scored.
+    const u = await users.insertUser({ email: 'r@x.com', passwordHash: 'h', displayName: 'R' })
+    await predictions.upsertPredictionWithPicks(u.id, ses.id!, [
+      { position: 1, driverCode: 'VER' },
+      { position: 2, driverCode: 'PER' },
+      { position: 3, driverCode: 'VER' },
+      { position: 4, driverCode: 'VER' },
+      { position: 5, driverCode: 'VER' },
+    ])
+    expect(await scores.listForUser(u.id, 2024)).toHaveLength(0)
+
+    // Reconcile sees the classification unchanged (match) and must now compute
+    // the prediction score — fetching the data alone isn't enough.
+    const summary = await reconcileOnce(
+      jolpicaRace([{ position: 1, code: 'VER' }, { position: 2, code: 'PER' }]),
+      wikiNoop
+    )
+    expect(summary.matched).toBe(1)
+    const userScores = await scores.listForUser(u.id, 2024)
+    expect(userScores).toHaveLength(1)
+    expect(userScores[0]!.pointsTotal).toBeGreaterThan(0)
   })
 
   it('does not refresh standings when there is nothing to reconcile', async () => {

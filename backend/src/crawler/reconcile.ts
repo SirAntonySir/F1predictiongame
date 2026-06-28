@@ -27,6 +27,10 @@ export type ReconcileSummary = {
   /// Whether the season standings were re-pulled this pass (true when there was
   /// reconcilable activity worth catching up on).
   standingsRefreshed: boolean
+  /// Count of sessions whose prediction scores were recomputed this pass —
+  /// includes the post-standings-refresh pass that re-runs scoring against the
+  /// freshly-fetched driver standings (so the team-bonus rule is correct).
+  rescored: number
 }
 
 type ReconcileCandidate = {
@@ -108,7 +112,7 @@ export async function reconcileOnce(
 ): Promise<ReconcileSummary> {
   const summary: ReconcileSummary = {
     attempted: 0, matched: 0, replaced: 0, noJolpicaData: 0, errors: 0,
-    standingsRefreshed: false
+    standingsRefreshed: false, rescored: 0
   }
   const candidates = await listReconcilable()
   for (const c of candidates) {
@@ -123,6 +127,19 @@ export async function reconcileOnce(
       const cmp = compareClassifications(fetched.rows, current)
       if (cmp.kind === 'match') {
         await sessionsRepo.setLastReconciledAt(c.sessionId, new Date())
+        // Results are confirmed correct, but their prediction scores might not
+        // exist yet — a session can hold results while its predictions went
+        // unscored (imported/backfilled rows, or a rescore that failed on the
+        // finish-tick). Score it now so the leaderboard reflects it. Done here
+        // (not only in the post-standings pass below) so a matched session is
+        // robustly scored even if the standings refresh later throws — once
+        // reconciled it won't be a candidate again for 24h.
+        try {
+          const rescore = await rescoreSession(c.sessionId)
+          console.log('Reconcile matched + rescored session', { sessionId: c.sessionId, ...rescore })
+        } catch (err) {
+          console.error('Reconcile rescore failed (matched)', { sessionId: c.sessionId, err })
+        }
         summary.matched++
         continue
       }
@@ -163,6 +180,21 @@ export async function reconcileOnce(
     } catch (err) {
       summary.errors++
       console.error('Reconcile standings refresh error', err)
+    }
+    // Standings are now fresh — recompute prediction scores for the sessions
+    // we touched so the team-bonus rule (rescoreSession reads the driver
+    // standings to resolve a DNF'd pick's constructor) is calculated against
+    // the official data rather than whatever stale/empty standings were present
+    // when the finish-tick first scored them. Idempotent; covers matched,
+    // replaced and noJolpicaData candidates alike (they all hold results).
+    for (const c of candidates) {
+      try {
+        await rescoreSession(c.sessionId)
+        summary.rescored++
+      } catch (err) {
+        summary.errors++
+        console.error('Reconcile post-standings rescore failed', { sessionId: c.sessionId, err })
+      }
     }
   }
   return summary
