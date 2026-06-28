@@ -54,6 +54,17 @@ export async function updateDisplayName(id: string, displayName: string): Promis
   return toUser(row)
 }
 
+export async function updateEmail(id: string, email: string): Promise<User> {
+  const db = getDb()
+  const [row] = await db
+    .update(user)
+    .set({ email, updatedAt: sql`now()` })
+    .where(eq(user.id, id))
+    .returning()
+  if (!row) throw new Error('user not found: ' + id)
+  return toUser(row)
+}
+
 export async function updatePasswordHash(id: string, passwordHash: string): Promise<void> {
   const db = getDb()
   await db

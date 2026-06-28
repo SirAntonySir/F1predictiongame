@@ -19,6 +19,7 @@ import { registerDeviceRoutes } from './api/routes/devices.js'
 import { registerAdminReadRoutes } from './api/routes/adminReads.js'
 import { registerAdminSessionResultRoutes } from './api/routes/adminSessionResults.js'
 import { registerAdminLeagueRoutes } from './api/routes/adminLeagues.js'
+import { registerAdminUserRoutes } from './api/routes/adminUsers.js'
 import { Scheduler } from './crawler/scheduler.js'
 
 export type BuildAppOpts = { scheduler: Scheduler | null } & Omit<AdminDeps, 'scheduler'>
@@ -49,6 +50,7 @@ export async function buildApp(opts: BuildAppOpts): Promise<FastifyInstance> {
   await registerAdminReadRoutes(app, { scheduler: opts.scheduler })
   await registerAdminSessionResultRoutes(app)
   await registerAdminLeagueRoutes(app)
+  await registerAdminUserRoutes(app)
   await app.register(registerAuthRoutes)
   await app.register(registerLeagueRoutes)
   await app.register(registerPredictionRoutes)
