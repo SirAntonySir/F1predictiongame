@@ -51,6 +51,29 @@ export function useSetUserPassword(id: string) {
   })
 }
 
+// --- prediction mutations (userId passed at mutate time for per-row use) ---
+
+export function useSavePrediction(sessionId: string) {
+  const qc = useQueryClient()
+  const { show } = useToast()
+  return useMutation({
+    mutationFn: (input: { userId: string; picks: { position: number; driverCode: string }[] }) =>
+      apiFetch(`/admin/predictions/${input.userId}/${sessionId}/picks`, { method: 'PUT', body: { picks: input.picks } }),
+    onSuccess: () => { show('Picks saved', 'ok'); void qc.invalidateQueries({ queryKey: ['admin-predictions', sessionId] }) },
+    onError: (e) => show(errMsg(e, 'Save failed'), 'error')
+  })
+}
+
+export function useDeletePrediction(sessionId: string) {
+  const qc = useQueryClient()
+  const { show } = useToast()
+  return useMutation({
+    mutationFn: (userId: string) => apiFetch(`/admin/predictions/${userId}/${sessionId}`, { method: 'DELETE' }),
+    onSuccess: () => { show('Prediction deleted', 'ok'); void qc.invalidateQueries({ queryKey: ['admin-predictions', sessionId] }) },
+    onError: (e) => show(errMsg(e, 'Delete failed'), 'error')
+  })
+}
+
 // id passed at mutate time so a list can drive per-row deletes with one hook.
 export function useDeleteUser() {
   const qc = useQueryClient()

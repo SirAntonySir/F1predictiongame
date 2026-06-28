@@ -1,7 +1,9 @@
 import { useState } from 'react'
-import { Flex, Heading, Select, Table, Text } from '@radix-ui/themes'
+import { AlertDialog, Button, Flex, Heading, Select, Table, Text } from '@radix-ui/themes'
 import { useSeasons, useAdminSessions } from '../api/sessions'
-import { useAdminPredictions } from '../api/admin'
+import { useAdminPredictions, useDeletePrediction } from '../api/admin'
+import { PredictionEditDialog } from '../components/PredictionEditDialog'
+import type { AdminPrediction } from '../api/types'
 
 // Only these session types are predictable, so only they have predictions.
 const SCORABLE = new Set(['race', 'qualifying', 'sprint', 'sprint_quali'])
@@ -22,6 +24,8 @@ export function Predictions() {
 
   const predsQ = useAdminPredictions(sessionId)
   const selected = scorable.find((s) => String(s.id) === sessionId)
+  const del = useDeletePrediction(sessionId)
+  const [editing, setEditing] = useState<AdminPrediction | null>(null)
 
   return (
     <Flex direction="column" gap="4">
@@ -55,6 +59,7 @@ export function Predictions() {
                 <Table.ColumnHeaderCell>Player</Table.ColumnHeaderCell>
                 <Table.ColumnHeaderCell>Source</Table.ColumnHeaderCell>
                 <Table.ColumnHeaderCell>Picks</Table.ColumnHeaderCell>
+                <Table.ColumnHeaderCell>Actions</Table.ColumnHeaderCell>
               </Table.Row>
             </Table.Header>
             <Table.Body>
@@ -65,11 +70,35 @@ export function Predictions() {
                   <Table.Cell>
                     {p.picks.map((pk) => `P${pk.position} ${pk.driverCode}`).join(' · ') || '—'}
                   </Table.Cell>
+                  <Table.Cell>
+                    <Flex gap="1">
+                      <Button size="1" variant="soft" disabled={p.picks.length === 0} onClick={() => setEditing(p)}>Edit</Button>
+                      <AlertDialog.Root>
+                        <AlertDialog.Trigger>
+                          <Button size="1" variant="soft" color="red">Delete</Button>
+                        </AlertDialog.Trigger>
+                        <AlertDialog.Content maxWidth="400px">
+                          <AlertDialog.Title>Delete {p.displayName}&rsquo;s prediction?</AlertDialog.Title>
+                          <AlertDialog.Description size="2">
+                            Clears their picks for this session and re-scores it. This changes live data.
+                          </AlertDialog.Description>
+                          <Flex gap="2" mt="3" justify="end">
+                            <AlertDialog.Cancel><Button variant="soft" color="gray">Cancel</Button></AlertDialog.Cancel>
+                            <AlertDialog.Action><Button color="red" onClick={() => del.mutate(p.userId)}>Delete</Button></AlertDialog.Action>
+                          </Flex>
+                        </AlertDialog.Content>
+                      </AlertDialog.Root>
+                    </Flex>
+                  </Table.Cell>
                 </Table.Row>
               ))}
             </Table.Body>
           </Table.Root>
         </>
+      )}
+
+      {editing && (
+        <PredictionEditDialog sessionId={sessionId} prediction={editing} onClose={() => setEditing(null)} />
       )}
     </Flex>
   )
