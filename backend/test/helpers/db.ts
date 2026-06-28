@@ -3,6 +3,9 @@ import { getDb } from '../../src/db/client.js'
 
 // IMPORTANT: keep this list in sync with src/db/schema.ts as tables are added.
 const TABLES = [
+  'notification_log',
+  'notification_pref',
+  'device_token',
   'subjective_truth',
   'preseason_pick_standings_constructor',
   'preseason_pick_standings_driver',

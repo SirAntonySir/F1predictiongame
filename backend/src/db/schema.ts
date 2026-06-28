@@ -354,3 +354,53 @@ export const subjectiveTruth = pgTable('subjective_truth', {
   disappointmentConstructorId: text('disappointment_constructor_id').references(() => constructor.id),
   setAt: timestamp('set_at', { withTimezone: true }).notNull().defaultNow()
 })
+
+// ---- notifications ---------------------------------------------------------
+
+export const notifyPlatform = pgEnum('notify_platform', ['ios', 'android'])
+
+/// One FCM registration token per device, owned by a user. Tokens rotate, so
+/// the dispatcher prunes dead ones by setting [disabledAt] when FCM reports a
+/// token as unregistered. [timezone] is the device's IANA zone, used to gate
+/// quiet hours when the server fires reminders.
+export const deviceToken = pgTable('device_token', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  token: text('token').notNull(),
+  platform: notifyPlatform('platform').notNull(),
+  timezone: text('timezone'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().defaultNow(),
+  disabledAt: timestamp('disabled_at', { withTimezone: true })
+}, (t) => ({
+  tokenUq: uniqueIndex('device_token_token_uq').on(t.token),
+  userIdx: index('device_token_user_idx').on(t.userId)
+}))
+
+/// Per-user notification preferences. The server home of what used to live in
+/// the app's SharedPreferences. Defaults match the app's prior local defaults:
+/// reminders on, quiet hours off, 22:00–08:00 window (minutes since midnight).
+export const notificationPref = pgTable('notification_pref', {
+  userId: uuid('user_id').primaryKey().references(() => user.id, { onDelete: 'cascade' }),
+  enabled: boolean('enabled').notNull().default(true),
+  quietEnabled: boolean('quiet_enabled').notNull().default(false),
+  quietStartMin: integer('quiet_start_min').notNull().default(1320),
+  quietEndMin: integer('quiet_end_min').notNull().default(480),
+  timezone: text('timezone'),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
+})
+
+/// Idempotency ledger. The every-minute dispatcher claims a [dedupeKey] (insert
+/// on-conflict-do-nothing) before sending, so a notification fires exactly once
+/// even across cron re-ticks and crashes. Shape: `${kind}:${sessionId}:${userId}`.
+export const notificationLog = pgTable('notification_log', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  dedupeKey: text('dedupe_key').notNull(),
+  userId: uuid('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  kind: text('kind').notNull(),
+  sessionId: integer('session_id').references(() => session.id, { onDelete: 'cascade' }),
+  sentAt: timestamp('sent_at', { withTimezone: true }).notNull().defaultNow()
+}, (t) => ({
+  dedupeUq: uniqueIndex('notification_log_dedupe_uq').on(t.dedupeKey),
+  userIdx: index('notification_log_user_idx').on(t.userId)
+}))

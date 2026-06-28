@@ -92,6 +92,13 @@
       "when": 1781432611442,
       "tag": "0012_square_meltdown",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1782657093678,
+      "tag": "0013_sparkling_eternity",
+      "breakpoints": true
     }
   ]
 }
