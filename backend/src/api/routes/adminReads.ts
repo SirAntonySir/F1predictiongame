@@ -30,8 +30,8 @@ export async function registerAdminReadRoutes(
   app.get<{ Querystring: { query?: string; limit?: string; offset?: string } }>(
     '/admin/users',
     async (req) => {
-      const limit = Math.min(Number(req.query.limit) || 50, 200)
-      const offset = Number(req.query.offset) || 0
+      const limit = Math.max(1, Math.min(Number(req.query.limit) || 50, 200))
+      const offset = Math.max(0, Number(req.query.offset) || 0)
       const { rows, total } = await usersRepo.listAllWithMeta({ query: req.query.query, limit, offset })
       return { users: rows, total }
     }
@@ -59,8 +59,12 @@ export async function registerAdminReadRoutes(
       if (!sessionId && !userId && !leagueId) {
         throw new ApiError('BAD_REQUEST', 'provide at least one of sessionId, userId, leagueId')
       }
+      const parsedSessionId = sessionId ? Number(sessionId) : undefined
+      if (parsedSessionId !== undefined && !Number.isFinite(parsedSessionId)) {
+        throw new ApiError('BAD_REQUEST', 'sessionId must be a number')
+      }
       const predictions = await predictionsRepo.listForAdmin({
-        sessionId: sessionId ? Number(sessionId) : undefined,
+        sessionId: parsedSessionId,
         userId: userId || undefined,
         leagueId: leagueId || undefined
       })

@@ -114,6 +114,14 @@ describe('GET /admin/users', () => {
     expect(res.statusCode).toBe(404)
     await app.close()
   })
+
+  it('returns 200 with negative limit clamped (not 500)', async () => {
+    await users.insertUser({ email: 'clamp@x.com', passwordHash: 'h', displayName: 'Clamp' })
+    const app = await buildApp({ scheduler: null })
+    const res = await app.inject({ method: 'GET', url: '/admin/users?limit=-5', headers: TOKEN })
+    expect(res.statusCode).toBe(200)
+    await app.close()
+  })
 })
 
 describe('GET /admin/sessions', () => {
@@ -165,6 +173,15 @@ describe('GET /admin/predictions', () => {
     expect(rows).toHaveLength(1)
     expect(rows[0]).toMatchObject({ userId: u.id, displayName: 'Pat', sessionId: ses.id, source: 'app' })
     expect(rows[0].picks).toEqual([{ position: 1, driverCode: 'VER' }])
+    await app.close()
+  })
+})
+
+describe('GET /admin/predictions (validation)', () => {
+  it('returns 400 when sessionId is non-numeric', async () => {
+    const app = await buildApp({ scheduler: null })
+    const res = await app.inject({ method: 'GET', url: '/admin/predictions?sessionId=abc', headers: TOKEN })
+    expect(res.statusCode).toBe(400)
     await app.close()
   })
 })
