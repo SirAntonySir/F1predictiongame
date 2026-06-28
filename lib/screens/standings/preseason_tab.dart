@@ -14,13 +14,16 @@ import '../../theme/tokens.dart';
 import '../../theme/typography.dart';
 
 class PreseasonTab extends StatefulWidget {
-  const PreseasonTab({super.key, this.season}) : _injected = null, _injectedMyUserId = null;
+  const PreseasonTab({super.key, this.season, this.busy}) : _injected = null, _injectedMyUserId = null;
   const PreseasonTab.withView(LeaguePreseasonView view, {super.key, String? myUserId})
       : _injected = view,
         _injectedMyUserId = myUserId,
-        season = null;
+        season = null,
+        busy = null;
 
   final int? season;
+  /// Shared screen-level "refreshing" flag — see [F1Tab.busy].
+  final ValueNotifier<bool>? busy;
   final LeaguePreseasonView? _injected;
   final String? _injectedMyUserId;
 
@@ -70,6 +73,27 @@ class _PreseasonTabState extends State<PreseasonTab> {
     }
   }
 
+  @override
+  void dispose() {
+    widget.busy?.value = false;
+    super.dispose();
+  }
+
+  // Pull-to-refresh re-runs the load. Only wired for the live (non-injected)
+  // tab; the injected variant has no network source to refresh from.
+  // Stale-while-revalidate: keep current data until the new load resolves,
+  // then swap. The shared [busy] flag drives the screen's top progress bar.
+  Future<void> _refresh() async {
+    final f = _load();
+    widget.busy?.value = true;
+    try {
+      await f;
+    } catch (_) {/* swapped in below; FutureBuilder renders the error */}
+    if (!mounted) return;
+    setState(() => _data = f);
+    widget.busy?.value = false;
+  }
+
   Future<PreseasonBodyData> _load() async {
     final scope = AppState.of(context);
     final leagues = scope.auth.leagues;
@@ -110,6 +134,7 @@ class _PreseasonTabState extends State<PreseasonTab> {
         return PreseasonBodyView(
           data: snap.data!,
           myUserId: widget._injectedMyUserId ?? AppState.of(context).auth.currentUserId,
+          onRefresh: widget._injected == null ? _refresh : null,
         );
       },
     );
@@ -129,12 +154,16 @@ class PreseasonBodyView extends StatelessWidget {
   /// When false, the LEAGUE PRESEASON LEADERBOARD section is omitted (used
   /// by the player screen — the league rank is already in the profile header).
   final bool showLeaderboard;
+  /// Pull-to-refresh handler. When null (e.g. the player-profile reuse, which
+  /// has no own fetch) the body renders without a [RefreshIndicator].
+  final Future<void> Function()? onRefresh;
   const PreseasonBodyView({
     super.key,
     required this.data,
     required this.myUserId,
     this.sectionTitle = 'YOUR PROJECTIONS',
     this.showLeaderboard = true,
+    this.onRefresh,
   });
 
   LeaguePreseasonView get view => data.view;
@@ -153,7 +182,8 @@ class PreseasonBodyView extends StatelessWidget {
         standings.projectedConstructorOrder[i]: i + 1,
     };
 
-    return ListView(
+    final list = ListView(
+      physics: onRefresh == null ? null : const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.only(bottom: Spacing.xxl),
       children: [
         Padding(
@@ -250,6 +280,12 @@ class PreseasonBodyView extends StatelessWidget {
             ),
           ),
       ],
+    );
+    if (onRefresh == null) return list;
+    return RefreshIndicator(
+      onRefresh: onRefresh!,
+      color: BrandColors.accent,
+      child: list,
     );
   }
 

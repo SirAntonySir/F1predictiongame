@@ -40,7 +40,9 @@ class LeagueTab extends StatefulWidget {
   /// the matching view. Defaults to in-season.
   final String? initialMetric;
   final int? season;
-  const LeagueTab({super.key, this.initialMetric, this.season});
+  /// Shared screen-level "refreshing" flag — see [F1Tab.busy].
+  final ValueNotifier<bool>? busy;
+  const LeagueTab({super.key, this.initialMetric, this.season, this.busy});
 
   @override
   State<LeagueTab> createState() => _LeagueTabState();
@@ -56,6 +58,19 @@ class _LeagueTabState extends State<LeagueTab> {
   bool _kickedOffRefresh = false;
 
   @override
+  void initState() {
+    super.initState();
+    _cache.addListener(_syncBusy);
+  }
+
+  // Mirror the cache's refresh state onto the shared screen-level flag so the
+  // top progress bar (above the header) reflects it. Only when there's already
+  // data — first load shows the skeleton, not the bar (matches home).
+  void _syncBusy() {
+    widget.busy?.value = _cache.data != null && _cache.refreshing;
+  }
+
+  @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (!_kickedOffRefresh) {
@@ -67,6 +82,8 @@ class _LeagueTabState extends State<LeagueTab> {
 
   @override
   void dispose() {
+    _cache.removeListener(_syncBusy);
+    widget.busy?.value = false;
     _cache.dispose();
     super.dispose();
   }
@@ -94,6 +111,9 @@ class _LeagueTabState extends State<LeagueTab> {
       cache: _cache,
       placeholder: _placeholder,
       where: 'League standings',
+      // The host StandingsScreen draws the refresh bar at the very top (above
+      // its header + pills), so suppress CachedView's own in-content bar.
+      showProgressBar: false,
       builder: (_, rows) {
         final me = scope.auth.currentUserId;
         final extractor = _metric.extractor;
@@ -102,14 +122,27 @@ class _LeagueTabState extends State<LeagueTab> {
         final sorted = [...rows.where((r) => extractor(r) > 0)]
           ..sort((a, b) => extractor(b).compareTo(extractor(a)));
         if (sorted.isEmpty) {
-          return const Center(
-            child: Padding(
-              padding: EdgeInsets.all(Spacing.lg),
-              child: Text('No scores yet — once a session finishes, the leaderboard fills in.'),
+          // ScrollView (not a Center) so pull-to-refresh works while empty —
+          // that's exactly the state you'd pull to refresh out of.
+          return RefreshIndicator(
+            onRefresh: _cache.refresh,
+            color: BrandColors.accent,
+            child: ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              children: const [
+                Padding(
+                  padding: EdgeInsets.all(Spacing.lg),
+                  child: Text('No scores yet — once a session finishes, the leaderboard fills in.'),
+                ),
+              ],
             ),
           );
         }
-        return ListView(
+        return RefreshIndicator(
+          onRefresh: _cache.refresh,
+          color: BrandColors.accent,
+          child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.only(bottom: Spacing.xxl),
           children: [
             // League identity pill — moved here from the Standings header so
@@ -203,6 +236,7 @@ class _LeagueTabState extends State<LeagueTab> {
               ),
             ),
           ],
+        ),
         );
       },
     );

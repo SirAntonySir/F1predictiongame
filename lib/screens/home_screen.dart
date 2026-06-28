@@ -15,6 +15,7 @@ import '../components/league_row.dart' show LeagueRowYouBadge;
 import '../components/error_view.dart';
 import '../components/trend_badge.dart';
 import '../domain/leaderboard_trend.dart';
+import '../domain/live_session.dart';
 import '../components/racing_stripes.dart';
 import '../components/session_chip.dart';
 import '../components/ticket/pick_ticket.dart';
@@ -162,6 +163,9 @@ class _HomeScreenState extends State<HomeScreen> {
             );
 
             final body = ListView(
+              // Always-scrollable so pull-to-refresh works even when the
+              // content fits the viewport (short seasons / no-next-session).
+              physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.fromLTRB(0, Spacing.lg, 0, Spacing.xxl),
               children: [
                 _topbar(leagueName, memberCount),
@@ -171,28 +175,41 @@ class _HomeScreenState extends State<HomeScreen> {
                   builder: (_, __) {
                     final live = scope.live;
                     final snap = live.snapshot;
-                    // Only show the live hero while the session is actually
-                    // running. Once results have landed (provisional) or been
-                    // finalised, fall through to the normal next-event hero —
-                    // the souvenir for the just-finished race appears under
-                    // "Last race" by then.
-                    if (live.liveSessionId != null &&
-                        snap != null &&
-                        snap.state == LiveState.live) {
-                      final ev = d.events.firstWhere(
-                        (e) =>
-                            e.sessions.any((s) => s.id == live.liveSessionId),
-                        orElse: () => d.nextEvent ?? d.events.first,
-                      );
-                      final sess = ev.sessions
-                          .firstWhere((s) => s.id == live.liveSessionId);
-                      return LiveHeroCard(
-                        event: ev,
-                        session: sess,
-                        snap: snap,
-                        onTap: () => context
-                            .go('/race/${ev.round}/${live.liveSessionId}'),
-                      );
+                    final liveId = live.liveSessionId;
+                    // Show the live hero while the session is actually running.
+                    // "Running" is decided by the schedule (isSessionRunning),
+                    // OR by the snapshot reporting `live` — the two can disagree
+                    // because the backend's live-state flag lags the clock, and
+                    // trusting the snapshot alone would skip a running race in
+                    // favour of the *next* event's countdown. Once the race is
+                    // provisional/finished, both are false and we fall through
+                    // to the next-event hero (its souvenir shows under "Last
+                    // race" by then).
+                    if (liveId != null) {
+                      Event? liveEvent;
+                      Session? liveSess;
+                      for (final e in d.events) {
+                        for (final s in e.sessions) {
+                          if (s.id == liveId) {
+                            liveEvent = e;
+                            liveSess = s;
+                            break;
+                          }
+                        }
+                        if (liveSess != null) break;
+                      }
+                      final runningNow = liveSess != null &&
+                          (isSessionRunning(liveSess, DateTime.now()) ||
+                              (snap != null && snap.state == LiveState.live));
+                      if (runningNow && liveEvent != null) {
+                        final ev = liveEvent;
+                        return LiveHeroCard(
+                          event: ev,
+                          session: liveSess,
+                          snap: snap,
+                          onTap: () => context.go('/race/${ev.round}/$liveId'),
+                        );
+                      }
                     }
                     if (d.next != null && d.nextEvent != null) {
                       return _hero(_resolveHeroSession(d), d.nextEvent!, t);
@@ -209,19 +226,14 @@ class _HomeScreenState extends State<HomeScreen> {
                   builder: (_, __) {
                     final live = scope.live;
                     final snap = live.snapshot;
-                    // "Live" pick swap is gated to actually-running sessions
-                    // only; once we hit provisional/finalised, fall through
-                    // to the next pickable session's card.
-                    final isLive = live.liveSessionId != null &&
-                        snap != null &&
-                        snap.state == LiveState.live;
-                    // When live, find the active session object inside the
-                    // events list so PickTicket can resolve its event/round.
+                    final liveId = live.liveSessionId;
+                    // Find the active session object inside the events list so
+                    // PickTicket can resolve its event/round.
                     Session? liveSession;
-                    if (isLive) {
+                    if (liveId != null) {
                       for (final e in d.events) {
                         for (final s in e.sessions) {
-                          if (s.id == live.liveSessionId) {
+                          if (s.id == liveId) {
                             liveSession = s;
                             break;
                           }
@@ -229,14 +241,23 @@ class _HomeScreenState extends State<HomeScreen> {
                         if (liveSession != null) break;
                       }
                     }
-                    final showPick = isLive ? liveSession != null : d.next != null;
+                    // "Live" pick swap is gated to actually-running sessions —
+                    // decided by the schedule OR the snapshot's live state (same
+                    // reasoning as the hero: the snapshot can lag the clock).
+                    // Once provisional/finalised, both are false and we fall
+                    // through to the next pickable session's card.
+                    final isLive = liveSession != null &&
+                        (isSessionRunning(liveSession, DateTime.now()) ||
+                            (snap != null && snap.state == LiveState.live));
+                    final pickOverride = isLive ? liveSession : null;
+                    final showPick = isLive || d.next != null;
                     final pickHeader = !showPick
                         ? null
                         : (isLive
                             ? _section('Your pick · Locked')
                             : yourPickHeader);
                     Widget thePickCard() =>
-                        pickCard(sessionOverride: liveSession);
+                        pickCard(sessionOverride: pickOverride);
                     return LayoutBuilder(
                       builder: (ctx, constraints) {
                         final twoCol = constraints.maxWidth >= 700;
@@ -312,7 +333,11 @@ class _HomeScreenState extends State<HomeScreen> {
               children: [
                 Skeletonizer(
                   enabled: !hasData,
-                  child: body,
+                  child: RefreshIndicator(
+                    onRefresh: cache.refresh,
+                    color: BrandColors.accent,
+                    child: body,
+                  ),
                 ),
                 if (hasData && cache.refreshing)
                   const Positioned(
@@ -923,7 +948,10 @@ class _HomeScreenState extends State<HomeScreen> {
 class LiveHeroCard extends StatelessWidget {
   final Event event;
   final Session session;
-  final LiveSnapshot snap;
+  /// Null while the race is running by the schedule but the backend `/live`
+  /// snapshot hasn't arrived yet — the card still renders its branded shell and
+  /// defaults the badge to LIVE.
+  final LiveSnapshot? snap;
   final VoidCallback onTap;
   const LiveHeroCard({
     super.key,
@@ -953,7 +981,7 @@ class LiveHeroCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final flag = flagFor(event.country);
-    final badge = snap.state == LiveState.provisional ? 'PROVISIONAL' : 'LIVE';
+    final badge = snap?.state == LiveState.provisional ? 'PROVISIONAL' : 'LIVE';
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(Spacing.lg, Spacing.xs, Spacing.lg, 0),

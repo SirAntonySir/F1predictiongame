@@ -22,7 +22,13 @@ class CachedView<T> extends StatelessWidget {
     required this.placeholder,
     required this.builder,
     this.where = 'this screen',
+    this.showProgressBar = true,
   });
+
+  /// When false, the thin top refresh bar is not drawn — the host screen is
+  /// expected to surface the refreshing state itself (e.g. a progress bar
+  /// pinned above its own header). Defaults to true.
+  final bool showProgressBar;
 
   final AsyncCache<T> cache;
   /// Realistic-shape dummy used to populate [builder] during the first-load
@@ -56,7 +62,7 @@ class CachedView<T> extends StatelessWidget {
               enabled: !hasData,
               child: builder(context, data),
             ),
-            if (hasData && cache.refreshing)
+            if (showProgressBar && hasData && cache.refreshing)
               const Positioned(
                 top: 0,
                 left: 0,

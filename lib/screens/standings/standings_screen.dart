@@ -30,6 +30,17 @@ class _StandingsScreenState extends State<StandingsScreen> {
   int? _selectedSeason;
   List<Season> _seasons = const [];
   bool _loadedSeasons = false;
+  // Shared "a tab is refreshing" signal. Each tab toggles it while loading so
+  // the thin progress bar can sit at the very top of the screen — above the
+  // header + tab pills — instead of inside each tab's content (which would
+  // tuck it under the header). Mirrors the home screen's top bar.
+  final ValueNotifier<bool> _busy = ValueNotifier<bool>(false);
+
+  @override
+  void dispose() {
+    _busy.dispose();
+    super.dispose();
+  }
 
   @override
   void didChangeDependencies() {
@@ -53,7 +64,9 @@ class _StandingsScreenState extends State<StandingsScreen> {
       backgroundColor: t.colorScheme.surface,
       body: SafeArea(
         bottom: false,
-        child: Column(
+        child: Stack(
+          children: [
+            Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Padding(
@@ -83,11 +96,30 @@ class _StandingsScreenState extends State<StandingsScreen> {
               ]),
             ),
             Expanded(child: switch (_subTab) {
-              'f1' => F1Tab(key: ValueKey(_selectedSeason), season: _selectedSeason),
-              'insights' => InsightsTab(key: ValueKey(_selectedSeason), season: _selectedSeason),
-              'preseason' => PreseasonTab(key: ValueKey(_selectedSeason), season: _selectedSeason),
-              _ => LeagueTab(key: ValueKey(_selectedSeason), initialMetric: widget.leagueSort, season: _selectedSeason),
+              'f1' => F1Tab(key: ValueKey(_selectedSeason), season: _selectedSeason, busy: _busy),
+              'insights' => InsightsTab(key: ValueKey(_selectedSeason), season: _selectedSeason, busy: _busy),
+              'preseason' => PreseasonTab(key: ValueKey(_selectedSeason), season: _selectedSeason, busy: _busy),
+              _ => LeagueTab(key: ValueKey(_selectedSeason), initialMetric: widget.leagueSort, season: _selectedSeason, busy: _busy),
             }),
+          ],
+            ),
+            // Top-of-screen refresh bar, above the header + pills — matches the
+            // home screen. Driven by whichever tab is currently refreshing.
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: ValueListenableBuilder<bool>(
+                valueListenable: _busy,
+                builder: (_, busy, __) => busy
+                    ? const LinearProgressIndicator(
+                        minHeight: 2,
+                        color: BrandColors.accent,
+                        backgroundColor: Colors.transparent,
+                      )
+                    : const SizedBox.shrink(),
+              ),
+            ),
           ],
         ),
       ),

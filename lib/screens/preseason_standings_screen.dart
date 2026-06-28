@@ -231,8 +231,7 @@ class _PreseasonStandingsScreenState extends State<PreseasonStandingsScreen> {
                         padding:
                             const EdgeInsets.symmetric(vertical: Spacing.md),
                         shape: const RoundedRectangleBorder(
-                          borderRadius:
-                              BorderRadius.all(Radius.circular(12)),
+                          borderRadius: Radii.rLg,
                         ),
                       ),
                       child: Text(

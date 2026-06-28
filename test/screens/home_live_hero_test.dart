@@ -60,6 +60,22 @@ void main() {
     expect(find.text('+8'), findsOneWidget);
   });
 
+  testWidgets(
+      'LiveHeroCard renders with a null snapshot, defaulting the badge to LIVE',
+      (tester) async {
+    // While the race is running by the schedule but the backend `/live`
+    // snapshot hasn't arrived (or isn't reporting `live` yet), the home hero
+    // still surfaces the running session — with no snapshot the card defaults
+    // to the LIVE badge rather than crashing or falling back to the next event.
+    await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+            body: ListView(children: [
+      LiveHeroCard(event: _ev(), session: _sess(), snap: null, onTap: () {}),
+    ]))));
+    expect(find.text('LIVE · RACE'), findsOneWidget);
+    expect(find.text('MONACO GRAND PRIX'), findsOneWidget);
+  });
+
   testWidgets('LiveHeroCard shows the PROVISIONAL badge', (tester) async {
     const snap = LiveSnapshot(
       sessionId: 30,

@@ -3,11 +3,12 @@ import 'package:flutter/material.dart';
 import '../theme/tokens.dart';
 import '../theme/typography.dart';
 
-/// Full-width pill action button used across the app's auth / onboarding
-/// flows. Mat-flat to match the existing pill aesthetic on home and
-/// standings; dims when [onTap] is null instead of showing a Material
-/// disabled grey wash. Optional [trailing] icon reinforces the
-/// "forward" direction (e.g. arrow on a submit).
+/// Full-width action button used across the app's auth / onboarding flows.
+/// Mat-flat; dims when [onTap] is null instead of showing a Material disabled
+/// grey wash. Optional [trailing] icon reinforces the "forward" direction
+/// (e.g. arrow on a submit). Uses the app's canonical button radius
+/// ([Radii.rLg]) so every generic button reads the same as the predict-screen
+/// action bar.
 class BigPill extends StatelessWidget {
   final String label;
   final IconData? trailing;
@@ -30,10 +31,10 @@ class BigPill extends StatelessWidget {
       opacity: disabled ? 0.55 : 1.0,
       child: Material(
         color: background,
-        borderRadius: const BorderRadius.all(Radius.circular(999)),
+        borderRadius: Radii.rLg,
         child: InkWell(
           onTap: onTap,
-          borderRadius: const BorderRadius.all(Radius.circular(999)),
+          borderRadius: Radii.rLg,
           child: Padding(
             padding: const EdgeInsets.symmetric(
                 horizontal: Spacing.lg, vertical: Spacing.md),

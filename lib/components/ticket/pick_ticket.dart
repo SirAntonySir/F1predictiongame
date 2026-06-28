@@ -4,6 +4,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import '../../api/models/event.dart';
 import '../../api/models/session.dart';
 import '../../theme/ticket_style_for_event.dart';
+import 'ticket_actions_sheet.dart';
 import 'ticket_capture.dart';
 import 'ticket_rohling.dart';
 import 'ticket_session_badge.dart';
@@ -151,9 +152,31 @@ class PickTicket extends StatelessWidget {
       onTap: onTap,
       onBodyTap: onBodyTap,
       onStubTap: onStubTap,
-      onLongPress: onLongPress ?? () => _shareDefault(context),
+      onLongPress: onLongPress ?? () => _showActions(context),
       leftEdgeSerial: sessionLabel,
     );
+  }
+
+  /// Long-press menu: the navigation rows the call site wired up (open race
+  /// details / edit pick), plus the branded-PNG share. Only callbacks that were
+  /// actually provided become rows, so e.g. the results screen (stub-tap only)
+  /// shows just "Edit pick" + "Share ticket".
+  void _showActions(BuildContext context) {
+    final actions = <TicketAction>[
+      if (onBodyTap != null)
+        TicketAction(label: 'Open race details', onTap: onBodyTap!)
+      else if (onTap != null)
+        TicketAction(label: 'Open race details', onTap: onTap!),
+      if (onStubTap != null)
+        TicketAction(label: 'Edit pick', onTap: onStubTap!),
+      TicketAction(
+        label: 'Share ticket',
+        isShare: true,
+        onTap: () => _shareDefault(context),
+      ),
+    ];
+    // ignore: discarded_futures
+    showTicketActionsSheet(context, title: event.name, actions: actions);
   }
 
   void _shareDefault(BuildContext context) {

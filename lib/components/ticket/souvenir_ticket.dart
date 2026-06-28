@@ -5,6 +5,7 @@ import '../../api/models/event.dart';
 import '../../api/models/session.dart';
 import '../../theme/ticket_style_for_event.dart';
 import 'pick_ticket.dart' show kFallbackCarAssets;
+import 'ticket_actions_sheet.dart';
 import 'ticket_capture.dart';
 import 'ticket_rohling.dart';
 import 'ticket_session_badge.dart';
@@ -104,9 +105,25 @@ class SouvenirTicket extends StatelessWidget {
       ],
       stub: TicketStub.serialCode('PICK · ${event.round}'),
       onTap: onTap,
-      onLongPress: onLongPress ?? () => _shareDefault(context),
+      onLongPress: onLongPress ?? () => _showActions(context),
       leftEdgeSerial: sessionLabel,
     );
+  }
+
+  /// Long-press menu: open the race details (when the call site wired [onTap])
+  /// plus the branded-PNG share.
+  void _showActions(BuildContext context) {
+    final actions = <TicketAction>[
+      if (onTap != null)
+        TicketAction(label: 'Open race details', onTap: onTap!),
+      TicketAction(
+        label: 'Share ticket',
+        isShare: true,
+        onTap: () => _shareDefault(context),
+      ),
+    ];
+    // ignore: discarded_futures
+    showTicketActionsSheet(context, title: event.name, actions: actions);
   }
 
   void _shareDefault(BuildContext context) {

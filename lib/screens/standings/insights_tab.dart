@@ -19,7 +19,9 @@ import '../../theme/typography.dart';
 
 class InsightsTab extends StatefulWidget {
   final int? season;
-  const InsightsTab({super.key, this.season});
+  /// Shared screen-level "refreshing" flag — see [F1Tab.busy].
+  final ValueNotifier<bool>? busy;
+  const InsightsTab({super.key, this.season, this.busy});
 
   @override
   State<InsightsTab> createState() => _InsightsTabState();
@@ -32,6 +34,26 @@ class _InsightsTabState extends State<InsightsTab> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     _data ??= _load();
+  }
+
+  @override
+  void dispose() {
+    widget.busy?.value = false;
+    super.dispose();
+  }
+
+  // Pull-to-refresh. Stale-while-revalidate: keep the current data on screen
+  // until the new load resolves, then swap — no skeleton flash. The shared
+  // [busy] flag drives the screen's top progress bar meanwhile.
+  Future<void> _refresh() async {
+    final f = _load();
+    widget.busy?.value = true;
+    try {
+      await f;
+    } catch (_) {/* swapped in below; FutureBuilder renders the error */}
+    if (!mounted) return;
+    setState(() => _data = f);
+    widget.busy?.value = false;
   }
 
   Future<_InsightsData> _load() async {
@@ -85,7 +107,11 @@ class _InsightsTabState extends State<InsightsTab> {
         final trajectoryLabels = _trajectoryXLabels(d);
         final facts = _buildFacts(d, stats);
 
-        return ListView(
+        return RefreshIndicator(
+          onRefresh: _refresh,
+          color: BrandColors.accent,
+          child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.only(bottom: Spacing.xxl),
           children: [
             _h('YOUR SEASON'),
@@ -196,6 +222,7 @@ class _InsightsTabState extends State<InsightsTab> {
               ),
             ],
           ],
+        ),
         );
       },
     );

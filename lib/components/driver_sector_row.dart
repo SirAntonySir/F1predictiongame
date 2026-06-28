@@ -30,6 +30,10 @@ class DriverSectorRow extends StatelessWidget {
   /// reference data is available (early-weekend / refs endpoint unavailable).
   /// Ignored when [referenceLaps] yields a non-null best lap.
   final String? bestLapOverride;
+  /// Finishing positions in the last up-to-3 races (newest first). Rendered as
+  /// a small form strip in the otherwise-empty middle column, but only when
+  /// there are no [referenceLaps] session columns competing for the space.
+  final List<int>? recentFinishes;
   final VoidCallback? onTap;
   const DriverSectorRow({
     super.key,
@@ -40,6 +44,7 @@ class DriverSectorRow extends StatelessWidget {
     required this.pickedSlot,
     required this.onTap,
     this.bestLapOverride,
+    this.recentFinishes,
   });
 
   @override
@@ -92,6 +97,12 @@ class DriverSectorRow extends StatelessWidget {
             // sector pills below.
             for (final lap in referenceLaps)
               Expanded(child: _SessionColumn(lap: lap, picked: picked)),
+            // No reference columns this weekend: the freed middle space carries
+            // the recent-form strip instead.
+            if (referenceLaps.isEmpty &&
+                recentFinishes != null &&
+                recentFinishes!.isNotEmpty)
+              Expanded(child: _FormStrip(positions: recentFinishes!, picked: picked)),
             // BEST column.
             SizedBox(
               width: 64,
@@ -118,6 +129,68 @@ class DriverSectorRow extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Recent-form strip: up to 3 finishing-position chips. Stored newest-first,
+/// rendered oldest→newest left to right so the most recent race sits closest
+/// to the BEST column (i.e. nearest "now").
+class _FormStrip extends StatelessWidget {
+  final List<int> positions;
+  final bool picked;
+  const _FormStrip({required this.positions, required this.picked});
+
+  @override
+  Widget build(BuildContext context) {
+    final ordered = positions.reversed.toList();
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        for (var i = 0; i < ordered.length; i++) ...[
+          if (i > 0) const SizedBox(width: 4),
+          _PosChip(position: ordered[i], picked: picked),
+        ],
+      ],
+    );
+  }
+}
+
+/// Single finishing-position chip. Subtle podium emphasis (P1 violet, P2–P3
+/// green, points/rest neutral); on a picked red row everything goes white-ish
+/// so it still reads.
+class _PosChip extends StatelessWidget {
+  final int position;
+  final bool picked;
+  const _PosChip({required this.position, required this.picked});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Theme.of(context);
+    Color bg;
+    Color fg;
+    if (picked) {
+      bg = Colors.white.withOpacity(0.22);
+      fg = Colors.white;
+    } else if (position == 1) {
+      bg = BrandColors.violet.withOpacity(0.22);
+      fg = BrandColors.violet;
+    } else if (position <= 3) {
+      bg = BrandColors.ok.withOpacity(0.18);
+      fg = BrandColors.ok;
+    } else {
+      bg = t.colorScheme.onSurface.withOpacity(0.08);
+      fg = t.colorScheme.onSurface.withOpacity(0.7);
+    }
+    return Container(
+      width: 24,
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text('P$position',
+          textAlign: TextAlign.center, style: AppText.label(9, color: fg)),
     );
   }
 }

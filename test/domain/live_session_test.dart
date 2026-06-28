@@ -55,6 +55,32 @@ void main() {
     expect(isSessionLive(s, now), isTrue);
   });
 
+  group('isSessionRunning (running window only, no provisional tail)', () {
+    test('started, not ended, not finished → running', () {
+      final s = _s(1, SessionType.race, now.subtract(const Duration(hours: 1)),
+          now.add(const Duration(hours: 1)), SessionStatus.scheduled);
+      expect(isSessionRunning(s, now), isTrue);
+    });
+
+    test('not yet started → not running', () {
+      final s = _s(1, SessionType.race, now.add(const Duration(hours: 1)),
+          now.add(const Duration(hours: 3)), SessionStatus.scheduled);
+      expect(isSessionRunning(s, now), isFalse);
+    });
+
+    test('past scheduled end (provisional) → not running', () {
+      final s = _s(1, SessionType.race, now.subtract(const Duration(hours: 3)),
+          now.subtract(const Duration(minutes: 10)), SessionStatus.scheduled);
+      expect(isSessionRunning(s, now), isFalse);
+    });
+
+    test('finished mid-window → not running', () {
+      final s = _s(1, SessionType.race, now.subtract(const Duration(hours: 1)),
+          now.add(const Duration(hours: 1)), SessionStatus.finished);
+      expect(isSessionRunning(s, now), isFalse);
+    });
+  });
+
   test('findLiveSession returns the live one across events', () {
     final events = [
       Event(round: 1, name: 'A', country: 'X', circuitName: 'c', hasSprint: false, sessions: [

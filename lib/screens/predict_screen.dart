@@ -65,15 +65,14 @@ class _PredictScreenState extends State<PredictScreen> {
     final targetId = _overrideSessionId ?? widget.sessionId;
 
     if (targetId != null) {
-      // Targeted mode: find the requested session across all events. We allow
-      // any future session regardless of status — pre-picking ahead is the
-      // whole point. If the requested session has already started, fall back
-      // to auto-find so the screen doesn't sit broken.
+      // Targeted mode: find the requested session across all events,
+      // regardless of time or status. Future sessions are pickable;
+      // past/locked ones open read-only (the prev/next nav steps into them so
+      // the user can review what they locked in). If the id matches nothing,
+      // we fall through to auto-find so the screen doesn't sit broken.
       for (final e in events) {
         for (final s in e.sessions) {
-          if (s.id == targetId &&
-              _isScorable(s.type) &&
-              s.scheduledStart.isAfter(now)) {
+          if (s.id == targetId && _isScorable(s.type)) {
             upcoming = e;
             session = s;
             break;
@@ -105,10 +104,11 @@ class _PredictScreenState extends State<PredictScreen> {
     final existing = await scope.predictions.fetchPrediction(session.id);
     _picks = existing?.picks.map((p) => p.driverCode).toList() ?? <String>[];
     _initialPicks = List<String>.from(_picks);
-    // Start in edit mode only if there's nothing saved yet. With saved picks
-    // the screen opens in the read-only state and the top EDIT button is the
-    // way back into editing.
-    _editing = _initialPicks.isEmpty;
+    // Start in edit mode only when the session is still open AND nothing's
+    // saved yet. Past the deadline the screen is permanently read-only; with
+    // saved picks it opens read-only and the EDIT button is the way back in.
+    final deadlinePassed = !session.scheduledStart.isAfter(now);
+    _editing = !deadlinePassed && _initialPicks.isEmpty;
     // Prefer a same-weekend finished session that's chronologically right
     // before the one being predicted (FP3>FP2>FP1 → quali/sprintQ; Q>SQ →
     // race/sprint). Falls back to the season-wide most recent finished
@@ -166,17 +166,44 @@ class _PredictScreenState extends State<PredictScreen> {
     } catch (_) {
       standingsOrder = const {};
     }
-    // Build the chronological nav list of all upcoming pickable sessions in
-    // events whose lock hasn't passed (event lock = earliest session start).
-    final chronological = <_NavRef>[];
-    for (final e in events) {
-      DateTime? earliest;
-      for (final s in e.sessions) {
-        if (earliest == null || s.scheduledStart.isBefore(earliest)) {
-          earliest = s.scheduledStart;
+    // Recent-form guide: each driver's finishing position in the last 3
+    // finished races (newest first). Only fetched in the no-timing-data state
+    // (no same-weekend reference + no sector laps) — that's where the rows
+    // would otherwise be empty. Best-effort: any failed race just contributes
+    // nothing.
+    final recentFinishes = <String, List<int>>{};
+    final noTimingData =
+        weekendRef == null && (refLaps == null || refLaps.references.isEmpty);
+    if (noTimingData) {
+      final recentRaces = events
+          .expand((e) => e.sessions)
+          .where((s) =>
+              s.type == SessionType.race &&
+              s.status == SessionStatus.finished)
+          .toList()
+        ..sort((a, b) => b.scheduledStart.compareTo(a.scheduledStart));
+      final last3 = recentRaces.take(3).toList();
+      final perRace = await Future.wait(last3.map((s) async {
+        try {
+          return await scope.api.sessionResults(s.id);
+        } catch (_) {
+          return const <SessionResult>[];
+        }
+      }));
+      // perRace[0] is the most recent race, so iterating in order keeps each
+      // driver's list newest-first.
+      for (final results in perRace) {
+        for (final r in results) {
+          (recentFinishes[r.driverCode] ??= <int>[]).add(r.position);
         }
       }
-      if (earliest == null || !earliest.isAfter(now)) continue;
+    }
+    // Build the chronological nav list of every scorable session in the
+    // season — past, locked and upcoming. The prev/next chevrons walk this
+    // full list so the user can step backward into already-locked sessions
+    // (read-only) as well as forward into pickable ones.
+    final chronological = <_NavRef>[];
+    for (final e in events) {
       for (final s in e.sessions) {
         if (!_isScorable(s.type)) continue;
         chronological.add(_NavRef(sessionId: s.id, scheduledStart: s.scheduledStart));
@@ -193,6 +220,7 @@ class _PredictScreenState extends State<PredictScreen> {
       referenceTimes: referenceTimes,
       referenceLaps: refLaps,
       standingsOrder: standingsOrder,
+      recentFinishes: recentFinishes,
     );
   }
 
@@ -364,13 +392,54 @@ class _PredictScreenState extends State<PredictScreen> {
             final req = requiredPicks(session.type);
             final scope = AppState.of(context);
             final systemLocked = scope.predictions.prediction(session.id)?.isLocked ?? false;
+            // A session is locked once the backend flags it OR its deadline
+            // (scheduled start) has passed — the latter covers past sessions
+            // reached via the prev nav, which the server may not have flagged
+            // but are no longer pickable.
+            final deadlinePassed = !session.scheduledStart.isAfter(DateTime.now());
+            final locked = systemLocked || deadlinePassed;
             final hasSaved = _initialPicks.isNotEmpty;
-            final canEdit = _editing && !systemLocked;
+            final canEdit = _editing && !locked;
             // Partial / empty pick lists are now savable — the backend accepts
             // 0..req picks, so the lock button stays enabled whenever the user
             // is editing an unlocked session, regardless of how many slots
             // they've filled.
-            final canLock = !systemLocked && !_saving;
+            final canLock = !locked && !_saving;
+            // Single full-width control that merges the primary action with
+            // the lock countdown, styled like the slot/driver cards (rLg
+            // radius, card stroke). The old two-pill row collapses into this:
+            //   editing → accent "LOCK PICK" + countdown, taps to lock
+            //   saved   → outlined "EDIT" + countdown, taps back into edit
+            //   locked  → dimmed "LOCKED" status, non-interactive
+            final String countdown = _lockLabel(session.scheduledStart);
+            final Widget actionBar;
+            if (_editing) {
+              actionBar = _ActionBar(
+                icon: Icons.lock,
+                label: _saving ? 'SAVING…' : 'LOCK PICK',
+                countdown: countdown,
+                accent: true,
+                onTap: canLock ? _lock : null,
+              );
+            } else if (hasSaved && !locked) {
+              actionBar = _ActionBar(
+                icon: Icons.edit,
+                label: 'EDIT',
+                countdown: countdown,
+                accent: false,
+                onTap: () => setState(() => _editing = true),
+              );
+            } else {
+              actionBar = _ActionBar(
+                icon: Icons.lock,
+                label: 'LOCKED',
+                // Drop the redundant trailing "LOCKED" countdown; keep a real
+                // remaining-time readout if the system locked before deadline.
+                countdown: countdown == 'LOCKED' ? null : countdown,
+                accent: false,
+                onTap: null,
+              );
+            }
             return ListView(
                 padding: const EdgeInsets.only(bottom: Spacing.xxl + Spacing.xxl),
                 children: [
@@ -398,40 +467,8 @@ class _PredictScreenState extends State<PredictScreen> {
                   ),
                 ),
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(Spacing.xl, 0, Spacing.xl, Spacing.sm),
-                  child: Row(mainAxisAlignment: MainAxisAlignment.end, children: [
-                    // Primary action pill — sits next to the countdown so the
-                    // user's eye stays on a single decision area:
-                    //   editing  → "LOCK PICK" (accent, enabled when complete)
-                    //   saved    → "EDIT"      (outlined)
-                    //   locked   → nothing     (countdown pill already shows "LOCKED")
-                    if (_editing) ...[
-                      _ActionPill(
-                        label: _saving ? 'SAVING…' : 'LOCK PICK',
-                        faIcon: FontAwesomeIcons.lock,
-                        accent: true,
-                        onTap: canLock ? _lock : null,
-                      ),
-                      const SizedBox(width: Spacing.sm),
-                    ] else if (hasSaved && !systemLocked) ...[
-                      _ActionPill(
-                        label: 'EDIT',
-                        icon: Icons.edit,
-                        accent: false,
-                        onTap: () => setState(() => _editing = true),
-                      ),
-                      const SizedBox(width: Spacing.sm),
-                    ],
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: Spacing.md, vertical: 4),
-                      decoration: BoxDecoration(border: Border.all(color: BrandColors.accent, width: 1.5), borderRadius: const BorderRadius.all(Radius.circular(999))),
-                      child: Row(mainAxisSize: MainAxisSize.min, children: [
-                        const FaIcon(FontAwesomeIcons.clock, size: 10, color: BrandColors.accent),
-                        const SizedBox(width: 5),
-                        Text(_lockLabel(session.scheduledStart), style: AppText.label(10, color: BrandColors.accent)),
-                      ]),
-                    ),
-                  ]),
+                  padding: const EdgeInsets.fromLTRB(Spacing.lg, 0, Spacing.lg, Spacing.sm),
+                  child: actionBar,
                 ),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(Spacing.xl, Spacing.md, Spacing.xl, Spacing.xs),
@@ -452,6 +489,7 @@ class _PredictScreenState extends State<PredictScreen> {
                           driverName: r?.driverName,
                           number: null,
                           constructorId: r?.constructorId,
+                          emptyLabel: canEdit ? 'Tap a driver below' : 'No pick',
                           onClear: filled && canEdit
                               ? () => setState(() => _picks.removeAt(i))
                               : null,
@@ -473,7 +511,15 @@ class _PredictScreenState extends State<PredictScreen> {
                         _ReferenceSourceChip(
                           referenceSession: d.referenceSession!,
                           eventRound: d.event!.round,
-                        ),
+                        )
+                      // No timing data and no form guide — the BEST column
+                      // shows WDC standing, so label it here. (With a form
+                      // guide the per-column header labels both instead.)
+                      else if (d.recentFinishes.isEmpty &&
+                          d.standingsOrder.isNotEmpty)
+                        Text('WDC STANDING',
+                            style: AppText.label(10,
+                                color: t.colorScheme.onSurface.withOpacity(0.5))),
                     ],
                   ),
                 ),
@@ -506,26 +552,26 @@ class _PredictScreenState extends State<PredictScreen> {
   }
 }
 
-/// Compact pill that sits beside the "LOCKS IN …" countdown and carries the
-/// primary action for the current state. Accent variant (filled red, white
-/// text) for LOCK PICK; outlined variant for EDIT. A null [onTap] renders
-/// the accent variant in a dimmed disabled state (used when the current
-/// picks aren't complete enough to lock).
-class _ActionPill extends StatelessWidget {
+/// Full-width status/action bar merging the primary action with the lock
+/// countdown into a single control styled like the slot + driver cards
+/// (rLg radius, card stroke, full width). Accent variant (filled red, white
+/// text) carries LOCK PICK; outlined variant carries EDIT / LOCKED. A null
+/// [onTap] is non-interactive — accent renders dimmed (picks not lockable /
+/// saving), outlined renders dimmed (system-locked status). [countdown] is
+/// hidden when null so a pure "LOCKED" status doesn't read it twice.
+class _ActionBar extends StatelessWidget {
+  final IconData icon;
   final String label;
-  /// Material icon. Exactly one of [icon] / [faIcon] is supplied.
-  final IconData? icon;
-  /// Font Awesome icon. Rendered via [FaIcon] when set.
-  final FaIconData? faIcon;
+  final String? countdown;
   final bool accent;
   final VoidCallback? onTap;
-  const _ActionPill({
+  const _ActionBar({
+    required this.icon,
     required this.label,
-    this.icon,
-    this.faIcon,
+    required this.countdown,
     required this.accent,
     required this.onTap,
-  }) : assert(icon != null || faIcon != null, 'provide icon or faIcon');
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -534,29 +580,38 @@ class _ActionPill extends StatelessWidget {
     final bg = accent
         ? (disabled ? BrandColors.accent.withOpacity(0.35) : BrandColors.accent)
         : t.colorScheme.surface;
-    final fg = accent ? Colors.white : t.colorScheme.onSurface;
-    final border = accent
-        ? Border.all(color: Colors.transparent, width: 1.5)
-        : Border.all(color: t.strokeColor, width: 1.5);
-    return InkWell(
-      onTap: onTap,
-      borderRadius: const BorderRadius.all(Radius.circular(999)),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: Spacing.md, vertical: 4),
-        decoration: BoxDecoration(
-          color: bg,
-          border: border,
-          borderRadius: const BorderRadius.all(Radius.circular(999)),
+    final fg = accent
+        ? Colors.white
+        : t.colorScheme.onSurface.withOpacity(disabled ? 0.5 : 1.0);
+    final clock = accent ? Colors.white : BrandColors.accent;
+    return Material(
+      color: bg,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
+        side: BorderSide(
+          color: accent ? Colors.transparent : t.strokeColor,
+          width: Strokes.card,
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            faIcon != null
-                ? FaIcon(faIcon!, size: 11, color: fg)
-                : Icon(icon, size: 11, color: fg),
-            const SizedBox(width: 4),
-            Text(label, style: AppText.label(10, color: fg)),
-          ],
+        borderRadius: Radii.rLg,
+      ),
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+              horizontal: Spacing.md, vertical: Spacing.md),
+          child: Row(
+            children: [
+              Icon(icon, size: 14, color: fg),
+              const SizedBox(width: Spacing.sm),
+              Text(label, style: AppText.label(12, color: fg)),
+              if (countdown != null) ...[
+                const Spacer(),
+                FaIcon(FontAwesomeIcons.clock, size: 11, color: clock),
+                const SizedBox(width: 5),
+                Text(countdown!, style: AppText.label(11, color: clock)),
+              ],
+            ],
+          ),
         ),
       ),
     );
@@ -595,6 +650,10 @@ class _PredictData {
   /// reference laps are available yet (pre-FP1 of the season opener etc).
   /// Empty when the standings endpoint fails or hasn't been called.
   final Map<String, int> standingsOrder;
+  /// driverCode → finishing positions in the last up-to-3 finished races,
+  /// newest first. Only populated in the no-timing-data state, where it backs
+  /// the per-row form guide. Empty otherwise.
+  final Map<String, List<int>> recentFinishes;
   _PredictData({
     required this.event,
     required this.session,
@@ -605,6 +664,7 @@ class _PredictData {
     this.referenceTimes = const {},
     this.referenceLaps,
     this.standingsOrder = const {},
+    this.recentFinishes = const {},
   });
 }
 
@@ -660,6 +720,10 @@ const Map<SessionType, List<SessionType>> _referenceOrder = {
   SessionType.race: [SessionType.qualifying, SessionType.sprint_quali],
   SessionType.sprint: [SessionType.sprint_quali, SessionType.qualifying],
 };
+
+/// Championship-position label for the BEST column when a driver has no lap
+/// time on this screen yet (pre-FP1 of a weekend). Null → renders as '—'.
+String? _wdcLabel(int? position) => position == null ? null : 'P$position';
 
 Session? _pickReferenceSession(Event event, SessionType predicting) {
   final order = _referenceOrder[predicting];
@@ -780,6 +844,28 @@ class _SectorReferenceHeader extends StatelessWidget {
   }
 }
 
+/// Column header for the no-timing-data fallback: labels the recent-form
+/// chips strip and the WDC-standing column. Mirrors [_SectorReferenceHeader]'s
+/// inset so the labels line up with the row internals.
+class _FormHeader extends StatelessWidget {
+  const _FormHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Theme.of(context);
+    final muted = AppText.label(8, color: t.colorScheme.onSurface.withOpacity(0.55));
+    return Padding(
+      padding: const EdgeInsets.only(left: 78, right: Spacing.md, bottom: Spacing.xs),
+      child: Row(
+        children: [
+          Expanded(child: Center(child: Text('LAST 3 RACES', style: muted))),
+          SizedBox(width: 64, child: Text('WDC', style: muted, textAlign: TextAlign.right)),
+        ],
+      ),
+    );
+  }
+}
+
 /// Reference list: one row per driver who's not currently picked. Sorted by
 /// fastest lap across the available reference sessions (drivers with no lap
 /// fall to the bottom).
@@ -858,11 +944,17 @@ class _SectorReferenceList extends StatelessWidget {
       return a.bestLapMs!.compareTo(b.bestLapMs!);
     });
 
+    // Show the recent-form guide only in the no-timing-data state, where the
+    // backend supplied last-3-race finishes and the rows are otherwise bare.
+    final showForm = !hasRefs && data.recentFinishes.isNotEmpty;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
       child: Column(
         children: [
-          if (hasRefs) _SectorReferenceHeader(refs: refs),
+          if (hasRefs)
+            _SectorReferenceHeader(refs: refs)
+          else if (showForm)
+            const _FormHeader(),
           for (final r in rows)
             Padding(
               padding: const EdgeInsets.only(bottom: Spacing.xs),
@@ -872,7 +964,14 @@ class _SectorReferenceList extends StatelessWidget {
                 teamColorHex: r.teamColorHex,
                 referenceLaps: r.laps,
                 pickedSlot: r.pickedSlot,
-                bestLapOverride: hasRefs ? null : data.referenceTimes[r.driverCode],
+                // No sector data: prefer a weekend lap time, else fall back to
+                // the driver's WDC standing so the column carries meaning
+                // instead of a column of dashes (pre-FP1 of a weekend).
+                bestLapOverride: hasRefs
+                    ? null
+                    : (data.referenceTimes[r.driverCode] ??
+                        _wdcLabel(data.standingsOrder[r.driverCode])),
+                recentFinishes: showForm ? data.recentFinishes[r.driverCode] : null,
                 onTap: canEdit ? () => onToggle(r.driverCode) : null,
               ),
             ),

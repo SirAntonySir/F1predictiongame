@@ -1,0 +1,53 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "iPhone 17 Pro (sim) · dev",
+      "type": "dart",
+      "request": "launch",
+      "program": "lib/main.dart",
+      "deviceId": "76ADD67A-99F4-4B62-A103-D4B51A0F0C82",
+      "flutterMode": "debug"
+    },
+    {
+      "name": "iPhone 17 Pro (sim) · build",
+      "type": "dart",
+      "request": "launch",
+      "program": "lib/main.dart",
+      "deviceId": "76ADD67A-99F4-4B62-A103-D4B51A0F0C82",
+      "flutterMode": "release"
+    },
+    {
+      "name": "Anton's iPad · dev",
+      "type": "dart",
+      "request": "launch",
+      "program": "lib/main.dart",
+      "deviceId": "00008112-001241141443601E",
+      "flutterMode": "debug"
+    },
+    {
+      "name": "Anton's iPad · build",
+      "type": "dart",
+      "request": "launch",
+      "program": "lib/main.dart",
+      "deviceId": "00008112-001241141443601E",
+      "flutterMode": "release"
+    },
+    {
+      "name": "Anton's iPhone · dev",
+      "type": "dart",
+      "request": "launch",
+      "program": "lib/main.dart",
+      "deviceId": "00008130-001271860C91001C",
+      "flutterMode": "debug"
+    },
+    {
+      "name": "Anton's iPhone · build",
+      "type": "dart",
+      "request": "launch",
+      "program": "lib/main.dart",
+      "deviceId": "00008130-001271860C91001C",
+      "flutterMode": "release"
+    }
+  ]
+}

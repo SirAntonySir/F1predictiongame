@@ -12,6 +12,10 @@ class Slot extends StatelessWidget {
   final int? number;
   final String? constructorId;
   final VoidCallback? onClear;
+  /// Placeholder shown in an empty slot. Defaults to the edit-mode prompt;
+  /// callers pass a read-only variant (e.g. 'No pick') for locked sessions
+  /// where the slot can't be filled.
+  final String emptyLabel;
   const Slot({
     super.key,
     required this.position,
@@ -20,6 +24,7 @@ class Slot extends StatelessWidget {
     this.number,
     this.constructorId,
     this.onClear,
+    this.emptyLabel = 'Tap a driver below',
   });
 
   @override
@@ -56,7 +61,7 @@ class Slot extends StatelessWidget {
           Expanded(
             child: filled
                 ? Text(driverName ?? '', style: AppText.body(14, weight: FontWeight.w700))
-                : Text('Tap a driver below',
+                : Text(emptyLabel,
                     style: AppText.body(12, color: t.colorScheme.onSurface.withOpacity(0.35))
                         .copyWith(fontStyle: FontStyle.italic)),
           ),
