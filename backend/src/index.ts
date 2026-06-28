@@ -18,6 +18,7 @@ import { registerReferenceLapsRoutes } from './api/routes/referenceLaps.js'
 import { registerDeviceRoutes } from './api/routes/devices.js'
 import { registerAdminReadRoutes } from './api/routes/adminReads.js'
 import { registerAdminSessionResultRoutes } from './api/routes/adminSessionResults.js'
+import { registerAdminLeagueRoutes } from './api/routes/adminLeagues.js'
 import { Scheduler } from './crawler/scheduler.js'
 
 export type BuildAppOpts = { scheduler: Scheduler | null } & Omit<AdminDeps, 'scheduler'>
@@ -47,6 +48,7 @@ export async function buildApp(opts: BuildAppOpts): Promise<FastifyInstance> {
   await registerAdminRoutes(app, { scheduler: opts.scheduler, jolpica: opts.jolpica, wiki: opts.wiki, openf1: opts.openf1 })
   await registerAdminReadRoutes(app, { scheduler: opts.scheduler })
   await registerAdminSessionResultRoutes(app)
+  await registerAdminLeagueRoutes(app)
   await app.register(registerAuthRoutes)
   await app.register(registerLeagueRoutes)
   await app.register(registerPredictionRoutes)
