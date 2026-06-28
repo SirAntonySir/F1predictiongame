@@ -1,6 +1,11 @@
 const TOKEN_KEY = 'f1pg_admin_token'
 const BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000'
 
+let onUnauthorized: (() => void) | null = null
+export function setUnauthorizedHandler(fn: (() => void) | null): void {
+  onUnauthorized = fn
+}
+
 export function getToken(): string | null {
   return localStorage.getItem(TOKEN_KEY)
 }
@@ -37,6 +42,7 @@ export async function apiFetch<T>(path: string, opts: FetchOpts = {}): Promise<T
   })
 
   if (!res.ok) {
+    if (res.status === 401 && opts.token === undefined) onUnauthorized?.()
     let code = 'ERROR'
     let message = `Request failed (${res.status})`
     try {

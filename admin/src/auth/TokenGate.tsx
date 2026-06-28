@@ -1,14 +1,15 @@
-import { useState, type ReactNode } from 'react'
+import { useState } from 'react'
 import { Box, Button, Card, Flex, Heading, Text, TextField } from '@radix-ui/themes'
-import { apiFetch, getToken, setToken, ApiError } from '../api/client'
+import { apiFetch, ApiError } from '../api/client'
+import { useAuth } from './AuthContext'
 
-export function TokenGate({ children }: { children: ReactNode }) {
-  const [unlocked, setUnlocked] = useState(() => getToken() !== null)
+export function TokenGate({ children }: { children: React.ReactNode }) {
+  const { token, signIn } = useAuth()
   const [value, setValue] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
-  if (unlocked) return <>{children}</>
+  if (token !== null) return <>{children}</>
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -17,8 +18,7 @@ export function TokenGate({ children }: { children: ReactNode }) {
     try {
       // Validate by hitting a token-gated endpoint with the candidate token.
       await apiFetch('/admin/crawl/status', { token: value })
-      setToken(value)
-      setUnlocked(true)
+      signIn(value)
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not reach the backend')
     } finally {

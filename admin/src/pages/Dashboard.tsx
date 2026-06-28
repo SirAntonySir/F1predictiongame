@@ -1,5 +1,6 @@
 import { Card, Flex, Heading, Text, Badge, Box } from '@radix-ui/themes'
 import { useCrawlStatus } from '../api/hooks'
+import { FetchControls } from '../components/FetchControls'
 
 export function Dashboard() {
   const { data, isLoading, error } = useCrawlStatus()
@@ -32,6 +33,7 @@ export function Dashboard() {
           </Card>
         </Flex>
       )}
+      <FetchControls />
     </Flex>
   )
 }
