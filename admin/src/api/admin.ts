@@ -1,6 +1,11 @@
-import { useQuery } from '@tanstack/react-query'
-import { apiFetch } from './client'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { apiFetch, ApiError } from './client'
+import { useToast } from '../ui/toast'
 import type { AdminPrediction, AdminUserRow } from './types'
+
+function errMsg(e: unknown, fallback: string): string {
+  return e instanceof ApiError ? e.message : fallback
+}
 
 export function useAdminUsers(query: string) {
   return useQuery({
@@ -20,5 +25,39 @@ export function useAdminPredictions(sessionId: string) {
         `/admin/predictions?sessionId=${encodeURIComponent(sessionId)}`
       ),
     enabled: sessionId.trim() !== ''
+  })
+}
+
+// --- user mutations ---
+
+export function useUpdateUser(id: string) {
+  const qc = useQueryClient()
+  const { show } = useToast()
+  return useMutation({
+    mutationFn: (body: { displayName?: string; email?: string }) =>
+      apiFetch(`/admin/users/${id}`, { method: 'PATCH', body }),
+    onSuccess: () => { show('User updated', 'ok'); void qc.invalidateQueries({ queryKey: ['admin-users'] }) },
+    onError: (e) => show(errMsg(e, 'Update failed'), 'error')
+  })
+}
+
+export function useSetUserPassword(id: string) {
+  const { show } = useToast()
+  return useMutation({
+    mutationFn: (password: string) =>
+      apiFetch(`/admin/users/${id}/set-password`, { method: 'POST', body: { password } }),
+    onSuccess: () => show('Password set', 'ok'),
+    onError: (e) => show(errMsg(e, 'Set password failed'), 'error')
+  })
+}
+
+// id passed at mutate time so a list can drive per-row deletes with one hook.
+export function useDeleteUser() {
+  const qc = useQueryClient()
+  const { show } = useToast()
+  return useMutation({
+    mutationFn: (id: string) => apiFetch(`/admin/users/${id}`, { method: 'DELETE' }),
+    onSuccess: () => { show('User deleted', 'ok'); void qc.invalidateQueries({ queryKey: ['admin-users'] }) },
+    onError: (e) => show(errMsg(e, 'Delete failed'), 'error')
   })
 }
