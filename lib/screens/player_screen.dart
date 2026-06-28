@@ -641,6 +641,18 @@ class _PickLogCard extends StatelessWidget {
                         color: t.colorScheme.onSurface.withOpacity(0.6))),
               ),
             ],
+            if (item.provisional) ...[
+              const SizedBox(width: Spacing.sm),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                decoration: BoxDecoration(
+                  color: BrandColors.accent.withOpacity(0.15),
+                  borderRadius: Radii.rSm,
+                ),
+                child: Text('PROVISIONAL',
+                    style: AppText.label(8, color: BrandColors.accent)),
+              ),
+            ],
             if (item.score != null) ...[
               const SizedBox(width: Spacing.sm),
               Text('+${item.score!.points}',

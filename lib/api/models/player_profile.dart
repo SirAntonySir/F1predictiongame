@@ -293,6 +293,10 @@ class PlayerPickLogItem {
   final List<PickLogPick> picks;
   final List<PickLogResult> topResults;
   final PickLogScore? score;
+  /// True when the session has results but isn't finalised yet — the score is
+  /// computed from OpenF1 live timing and can still change once the official
+  /// classification lands. The UI badges it so it doesn't read as final.
+  final bool provisional;
   const PlayerPickLogItem({
     required this.sessionId,
     required this.round,
@@ -303,6 +307,7 @@ class PlayerPickLogItem {
     required this.picks,
     required this.topResults,
     required this.score,
+    this.provisional = false,
   });
   factory PlayerPickLogItem.fromJson(Map<String, dynamic> j) => PlayerPickLogItem(
         sessionId: (j['sessionId'] as num).toInt(),
@@ -331,5 +336,6 @@ class PlayerPickLogItem {
                 points: ((j['score'] as Map)['points'] as num).toInt(),
                 breakdown: ((j['score'] as Map)['breakdown'] as Map<String, dynamic>),
               ),
+        provisional: j['provisional'] as bool? ?? false,
       );
 }

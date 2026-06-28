@@ -257,6 +257,7 @@ export async function registerPlayerRoutes(app: FastifyInstance): Promise<void> 
         round: event.round,
         eventName: event.name,
         scheduledStart: session.scheduledStart,
+        status: session.status,
         source: prediction.source,
         importedAt: prediction.importedAt
       })
@@ -351,7 +352,11 @@ export async function registerPlayerRoutes(app: FastifyInstance): Promise<void> 
           // already available via /api/sessions/:id/results if the client
           // wants more.
           topResults: (resultsBySession.get(l.sessionId) ?? []).slice(0, 5),
-          score: scoreBySession.get(l.sessionId) ?? null
+          score: scoreBySession.get(l.sessionId) ?? null,
+          // Provisional = the session has results but isn't finalised yet (the
+          // tick persisted OpenF1 live timing while the official classification
+          // is still pending). The score can still change, so the UI badges it.
+          provisional: l.status !== 'finished' && (resultsBySession.get(l.sessionId)?.length ?? 0) > 0
         }))
       }
 

@@ -9,6 +9,8 @@ import {
   type DriverLookup, type ConstructorLookup
 } from '../jolpica/parsers.js'
 import { parseSessionResult as parseOpenF1SessionResult, parseDrivers as parseOpenF1Drivers, parseBestLapsPerDriver, parseKnockoutBestLapsPerDriver, type OpenF1DriverLookup } from '../openf1/parsers.js'
+import { parseLivePositions } from '../openf1/live.js'
+import { isScorableSessionType } from '../scoring/index.js'
 import * as sessionsRepo from '../repo/sessions.js'
 import * as eventsRepo from '../repo/events.js'
 import * as resultsRepo from '../repo/results.js'
@@ -22,7 +24,7 @@ import { rescorePreseasonForSeason } from '../preseason/rescorer.js'
 import type { SessionType, SessionResultRow } from '../domain/types.js'
 import { enrichDriversAndConstructors } from './openf1Enrichment.js'
 
-export type TickSummary = { sessionsFinished: number; sessionsSkipped: number; errors: number }
+export type TickSummary = { sessionsFinished: number; sessionsSkipped: number; sessionsProvisional: number; errors: number }
 
 type FetchOutput = {
   rows: SessionResultRow[]
@@ -124,6 +126,31 @@ export async function fetchByType(
   }
 }
 
+/// Provisional fallback. When neither OpenF1's `session_result` nor Jolpica has
+/// published the official classification yet (the window between the chequered
+/// flag and the official result landing), derive a finishing order from
+/// OpenF1's live `/position` timing — the same feed the live results screen
+/// shows. Returns the rows + OpenF1 driver lookups (same shape as
+/// [fetchFromOpenF1]) or null when there's no live order yet. The caller
+/// persists these WITHOUT marking the session finished, so the next tick keeps
+/// trying the official path and upgrades the rows the moment it publishes.
+async function fetchProvisionalFromOpenF1(
+  openf1: OpenF1Client,
+  openf1SessionKey: number
+): Promise<{ rows: SessionResultRow[]; drivers: OpenF1DriverLookup[] } | null> {
+  const [rawPos, rawDrv] = await Promise.all([
+    openf1.getPosition(openf1SessionKey),
+    openf1.getDrivers(openf1SessionKey)
+  ])
+  if (!rawPos || !rawDrv) return null
+  const openF1Drivers = parseOpenF1Drivers(rawDrv)
+  const live = parseLivePositions(rawPos, openF1Drivers)
+  if (live.length === 0) return null
+  // Strip the live-only teamColour field — persist as a plain SessionResultRow.
+  const rows: SessionResultRow[] = live.map(({ teamColour: _teamColour, ...r }) => r)
+  return { rows, drivers: openF1Drivers }
+}
+
 function dedupeConstructorsFromOpenF1(drivers: OpenF1DriverLookup[]) {
   const seen = new Map<string, { id: string; name: string; nationality: null; wikipediaUrl: null }>()
   for (const d of drivers) {
@@ -223,7 +250,7 @@ export async function runTick(
   openf1: OpenF1Client,
   opts: RunTickOptions = {}
 ): Promise<TickSummary> {
-  const summary: TickSummary = { sessionsFinished: 0, sessionsSkipped: 0, errors: 0 }
+  const summary: TickSummary = { sessionsFinished: 0, sessionsSkipped: 0, sessionsProvisional: 0, errors: 0 }
   let candidates
   if (opts.sessionId != null) {
     const one = await sessionsRepo.getById(opts.sessionId)
@@ -250,7 +277,29 @@ export async function runTick(
     try {
       const ev = await getEvent(ses.eventId)
       if (!ev) { summary.errors++; continue }
-      const fetched = await fetchByType(jolpica, openf1, ses.type, ev.seasonYear, ev.round, ses.openf1SessionKey)
+      let fetched = await fetchByType(jolpica, openf1, ses.type, ev.seasonYear, ev.round, ses.openf1SessionKey)
+      let provisional = false
+
+      if (fetched.rows.length === 0 && isScorableSessionType(ses.type) && ses.openf1SessionKey != null) {
+        // No official classification yet (OpenF1 session_result + Jolpica both
+        // empty), but the session is past its scheduled end (it's a candidate).
+        // Fall back to OpenF1 live timing so the leaderboard + pick log reflect
+        // a PROVISIONAL result now instead of waiting for the official to land.
+        const prov = await fetchProvisionalFromOpenF1(openf1, ses.openf1SessionKey)
+        if (prov) {
+          fetched = {
+            rows: prov.rows,
+            drivers: prov.drivers.map((d) => ({
+              code: d.code, givenName: d.givenName, familyName: d.familyName,
+              nationality: null, permanentNumber: d.driverNumber, wikipediaUrl: null
+            })),
+            constructors: dedupeConstructorsFromOpenF1(prov.drivers),
+            source: 'openf1',
+            openF1Drivers: prov.drivers
+          }
+          provisional = true
+        }
+      }
 
       let rowsToPersist = fetched.rows
       const driversToUpsert = fetched.drivers
@@ -279,16 +328,23 @@ export async function runTick(
         rowsToPersist.map((r) => ({ ...r, sessionId: ses.id! })),
         fetched.source
       )
-      await sessionsRepo.markFinished(ses.id!)
-      // Source=openf1 means we know this is provisional and the reconciliation
-      // pass should pick it up. Clear any previous reconciled stamp so a
-      // re-imported session gets re-reconciled. Source=jolpica is already the
-      // official classification — stamp it immediately so the reconciler skips
-      // it on its next pass.
-      await sessionsRepo.setLastReconciledAt(
-        ses.id!,
-        fetched.source === 'jolpica' ? new Date() : null
-      )
+      // Provisional rows are persisted but the session stays 'scheduled' — it
+      // remains a tick candidate so the next pass upgrades it to the official
+      // OpenF1/Jolpica classification (which then marks it finished). A session
+      // that is 'scheduled' yet has session_result rows is, by definition, the
+      // provisional state; no extra flag needed.
+      if (!provisional) {
+        await sessionsRepo.markFinished(ses.id!)
+        // Source=openf1 means we know this is provisional and the reconciliation
+        // pass should pick it up. Clear any previous reconciled stamp so a
+        // re-imported session gets re-reconciled. Source=jolpica is already the
+        // official classification — stamp it immediately so the reconciler skips
+        // it on its next pass.
+        await sessionsRepo.setLastReconciledAt(
+          ses.id!,
+          fetched.source === 'jolpica' ? new Date() : null
+        )
+      }
 
       // Best-lap-with-sectors snapshot for the sector-color reference view on
       // the predict screen. For quali / sprint_quali we write one row per
@@ -325,11 +381,19 @@ export async function runTick(
         }
       }
 
-      summary.sessionsFinished++
-      anyFinished = true
+      if (provisional) {
+        summary.sessionsProvisional++
+        // Don't set anyFinished — provisional results don't change the official
+        // F1 driver/constructor standings (those come from Jolpica), so there's
+        // nothing to refresh there. The per-session rescore below is what feeds
+        // the leaderboard.
+      } else {
+        summary.sessionsFinished++
+        anyFinished = true
+      }
       try {
         const rescore = await rescoreSession(ses.id!)
-        console.log('Rescored session', { sessionId: ses.id, ...rescore })
+        console.log(provisional ? 'Rescored session (provisional)' : 'Rescored session', { sessionId: ses.id, ...rescore })
       } catch (err) {
         console.error('Rescore failed (results saved)', { sessionId: ses.id, err })
       }
