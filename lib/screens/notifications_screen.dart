@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:url_launcher/url_launcher.dart';
 import '../services/notifications/local_display.dart';
+import '../services/notifications/push_service.dart' show pushPermissionGranted;
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
 import '../theme/colors.dart';
@@ -89,6 +91,15 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                     settingsEnabled: scope.notifications.enabled,
                     inited: _inited,
                   ),
+                  ValueListenableBuilder<bool?>(
+                    valueListenable: pushPermissionGranted,
+                    builder: (_, granted, __) => granted == false
+                        ? const Padding(
+                            padding: EdgeInsets.only(top: Spacing.sm),
+                            child: _PermissionNudge(),
+                          )
+                        : const SizedBox.shrink(),
+                  ),
                   const SizedBox(height: Spacing.lg),
                   Row(children: [
                     Text('IN YOUR TRAY · TAP TO DISMISS', style: AppText.label(11)),
@@ -136,6 +147,59 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Shown when the OS push permission is denied — server notifications can't be
+/// delivered until the user re-enables them in system settings.
+class _PermissionNudge extends StatelessWidget {
+  const _PermissionNudge();
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.all(Spacing.lg),
+      decoration: BoxDecoration(
+        color: BrandColors.accent.withOpacity(0.08),
+        border: Border.all(color: BrandColors.accent, width: Strokes.card),
+        borderRadius: Radii.rLg,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('NOTIFICATIONS BLOCKED',
+              style: AppText.label(11, color: BrandColors.accent)),
+          const SizedBox(height: Spacing.xs),
+          Text(
+            "Push is off in system settings, so reminders and results won't "
+            "arrive. Turn notifications on for F1PG to get them back.",
+            style: AppText.body(13,
+                color: t.colorScheme.onSurface.withOpacity(0.75)),
+          ),
+          const SizedBox(height: Spacing.md),
+          InkWell(
+            borderRadius: Radii.rLg,
+            onTap: () async {
+              // iOS opens the app's settings page; best-effort elsewhere.
+              try {
+                await launchUrl(Uri.parse('app-settings:'));
+              } catch (_) {}
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: Spacing.lg, vertical: Spacing.sm),
+              decoration: const BoxDecoration(
+                color: BrandColors.accent,
+                borderRadius: Radii.rLg,
+              ),
+              child: Text('OPEN SETTINGS',
+                  style: AppText.label(11, color: Colors.white)),
+            ),
+          ),
+        ],
       ),
     );
   }

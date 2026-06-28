@@ -2,6 +2,8 @@ import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { config } from '../../config.js'
 import { ApiError } from '../errors.js'
+import { broadcastToAll } from '../../notifications/dispatcher.js'
+import { createSender, resolveMessaging } from '../../notifications/sender.js'
 import { JolpicaClient } from '../../jolpica/client.js'
 import { WikipediaClient } from '../../wikipedia/client.js'
 import { OpenF1Client } from '../../openf1/client.js'
@@ -261,4 +263,27 @@ export async function registerAdminRoutes(app: FastifyInstance, deps: AdminDeps)
     await seasonsRepo.upsertSeason({ year, isCurrent: true })
     return { ok: true, activated: year }
   })
+
+  // Fire a one-off push to every opted-in device. Returns sent: 0 with a reason
+  // when FCM isn't configured rather than erroring, so it's safe in any env.
+  app.post('/admin/notifications/broadcast', async (req) => {
+    const parsed = broadcastSchema.safeParse(req.body)
+    if (!parsed.success) {
+      throw new ApiError('VALIDATION', parsed.error.issues[0]?.message ?? 'Invalid broadcast body')
+    }
+    const messaging = await resolveMessaging()
+    if (!messaging) return { ok: false, reason: 'FCM not configured (FIREBASE_SERVICE_ACCOUNT unset)', sent: 0 }
+    const data: Record<string, string> = { kind: 'broadcast' }
+    if (parsed.data.route) data.route = parsed.data.route
+    const summary = await broadcastToAll(createSender(messaging).sendToUser, {
+      title: parsed.data.title, body: parsed.data.body, data
+    })
+    return { ok: true, ...summary }
+  })
 }
+
+const broadcastSchema = z.object({
+  title: z.string().min(1).max(120),
+  body: z.string().min(1).max(240),
+  route: z.string().min(1).max(256).optional()
+})

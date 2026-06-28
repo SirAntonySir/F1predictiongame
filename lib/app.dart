@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:skeletonizer/skeletonizer.dart';
 import 'api/api_client.dart';
 import 'nav/router.dart';
+import 'nav/deep_link.dart';
 import 'state/app_state.dart';
 import 'state/auth_controller.dart';
 import 'state/home_cache_controller.dart';
@@ -43,6 +44,14 @@ class F1PgApp extends StatefulWidget {
 
 class _F1PgAppState extends State<F1PgApp> {
   late final router = buildRouter(widget.auth);
+
+  @override
+  void initState() {
+    super.initState();
+    // Expose the router so notification taps (wired at boot) can deep-link,
+    // and replay any route buffered before the router existed (cold start).
+    registerAppRouter(router);
+  }
 
   @override
   Widget build(BuildContext context) {

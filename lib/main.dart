@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'api/http_api_client.dart';
@@ -10,6 +9,7 @@ import 'state/league_controller.dart';
 import 'services/notifications/fcm_transport.dart';
 import 'services/notifications/local_display.dart';
 import 'services/notifications/push_service.dart';
+import 'nav/deep_link.dart';
 import 'state/home_cache_controller.dart';
 import 'state/live_session_controller.dart';
 import 'state/notification_settings_controller.dart';
@@ -112,11 +112,9 @@ class _AfterBootState extends State<_AfterBoot> {
     // the backend. All best-effort — Firebase being absent/unconfigured (no
     // native config files yet) must not block boot, so [FcmPushTransport.create]
     // returns null and push silently stays off.
-    // Deep-link routing on tap is deferred to phase 4 (needs router access);
-    // for now taps just log.
-    void onPushRoute(String route) {
-      if (kDebugMode) debugPrint('push route (phase 4 deep-link TODO): $route');
-    }
+    // A push tap carries a `data.route` deep link; hand it to the router (which
+    // registers itself once the widget tree builds, and buffers cold-start taps).
+    void onPushRoute(String route) => handlePushRoute(route);
     await LocalDisplay.instance.init(onTapPayload: onPushRoute);
     // Resolve the device's IANA zone once; the server uses it to gate quiet
     // hours. Best-effort — null just means quiet hours won't apply yet.

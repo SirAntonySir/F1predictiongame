@@ -3,6 +3,11 @@ import 'package:flutter/foundation.dart';
 import '../../api/api_client.dart';
 import 'push_transport.dart';
 
+/// App-wide push permission signal for the UI (null = not yet asked / unknown,
+/// false = denied → show the "enable in system settings" nudge, true = granted).
+/// Set by [PushService.start]; read by the Notifications screen.
+final ValueNotifier<bool?> pushPermissionGranted = ValueNotifier<bool?>(null);
+
 /// Owns the device-token lifecycle: request permission, register the FCM token
 /// with the backend, re-register on rotation, and drop it on logout. This
 /// replaces the old on-device [ReminderService] scheduler — the backend now
@@ -38,6 +43,7 @@ class PushService {
     _started = true;
     try {
       _permissionGranted = await _transport.requestPermission();
+      pushPermissionGranted.value = _permissionGranted;
       if (!_permissionGranted) return;
       final token = await _transport.getToken();
       if (token != null) await _register(token);

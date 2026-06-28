@@ -4,7 +4,7 @@ import * as events from '../../src/repo/events.js'
 import * as sessions from '../../src/repo/sessions.js'
 import * as predictions from '../../src/repo/predictions.js'
 import * as notif from '../../src/repo/notifications.js'
-import { runNotificationsTick, type NotificationMessage } from '../../src/notifications/dispatcher.js'
+import { runNotificationsTick, broadcastToAll, type NotificationMessage } from '../../src/notifications/dispatcher.js'
 import { makeUser } from '../helpers/factories.js'
 
 const NOW = new Date('2026-06-10T12:00:00.000Z')
@@ -115,6 +115,18 @@ describe('runNotificationsTick', () => {
     expect(r.sent).toBe(1)
     expect(c.calls[0].userId).toBe(picker.id)
     expect(c.calls[0].msg.data.kind).toBe('results_final')
+  })
+
+  it('broadcastToAll sends to every opted-in device-holder, skipping disabled', async () => {
+    await scene()
+    const a = await userWithToken('b-1')
+    const b = await userWithToken('b-2')
+    await notif.upsertPref(b.id, { enabled: false }) // opted out
+
+    const c = collector()
+    const r = await broadcastToAll(c.send, { title: 'Hi', body: 'all', data: { kind: 'broadcast' } })
+    expect(r.sent).toBe(1)
+    expect(c.calls.map((x) => x.userId)).toEqual([a.id])
   })
 
   it('no-ops when there are no registered devices', async () => {

@@ -123,6 +123,22 @@ export async function runNotificationsTick(now: Date, send: SendFn): Promise<{ s
   return { sent }
 }
 
+/// Fan a one-off message out to every opted-in device-holder. Used by the admin
+/// broadcast endpoint. No claim ledger (an admin triggers it deliberately, once)
+/// and no quiet-hours gate (the admin chooses when to send); [enabled] is still
+/// honoured so opted-out users are skipped.
+export async function broadcastToAll(send: SendFn, msg: NotificationMessage): Promise<{ sent: number }> {
+  const userIds = await notifRepo.activeTokenUserIds()
+  let sent = 0
+  for (const uid of userIds) {
+    const pref = await notifRepo.getPrefOrDefault(uid)
+    if (!pref.enabled) continue
+    await send(uid, msg)
+    sent++
+  }
+  return { sent }
+}
+
 /// True if [now], in the user's timezone, lies inside their quiet window.
 /// Without a timezone we can't evaluate it, so we don't suppress.
 export function inQuietHours(now: Date, pref: NotificationPref): boolean {

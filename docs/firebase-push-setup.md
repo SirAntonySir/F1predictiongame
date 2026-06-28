@@ -42,5 +42,13 @@ the current code.
 ## Verify
 - `flutter run` on a physical iOS device (push doesn't work on the simulator).
 - Watch logs for the device-token POST to `/api/devices`.
-- Until phase 3 lands the sender, test delivery from Firebase Console → Cloud
-  Messaging → "Send test message" using a token from the `device_token` table.
+- Test delivery either from Firebase Console → Cloud Messaging → "Send test
+  message" (using a token from the `device_token` table), or once
+  `FIREBASE_SERVICE_ACCOUNT` is set, hit the admin broadcast endpoint:
+  ```
+  curl -X POST $BASE/admin/notifications/broadcast \
+    -H "x-admin-token: $ADMIN_TOKEN" -H 'content-type: application/json' \
+    -d '{"title":"Hello","body":"Test broadcast","route":"/home"}'
+  ```
+  It returns `{ok:false, reason:"FCM not configured…"}` until the service
+  account is set, then `{ok:true, sent:N}`.
