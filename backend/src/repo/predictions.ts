@@ -1,4 +1,4 @@
-import { and, eq, inArray, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, sql } from 'drizzle-orm'
 import { getDb } from '../db/client.js'
 import { leagueMember, prediction, predictionPick, score, user } from '../db/schema.js'
 import type { Prediction } from '../domain/types.js'
@@ -170,4 +170,72 @@ export async function listLeagueMemberPredictions(
     picks: picksByUser.get(m.userId) ?? [],
     pointsTotal: scoreByUser.get(m.userId) ?? null
   }))
+}
+
+export type AdminPredictionRow = {
+  predictionId: string
+  userId: string
+  displayName: string
+  sessionId: number
+  source: string
+  updatedAt: Date
+  picks: { position: number; driverCode: string }[]
+}
+
+export async function listForAdmin(
+  filter: { sessionId?: number; userId?: string; leagueId?: string }
+): Promise<AdminPredictionRow[]> {
+  const db = getDb()
+  const conds = []
+  if (filter.sessionId !== undefined) conds.push(eq(prediction.sessionId, filter.sessionId))
+  if (filter.userId !== undefined) conds.push(eq(prediction.userId, filter.userId))
+  if (filter.leagueId !== undefined) {
+    const memberRows = await db
+      .select({ userId: leagueMember.userId })
+      .from(leagueMember)
+      .where(eq(leagueMember.leagueId, filter.leagueId))
+    const ids = memberRows.map((m) => m.userId)
+    // No members → no predictions. inArray on [] throws, so short-circuit.
+    if (ids.length === 0) return []
+    conds.push(inArray(prediction.userId, ids))
+  }
+
+  const rows = await db
+    .select({
+      predictionId: prediction.id,
+      userId: prediction.userId,
+      displayName: user.displayName,
+      sessionId: prediction.sessionId,
+      source: prediction.source,
+      updatedAt: prediction.updatedAt,
+      position: predictionPick.position,
+      driverCode: predictionPick.driverCode
+    })
+    .from(prediction)
+    .innerJoin(user, eq(user.id, prediction.userId))
+    .leftJoin(predictionPick, eq(predictionPick.predictionId, prediction.id))
+    .where(and(...conds))
+    .orderBy(desc(prediction.updatedAt))
+
+  const byPrediction = new Map<string, AdminPredictionRow>()
+  for (const r of rows) {
+    let p = byPrediction.get(r.predictionId)
+    if (!p) {
+      p = {
+        predictionId: r.predictionId,
+        userId: r.userId,
+        displayName: r.displayName,
+        sessionId: r.sessionId,
+        source: r.source,
+        updatedAt: r.updatedAt,
+        picks: []
+      }
+      byPrediction.set(r.predictionId, p)
+    }
+    if (r.position !== null && r.driverCode !== null) {
+      p.picks.push({ position: r.position, driverCode: r.driverCode })
+    }
+  }
+  for (const p of byPrediction.values()) p.picks.sort((a, b) => a.position - b.position)
+  return Array.from(byPrediction.values())
 }

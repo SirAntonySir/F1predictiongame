@@ -141,3 +141,30 @@ describe('GET /admin/sessions', () => {
     await app.close()
   })
 })
+
+describe('GET /admin/predictions', () => {
+  it('requires at least one filter', async () => {
+    const app = await buildApp({ scheduler: null })
+    const res = await app.inject({ method: 'GET', url: '/admin/predictions', headers: TOKEN })
+    expect(res.statusCode).toBe(400)
+    await app.close()
+  })
+
+  it('lists predictions for a session with picks and display names', async () => {
+    const u = await users.insertUser({ email: 'p@x.com', passwordHash: 'h', displayName: 'Pat' })
+    await seasons.upsertSeason({ year: 2026, isCurrent: true })
+    const ev = await events.upsertEvent({ seasonYear: 2026, round: 1, name: 'GP', circuitName: 'C', country: 'X', hasSprint: false })
+    const ses = await sessions.upsertSession({ eventId: ev.id, type: 'race', scheduledStart: new Date('2026-03-01T14:00:00Z'), scheduledEnd: new Date('2026-03-01T16:00:00Z'), status: 'scheduled', openf1SessionKey: null })
+    await drivers.upsertDriver({ code: 'VER', givenName: 'M', familyName: 'V', nationality: null, permanentNumber: null, wikipediaUrl: null, imageUrl: null, imageUrlOverride: null, headshotUrl: null })
+    await predictions.upsertPredictionWithPicks(u.id, ses.id, [{ position: 1, driverCode: 'VER' }])
+
+    const app = await buildApp({ scheduler: null })
+    const res = await app.inject({ method: 'GET', url: `/admin/predictions?sessionId=${ses.id}`, headers: TOKEN })
+    expect(res.statusCode).toBe(200)
+    const rows = res.json().predictions
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({ userId: u.id, displayName: 'Pat', sessionId: ses.id, source: 'app' })
+    expect(rows[0].picks).toEqual([{ position: 1, driverCode: 'VER' }])
+    await app.close()
+  })
+})

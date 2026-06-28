@@ -4,6 +4,7 @@ import * as leaguesRepo from '../../repo/leagues.js'
 import * as leagueMembersRepo from '../../repo/leagueMembers.js'
 import * as usersRepo from '../../repo/users.js'
 import * as sessionsRepo from '../../repo/sessions.js'
+import * as predictionsRepo from '../../repo/predictions.js'
 
 // Read-only admin endpoints. Registered on the root app after
 // registerAdminRoutes, so the /admin/* token preHandler defined there gates
@@ -46,4 +47,20 @@ export async function registerAdminReadRoutes(app: FastifyInstance): Promise<voi
     const sessions = await sessionsRepo.listAllWithFetchMeta(season)
     return { sessions }
   })
+
+  app.get<{ Querystring: { sessionId?: string; userId?: string; leagueId?: string } }>(
+    '/admin/predictions',
+    async (req) => {
+      const { sessionId, userId, leagueId } = req.query
+      if (!sessionId && !userId && !leagueId) {
+        throw new ApiError('BAD_REQUEST', 'provide at least one of sessionId, userId, leagueId')
+      }
+      const predictions = await predictionsRepo.listForAdmin({
+        sessionId: sessionId ? Number(sessionId) : undefined,
+        userId: userId || undefined,
+        leagueId: leagueId || undefined
+      })
+      return { predictions }
+    }
+  )
 }
