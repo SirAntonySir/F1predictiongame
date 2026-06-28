@@ -3,6 +3,7 @@ import { AppShell } from './components/AppShell'
 import { Dashboard } from './pages/Dashboard'
 import { Placeholder } from './pages/Placeholder'
 import { Sessions } from './pages/Sessions'
+import { SessionDetail } from './pages/SessionDetail'
 
 export const router = createBrowserRouter([
   {
@@ -11,6 +12,7 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <Dashboard /> },
       { path: 'sessions', element: <Sessions /> },
+      { path: 'sessions/:id', element: <SessionDetail /> },
       { path: 'leagues', element: <Placeholder title="Leagues" /> },
       { path: 'users', element: <Placeholder title="Users" /> },
       { path: 'predictions', element: <Placeholder title="Predictions" /> },
