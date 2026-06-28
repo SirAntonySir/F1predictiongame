@@ -43,12 +43,17 @@ export function parseLivePositions(raw: unknown, drivers: OpenF1DriverLookup[]):
   }
   // Sort by reported position, breaking ties by most-recent update first so a
   // driver who has genuinely moved into a slot ranks ahead of one holding a
-  // stale position (e.g. a retired car that stopped updating). Then RE-INDEX to
-  // a contiguous 1..N: the /position feed can transiently report the SAME
-  // position for two drivers (a retirement keeps its last slot while another
-  // advances into it), which on a clean order is a no-op but otherwise would
-  // violate the session_result (session_id, position) primary key on persist.
-  out.sort((a, b) => a.row.position - b.row.position || (a.date > b.date ? -1 : a.date < b.date ? 1 : 0))
+  // stale position (e.g. a retired car that stopped updating). Invalid/absent
+  // positions (the feed reports 0/null for not-yet-classified or retired cars)
+  // sort to the BACK rather than the front. Then RE-INDEX to a contiguous 1..N:
+  // the /position feed can report the same position (commonly 0) for several
+  // drivers, which on a clean order is a no-op but otherwise would violate the
+  // session_result (session_id, position) primary key on persist.
+  const rankOf = (p: number) => (Number.isFinite(p) && p > 0 ? p : Number.MAX_SAFE_INTEGER)
+  out.sort((a, b) =>
+    rankOf(a.row.position) - rankOf(b.row.position) ||
+    (a.date > b.date ? -1 : a.date < b.date ? 1 : 0)
+  )
   return out.map(({ row }, i) => ({ ...row, position: i + 1 }))
 }
 

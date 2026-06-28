@@ -34,6 +34,18 @@ describe('parseLivePositions', () => {
     expect(out.map((r) => [r.position, r.driverCode])).toEqual([[1, 'LEC'], [2, 'VER']])
   })
 
+  it('ranks invalid (0/null) positions last and re-indexes — no duplicate position 0', () => {
+    // Two cars report position 0 (retired / not classified); LEC has a real P1.
+    const raw = [
+      { driver_number: 1, position: 0, date: '2026-06-07T13:10:00Z' },   // VER, no valid pos
+      { driver_number: 16, position: 1, date: '2026-06-07T13:10:00Z' },  // LEC, leader
+      { driver_number: 99, position: 0, date: '2026-06-07T13:10:00Z' }   // not in lookup → skipped
+    ]
+    const out = parseLivePositions(raw, drivers)
+    // LEC (valid P1) ranks first; VER (invalid) goes last; positions are unique 1..N.
+    expect(out.map((r) => [r.position, r.driverCode])).toEqual([[1, 'LEC'], [2, 'VER']])
+  })
+
   it('skips drivers not present in the lookup and tolerates empty input', () => {
     expect(parseLivePositions([], drivers)).toEqual([])
     expect(parseLivePositions([{ driver_number: 99, position: 1, date: 'x' }], drivers)).toEqual([])
