@@ -25,6 +25,15 @@ export type UserScoreRow = Score & {
   eventName: string
 }
 
+// Remove a user's session score (used when an admin deletes their prediction,
+// so the leaderboard doesn't keep a stale score for a now-missing prediction).
+export async function deleteSessionScore(userId: string, sessionId: number): Promise<void> {
+  const db = getDb()
+  await db.delete(score).where(
+    and(eq(score.userId, userId), eq(score.sessionId, sessionId), eq(score.kind, 'session'))
+  )
+}
+
 export async function upsertScore(
   userId: string,
   sessionId: number,
