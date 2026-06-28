@@ -1,12 +1,24 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { apiFetch, ApiError } from './client'
 import { useToast } from '../ui/toast'
-import type { AdminSessionRow, SessionMeta, SessionResultRow } from './types'
+import type { AdminSessionRow, Season, SessionMeta, SessionResultRow } from './types'
 
-export function useAdminSessions() {
+export function useSeasons() {
   return useQuery({
-    queryKey: ['admin-sessions'],
-    queryFn: async () => (await apiFetch<{ sessions: AdminSessionRow[] }>('/admin/sessions')).sessions
+    queryKey: ['seasons'],
+    queryFn: () => apiFetch<Season[]>('/api/seasons')
+  })
+}
+
+// Sessions for one season. Disabled until a season is known (the page derives
+// the default from the current season), so we never fetch the unfiltered
+// all-seasons list.
+export function useAdminSessions(season: number | undefined) {
+  return useQuery({
+    queryKey: ['admin-sessions', season ?? null],
+    queryFn: async () =>
+      (await apiFetch<{ sessions: AdminSessionRow[] }>(`/admin/sessions?season=${season}`)).sessions,
+    enabled: season !== undefined
   })
 }
 

@@ -32,6 +32,11 @@ export type SessionResultRow = {
   q3: string | null
 }
 
+export type Season = {
+  year: number
+  isCurrent: boolean
+}
+
 export type SessionMeta = {
   id: number
   eventId: number
