@@ -20,11 +20,13 @@ class TrendBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
       decoration: BoxDecoration(color: bg, borderRadius: const BorderRadius.all(Radius.circular(4))),
-      // In narrow slots (e.g. the league row's 22px trend column) the
-      // glyph+number wraps so the number sits under the arrow — centre it so
-      // it lines up beneath the glyph instead of hugging the left edge.
+      // Arrow + number stay on a single row (e.g. "▲ 1"); the host reserves a
+      // wide-enough slot so it never wraps under the glyph.
       child: Text('$glyph $label',
-          textAlign: TextAlign.center, style: AppText.label(10, color: fg)),
+          maxLines: 1,
+          softWrap: false,
+          textAlign: TextAlign.center,
+          style: AppText.label(10, color: fg)),
     );
   }
 }

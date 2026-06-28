@@ -14,7 +14,9 @@ enum LeagueRowFocus { inSeason, total }
 
 // Shared column widths so the league header and rows align exactly.
 const double leagueRowPosCol = 26;
-const double leagueRowTrendCol = 22;
+// Wide enough to hold the one-row trend badge ("▲ 12") without wrapping the
+// number under the arrow. Reserved on every row so the points columns line up.
+const double leagueRowTrendCol = 38;
 const double leagueRowPointsCol = 50;
 const double leagueRowPointsGap = 8;
 
