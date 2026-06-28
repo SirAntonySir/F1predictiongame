@@ -3,6 +3,7 @@ import { ApiError } from '../errors.js'
 import * as leaguesRepo from '../../repo/leagues.js'
 import * as leagueMembersRepo from '../../repo/leagueMembers.js'
 import * as usersRepo from '../../repo/users.js'
+import * as sessionsRepo from '../../repo/sessions.js'
 
 // Read-only admin endpoints. Registered on the root app after
 // registerAdminRoutes, so the /admin/* token preHandler defined there gates
@@ -35,5 +36,14 @@ export async function registerAdminReadRoutes(app: FastifyInstance): Promise<voi
     const user = await usersRepo.getDetail(req.params.id)
     if (!user) throw new ApiError('NOT_FOUND', `User ${req.params.id} not found`)
     return { user }
+  })
+
+  app.get<{ Querystring: { season?: string } }>('/admin/sessions', async (req) => {
+    const season = req.query.season ? Number(req.query.season) : undefined
+    if (season !== undefined && !Number.isFinite(season)) {
+      throw new ApiError('BAD_REQUEST', 'season must be a number')
+    }
+    const sessions = await sessionsRepo.listAllWithFetchMeta(season)
+    return { sessions }
   })
 }
