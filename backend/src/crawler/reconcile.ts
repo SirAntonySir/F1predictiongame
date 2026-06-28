@@ -4,7 +4,7 @@ import {
   parseRaceResults, parseQualifyingResults, parseSprintResults,
   extractDriversFromResults, extractConstructorsFromResults
 } from '../jolpica/parsers.js'
-import { upsertNewDrivers, upsertNewConstructors } from './tick.js'
+import { upsertNewDrivers, upsertNewConstructors, refreshStandings } from './tick.js'
 import * as resultsRepo from '../repo/results.js'
 import * as sessionsRepo from '../repo/sessions.js'
 import { compareClassifications } from './crossCheck.js'
@@ -24,6 +24,9 @@ export type ReconcileSummary = {
   noJolpicaData: number
   /// Errors during reconcile — left in current state to retry.
   errors: number
+  /// Whether the season standings were re-pulled this pass (true when there was
+  /// reconcilable activity worth catching up on).
+  standingsRefreshed: boolean
 }
 
 type ReconcileCandidate = {
@@ -104,7 +107,8 @@ export async function reconcileOnce(
   wiki: WikipediaClient
 ): Promise<ReconcileSummary> {
   const summary: ReconcileSummary = {
-    attempted: 0, matched: 0, replaced: 0, noJolpicaData: 0, errors: 0
+    attempted: 0, matched: 0, replaced: 0, noJolpicaData: 0, errors: 0,
+    standingsRefreshed: false
   }
   const candidates = await listReconcilable()
   for (const c of candidates) {
@@ -143,6 +147,22 @@ export async function reconcileOnce(
     } catch (err) {
       summary.errors++
       console.error('Reconcile error for session', c.sessionId, err)
+    }
+  }
+  // Standings catch-up. The tick refreshes standings exactly once — in the
+  // single tick where a session flips to finished — so any Jolpica lag at that
+  // moment leaves the season standings stale with no retry. Whenever there's a
+  // reconcilable session (a finished race within the last 7 days still due for
+  // reconciliation), re-pull the official standings once per pass. This both
+  // closes that gap and picks up standings shifts from post-race penalties,
+  // which nothing else recomputes.
+  if (candidates.length > 0) {
+    try {
+      await refreshStandings(jolpica, wiki)
+      summary.standingsRefreshed = true
+    } catch (err) {
+      summary.errors++
+      console.error('Reconcile standings refresh error', err)
     }
   }
   return summary

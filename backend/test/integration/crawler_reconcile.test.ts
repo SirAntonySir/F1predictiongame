@@ -10,6 +10,7 @@ import * as sessions from '../../src/repo/sessions.js'
 import * as drivers from '../../src/repo/drivers.js'
 import * as constructors from '../../src/repo/constructors.js'
 import * as results from '../../src/repo/results.js'
+import * as standings from '../../src/repo/standings.js'
 import { getDb } from '../../src/db/client.js'
 import { sql } from 'drizzle-orm'
 
@@ -45,6 +46,21 @@ async function seedRaceSession() {
   })
 }
 
+function driverStandingsBody(rows: Array<{ position: number; code: string }>) {
+  return { MRData: { StandingsTable: { season: '2024', StandingsLists: [{ DriverStandings: rows.map((r) => ({
+    position: String(r.position), points: String(100 - r.position), wins: r.position === 1 ? '1' : '0',
+    Driver: { code: r.code, driverId: r.code.toLowerCase(), givenName: r.code, familyName: r.code, url: null, nationality: 'Dutch', permanentNumber: '1' },
+    Constructors: [{ constructorId: 'red_bull', name: 'Red Bull', url: null, nationality: 'Austrian' }]
+  })) }] } } }
+}
+
+function constructorStandingsBody() {
+  return { MRData: { StandingsTable: { season: '2024', StandingsLists: [{ ConstructorStandings: [{
+    position: '1', points: '200', wins: '1',
+    Constructor: { constructorId: 'red_bull', name: 'Red Bull', url: null, nationality: 'Austrian' }
+  }] }] } } }
+}
+
 function jolpicaRace(rows: Array<{ position: number; code: string }>) {
   const body = {
     MRData: { RaceTable: { Races: [{ Results: rows.map((r) => ({
@@ -53,13 +69,19 @@ function jolpicaRace(rows: Array<{ position: number; code: string }>) {
       Constructor: { constructorId: 'red_bull', name: 'Red Bull', url: null, nationality: 'Austrian' }
     })) }] } }
   }
-  return new JolpicaClient('https://example.invalid', staticFetch(() => ({ status: 200, body })))
+  return new JolpicaClient('https://example.invalid', staticFetch((url) => {
+    if (url.includes('/driverStandings.json')) return { status: 200, body: driverStandingsBody(rows) }
+    if (url.includes('/constructorStandings.json')) return { status: 200, body: constructorStandingsBody() }
+    return { status: 200, body }
+  }))
 }
 
 function jolpicaEmpty() {
-  return new JolpicaClient('https://example.invalid', staticFetch(() => ({
-    status: 200, body: { MRData: { RaceTable: { Races: [] } } }
-  })))
+  return new JolpicaClient('https://example.invalid', staticFetch((url) => {
+    if (url.includes('/driverStandings.json')) return { status: 200, body: { MRData: { StandingsTable: { season: '2024', StandingsLists: [] } } } }
+    if (url.includes('/constructorStandings.json')) return { status: 200, body: { MRData: { StandingsTable: { season: '2024', StandingsLists: [] } } } }
+    return { status: 200, body: { MRData: { RaceTable: { Races: [] } } } }
+  }))
 }
 
 function openf1Race(rows: Array<{ position: number; code: string }>) {
@@ -171,5 +193,35 @@ describe('reconcileOnce', () => {
     expect(summary.noJolpicaData).toBe(1)
     expect(await lastReconciledAtOf(ses.id!)).toBeNull()
     expect(await sourceOf(ses.id!)).toBe('openf1')
+  })
+
+  it('refreshes season standings as a catch-up whenever there is reconcilable activity', async () => {
+    await seedRaceSession()
+    // OpenF1 fast path finished the session; the finish-tick standings refresh
+    // never ran because the tick used jolpicaEmpty (no standings yet).
+    await runTick(
+      jolpicaEmpty(),
+      wikiNoop,
+      openf1Race([{ position: 1, code: 'VER' }, { position: 2, code: 'PER' }])
+    )
+    expect(await standings.listDriverStandings(2024)).toHaveLength(0)
+
+    // Reconcile pass now has Jolpica standings — it should pull them in even
+    // when the session classification itself matches (no row swap needed).
+    const summary = await reconcileOnce(
+      jolpicaRace([{ position: 1, code: 'VER' }, { position: 2, code: 'PER' }]),
+      wikiNoop
+    )
+    expect(summary.standingsRefreshed).toBe(true)
+    const drv = await standings.listDriverStandings(2024)
+    expect(drv.map((s) => s.driverCode)).toEqual(['VER', 'PER'])
+    expect(await standings.listConstructorStandings(2024)).toHaveLength(1)
+  })
+
+  it('does not refresh standings when there is nothing to reconcile', async () => {
+    // No reconcilable sessions → no catch-up, standings left untouched.
+    const summary = await reconcileOnce(jolpicaEmpty(), wikiNoop)
+    expect(summary.attempted).toBe(0)
+    expect(summary.standingsRefreshed).toBe(false)
   })
 })

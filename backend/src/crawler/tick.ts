@@ -175,6 +175,40 @@ export async function upsertNewConstructors(constructors: ConstructorLookup[], w
   }
 }
 
+/// Re-pulls the current season's official driver + constructor standings from
+/// Jolpica, replaces the stored standings, then rescores preseason predictions
+/// against the fresh numbers. Shared by the tick (fired when a session flips to
+/// finished) and the reconcile pass (hourly catch-up, since the finish-tick
+/// refresh is a single shot that misses Jolpica's post-race publication lag).
+/// Throws on fetch/parse/db failure — callers decide how to count the error.
+export async function refreshStandings(
+  jolpica: JolpicaClient,
+  wiki: WikipediaClient
+): Promise<void> {
+  const cur = await seasonsRepo.getCurrent()
+  if (!cur) return
+  const drvRaw = await jolpica.getDriverStandings(cur.year)
+  if (drvRaw) {
+    // Standings can include drivers/constructors that never appeared in a
+    // fetched session (subs, reserves) — upsert their lookups first so the
+    // standings FK insert doesn't fail.
+    await upsertNewDrivers(extractDriversFromStandings(drvRaw), wiki)
+    await upsertNewConstructors(extractConstructorsFromStandings(drvRaw), wiki)
+    await standingsRepo.replaceDriverStandings(cur.year, parseDriverStandings(drvRaw))
+  }
+  const ctorRaw = await jolpica.getConstructorStandings(cur.year)
+  if (ctorRaw) {
+    await upsertNewConstructors(extractConstructorsFromStandings(ctorRaw), wiki)
+    await standingsRepo.replaceConstructorStandings(cur.year, parseConstructorStandings(ctorRaw))
+  }
+  try {
+    const preseasonSummary = await rescorePreseasonForSeason(cur.year)
+    console.log('Preseason rescored', { year: cur.year, ...preseasonSummary })
+  } catch (err) {
+    console.error('Preseason rescore failed', err)
+  }
+}
+
 export type RunTickOptions = {
   /// Limit the tick to a single session. Used by the scheduler's one-shot
   /// path (`tickForSession`) when triggered by an external event — e.g. a
@@ -307,29 +341,7 @@ export async function runTick(
 
   if (anyFinished) {
     try {
-      const cur = await seasonsRepo.getCurrent()
-      if (cur) {
-        const drvRaw = await jolpica.getDriverStandings(cur.year)
-        if (drvRaw) {
-          // Standings can include drivers/constructors that never appeared in a
-          // fetched session (subs, reserves) — upsert their lookups first so the
-          // standings FK insert doesn't fail.
-          await upsertNewDrivers(extractDriversFromStandings(drvRaw), wiki)
-          await upsertNewConstructors(extractConstructorsFromStandings(drvRaw), wiki)
-          await standingsRepo.replaceDriverStandings(cur.year, parseDriverStandings(drvRaw))
-        }
-        const ctorRaw = await jolpica.getConstructorStandings(cur.year)
-        if (ctorRaw) {
-          await upsertNewConstructors(extractConstructorsFromStandings(ctorRaw), wiki)
-          await standingsRepo.replaceConstructorStandings(cur.year, parseConstructorStandings(ctorRaw))
-        }
-        try {
-          const preseasonSummary = await rescorePreseasonForSeason(cur.year)
-          console.log('Preseason rescored', { year: cur.year, ...preseasonSummary })
-        } catch (err) {
-          console.error('Preseason rescore failed', err)
-        }
-      }
+      await refreshStandings(jolpica, wiki)
     } catch (err) {
       summary.errors++
       console.error('Standings refresh error', err)
