@@ -5,7 +5,7 @@ export function ActionButton(props: {
   label: string
   path: string
   method?: string
-  invalidateKeys?: string[][]
+  invalidateKeys?: unknown[][]
   successMessage: string
 }) {
   const { run, isPending } = useAdminAction({
