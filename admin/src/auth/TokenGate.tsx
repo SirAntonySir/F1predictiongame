@@ -31,9 +31,9 @@ export function TokenGate({ children }: { children: ReactNode }) {
       <Card size="3" style={{ width: 360 }}>
         <form onSubmit={submit}>
           <Flex direction="column" gap="3">
-            <Heading size="5">F1PG Admin</Heading>
+            <Heading size="5" className="display">F1PG Admin</Heading>
             <Box>
-              <Text as="label" htmlFor="admin-token" size="2">Admin token</Text>
+              <Text as="label" htmlFor="admin-token" size="2" className="label">Admin token</Text>
               <TextField.Root
                 id="admin-token"
                 type="password"
