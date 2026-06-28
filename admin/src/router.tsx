@@ -8,6 +8,7 @@ import { Leagues } from './pages/Leagues'
 import { LeagueDetail } from './pages/LeagueDetail'
 import { Seasons } from './pages/Seasons'
 import { Users } from './pages/Users'
+import { Predictions } from './pages/Predictions'
 
 export const router = createBrowserRouter([
   {
@@ -20,7 +21,7 @@ export const router = createBrowserRouter([
       { path: 'leagues', element: <Leagues /> },
       { path: 'leagues/:id', element: <LeagueDetail /> },
       { path: 'users', element: <Users /> },
-      { path: 'predictions', element: <Placeholder title="Predictions" /> },
+      { path: 'predictions', element: <Predictions /> },
       { path: 'seasons', element: <Seasons /> },
       { path: 'drivers', element: <Placeholder title="Drivers" /> },
       { path: 'constructors', element: <Placeholder title="Constructors" /> }
