@@ -8,3 +8,10 @@ globalThis.ResizeObserver = class {
   unobserve() {}
   disconnect() {}
 } as unknown as typeof ResizeObserver
+
+// Radix Select relies on Pointer Capture and scrollIntoView, neither of which
+// jsdom implements. Stub them so the dropdown can open and items be clicked.
+Element.prototype.hasPointerCapture = () => false
+Element.prototype.setPointerCapture = () => {}
+Element.prototype.releasePointerCapture = () => {}
+Element.prototype.scrollIntoView = () => {}

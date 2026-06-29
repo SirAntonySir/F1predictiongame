@@ -13,7 +13,8 @@ export function useAdminLeagues() {
 export function useAdminLeague(id: string) {
   return useQuery({
     queryKey: ['admin-league', id],
-    queryFn: () => apiFetch<AdminLeagueDetail>(`/admin/leagues/${id}`)
+    queryFn: () => apiFetch<AdminLeagueDetail>(`/admin/leagues/${id}`),
+    enabled: id.trim() !== ''
   })
 }
 

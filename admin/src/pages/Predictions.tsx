@@ -3,10 +3,12 @@ import { AlertDialog, Button, Flex, Heading, Select, Table, Text } from '@radix-
 import { useSeasons, useAdminSessions } from '../api/sessions'
 import { useAdminPredictions, useDeletePrediction } from '../api/admin'
 import { PredictionEditDialog } from '../components/PredictionEditDialog'
+import { PredictionAddDialog } from '../components/PredictionAddDialog'
 import type { AdminPrediction } from '../api/types'
 
-// Only these session types are predictable, so only they have predictions.
-const SCORABLE = new Set(['race', 'qualifying', 'sprint', 'sprint_quali'])
+// Picks required per session type — only these types are predictable/scorable.
+const PICKS_REQUIRED: Record<string, number> = { qualifying: 2, sprint_quali: 1, sprint: 3, race: 5 }
+const SCORABLE = new Set(Object.keys(PICKS_REQUIRED))
 
 export function Predictions() {
   const seasonsQ = useSeasons()
@@ -26,23 +28,28 @@ export function Predictions() {
   const selected = scorable.find((s) => String(s.id) === sessionId)
   const del = useDeletePrediction(sessionId)
   const [editing, setEditing] = useState<AdminPrediction | null>(null)
+  const [adding, setAdding] = useState(false)
+  const existingUserIds = new Set((predsQ.data?.predictions ?? []).map((p) => p.userId))
 
   return (
     <Flex direction="column" gap="4">
       <Flex align="center" justify="between" gap="3" wrap="wrap">
         <Heading size="6" className="display">Predictions</Heading>
-        {scorable.length > 0 && (
-          <Select.Root value={sessionId || undefined} onValueChange={setPicked}>
-            <Select.Trigger placeholder="Pick a session" aria-label="Session" />
-            <Select.Content>
-              {scorable.map((s) => (
-                <Select.Item key={s.id} value={String(s.id)}>
-                  R{s.round} · {s.eventName} · {s.type}{s.status === 'finished' ? '' : ' (upcoming)'}
-                </Select.Item>
-              ))}
-            </Select.Content>
-          </Select.Root>
-        )}
+        <Flex align="center" gap="2">
+          {scorable.length > 0 && (
+            <Select.Root value={sessionId || undefined} onValueChange={setPicked}>
+              <Select.Trigger placeholder="Pick a session" aria-label="Session" />
+              <Select.Content>
+                {scorable.map((s) => (
+                  <Select.Item key={s.id} value={String(s.id)}>
+                    R{s.round} · {s.eventName} · {s.type}{s.status === 'finished' ? '' : ' (upcoming)'}
+                  </Select.Item>
+                ))}
+              </Select.Content>
+            </Select.Root>
+          )}
+          <Button size="2" disabled={!sessionId} onClick={() => setAdding(true)}>Add prediction</Button>
+        </Flex>
       </Flex>
 
       {!sessionId && <Text size="2" color="gray">Pick a session to view its predictions.</Text>}
@@ -99,6 +106,15 @@ export function Predictions() {
 
       {editing && (
         <PredictionEditDialog sessionId={sessionId} prediction={editing} onClose={() => setEditing(null)} />
+      )}
+
+      {adding && selected && (
+        <PredictionAddDialog
+          sessionId={sessionId}
+          picksRequired={PICKS_REQUIRED[selected.type] ?? 0}
+          existingUserIds={existingUserIds}
+          onClose={() => setAdding(false)}
+        />
       )}
     </Flex>
   )
