@@ -1,7 +1,8 @@
 import { createBrowserRouter } from 'react-router-dom'
 import { AppShell } from './components/AppShell'
 import { Dashboard } from './pages/Dashboard'
-import { Placeholder } from './pages/Placeholder'
+import { Drivers } from './pages/Drivers'
+import { Constructors } from './pages/Constructors'
 import { Sessions } from './pages/Sessions'
 import { SessionDetail } from './pages/SessionDetail'
 import { Leagues } from './pages/Leagues'
@@ -23,8 +24,8 @@ export const router = createBrowserRouter([
       { path: 'users', element: <Users /> },
       { path: 'predictions', element: <Predictions /> },
       { path: 'seasons', element: <Seasons /> },
-      { path: 'drivers', element: <Placeholder title="Drivers" /> },
-      { path: 'constructors', element: <Placeholder title="Constructors" /> }
+      { path: 'drivers', element: <Drivers /> },
+      { path: 'constructors', element: <Constructors /> }
     ]
   }
 ])

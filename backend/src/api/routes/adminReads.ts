@@ -6,6 +6,8 @@ import * as leagueMembersRepo from '../../repo/leagueMembers.js'
 import * as usersRepo from '../../repo/users.js'
 import * as sessionsRepo from '../../repo/sessions.js'
 import * as predictionsRepo from '../../repo/predictions.js'
+import * as driversRepo from '../../repo/drivers.js'
+import * as constructorsRepo from '../../repo/constructors.js'
 
 // Read-only admin endpoints. Registered on the root app after
 // registerAdminRoutes, so the /admin/* token preHandler defined there gates
@@ -71,6 +73,23 @@ export async function registerAdminReadRoutes(
       return { predictions }
     }
   )
+
+  app.get('/admin/drivers', async () => {
+    const drivers = await driversRepo.listAll()
+    drivers.sort((a, b) => a.familyName.localeCompare(b.familyName) || a.givenName.localeCompare(b.givenName))
+    // Effective image matches the public resolution: override → headshot → wiki.
+    return {
+      drivers: drivers.map((d) => ({ ...d, image: d.imageUrlOverride ?? d.headshotUrl ?? d.imageUrl }))
+    }
+  })
+
+  app.get('/admin/constructors', async () => {
+    const constructors = await constructorsRepo.listAll()
+    constructors.sort((a, b) => a.name.localeCompare(b.name))
+    return {
+      constructors: constructors.map((c) => ({ ...c, image: c.imageUrlOverride ?? c.imageUrl }))
+    }
+  })
 
   app.get('/admin/crawl/status', async () => {
     const sched = deps.scheduler?.status() ?? { lastTickAt: null, lastTickStatus: null }

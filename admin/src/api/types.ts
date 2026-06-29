@@ -79,6 +79,30 @@ export type AdminPrediction = {
   picks: { position: number; driverCode: string }[]
 }
 
+export type AdminDriver = {
+  code: string
+  givenName: string
+  familyName: string
+  nationality: string | null
+  permanentNumber: number | null
+  wikipediaUrl: string | null
+  imageUrl: string | null
+  imageUrlOverride: string | null
+  headshotUrl: string | null
+  image: string | null
+}
+
+export type AdminConstructor = {
+  id: string
+  name: string
+  nationality: string | null
+  wikipediaUrl: string | null
+  imageUrl: string | null
+  imageUrlOverride: string | null
+  teamColour: string | null
+  image: string | null
+}
+
 export type SessionMeta = {
   id: number
   eventId: number

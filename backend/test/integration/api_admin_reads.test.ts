@@ -186,6 +186,53 @@ describe('GET /admin/predictions (validation)', () => {
   })
 })
 
+describe('GET /admin/drivers', () => {
+  it('requires the admin token', async () => {
+    const app = await buildApp({ scheduler: null })
+    const res = await app.inject({ method: 'GET', url: '/admin/drivers' })
+    expect(res.statusCode).toBe(401)
+    await app.close()
+  })
+
+  it('lists drivers sorted by family name with the effective image', async () => {
+    await drivers.upsertDriver({ code: 'VER', givenName: 'Max', familyName: 'Verstappen', nationality: 'NL', permanentNumber: 1, wikipediaUrl: null, imageUrl: 'wiki.png', imageUrlOverride: null, headshotUrl: 'head.png' })
+    await drivers.upsertDriver({ code: 'HAM', givenName: 'Lewis', familyName: 'Hamilton', nationality: 'GB', permanentNumber: 44, wikipediaUrl: null, imageUrl: 'wiki2.png', imageUrlOverride: 'override.png', headshotUrl: 'head2.png' })
+
+    const app = await buildApp({ scheduler: null })
+    const res = await app.inject({ method: 'GET', url: '/admin/drivers', headers: TOKEN })
+    expect(res.statusCode).toBe(200)
+    const body = res.json()
+    expect(body.drivers.map((d: any) => d.code)).toEqual(['HAM', 'VER'])
+    // override → headshot → wiki precedence
+    expect(body.drivers.find((d: any) => d.code === 'HAM').image).toBe('override.png')
+    expect(body.drivers.find((d: any) => d.code === 'VER').image).toBe('head.png')
+    await app.close()
+  })
+})
+
+describe('GET /admin/constructors', () => {
+  it('requires the admin token', async () => {
+    const app = await buildApp({ scheduler: null })
+    const res = await app.inject({ method: 'GET', url: '/admin/constructors' })
+    expect(res.statusCode).toBe(401)
+    await app.close()
+  })
+
+  it('lists constructors sorted by name with the effective image', async () => {
+    await constructors.upsertConstructor({ id: 'red_bull', name: 'Red Bull', nationality: 'AT', wikipediaUrl: null, imageUrl: 'rb.png', imageUrlOverride: null, teamColour: '3671C6' })
+    await constructors.upsertConstructor({ id: 'ferrari', name: 'Ferrari', nationality: 'IT', wikipediaUrl: null, imageUrl: 'fe.png', imageUrlOverride: 'fe-override.png', teamColour: 'E80020' })
+
+    const app = await buildApp({ scheduler: null })
+    const res = await app.inject({ method: 'GET', url: '/admin/constructors', headers: TOKEN })
+    expect(res.statusCode).toBe(200)
+    const body = res.json()
+    expect(body.constructors.map((c: any) => c.name)).toEqual(['Ferrari', 'Red Bull'])
+    expect(body.constructors.find((c: any) => c.id === 'ferrari').image).toBe('fe-override.png')
+    expect(body.constructors.find((c: any) => c.id === 'red_bull').image).toBe('rb.png')
+    await app.close()
+  })
+})
+
 describe('GET /admin/crawl/status', () => {
   it('reports tick status, pending candidates and provisional sessions', async () => {
     await seasons.upsertSeason({ year: 2026, isCurrent: true })
