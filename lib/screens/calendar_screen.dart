@@ -670,6 +670,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
                           scorePoints: souvenirs[i].score,
                           correctSlots: souvenirs[i].correctSlots,
                           sessionType: souvenirs[i].session.type,
+                          // Keep the wallet's tap-to-focus stack interaction —
+                          // long-press still opens the share/actions menu here.
+                          tapOpensMenu: false,
                           circuitWatermark:
                               CircuitSvg(event: souvenirs[i].event),
                           // First tap on a peek scrolls the card into the

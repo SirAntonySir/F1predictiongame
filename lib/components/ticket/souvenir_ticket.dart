@@ -37,6 +37,11 @@ class SouvenirTicket extends StatelessWidget {
   /// Pass `() {}` to disable.
   final VoidCallback? onLongPress;
   final VoidCallback? onTap;
+  /// When true (default) a single tap opens the actions menu (open details +
+  /// share) and the long-press trigger is dropped — the menu already exposes
+  /// every option. Pass false where tap already means something (e.g. the
+  /// calendar wallet's tap-to-focus stack), keeping long-press → menu there.
+  final bool tapOpensMenu;
 
   const SouvenirTicket({
     super.key,
@@ -53,6 +58,7 @@ class SouvenirTicket extends StatelessWidget {
     this.correctSlots = const {},
     this.onLongPress,
     this.onTap,
+    this.tapOpensMenu = true,
   });
 
   @override
@@ -104,8 +110,10 @@ class SouvenirTicket extends StatelessWidget {
         TicketDataCell(label: 'POINTS', value: '+$scorePoints'),
       ],
       stub: TicketStub.serialCode('PICK · ${event.round}'),
-      onTap: onTap,
-      onLongPress: onLongPress ?? () => _showActions(context),
+      onTap: tapOpensMenu ? () => _showActions(context) : onTap,
+      onLongPress: tapOpensMenu
+          ? null
+          : (onLongPress ?? () => _showActions(context)),
       leftEdgeSerial: sessionLabel,
     );
   }

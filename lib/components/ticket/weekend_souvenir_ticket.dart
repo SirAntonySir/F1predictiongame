@@ -79,8 +79,10 @@ class WeekendSouvenirTicket extends StatelessWidget {
         TicketDataCell(label: 'TOTAL', value: '+$total'),
       ],
       stub: TicketStub.serialCode('WKND · ${event.round}'),
-      onTap: onTap,
-      onLongPress: onLongPress ?? () => _showActions(context),
+      // A single tap opens the actions menu (which carries open-details +
+      // share); long-press is dropped.
+      onTap: () => _showActions(context),
+      onLongPress: null,
       leftEdgeSerial: 'WEEKEND',
     );
   }
