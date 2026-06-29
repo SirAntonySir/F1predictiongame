@@ -3,8 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:skeletonizer/skeletonizer.dart';
 
+import 'package:country_flags/country_flags.dart';
+import '../api/models/event.dart';
 import '../api/models/player_profile.dart';
+import '../components/circuit_svg.dart';
 import '../components/error_view.dart';
+import '../theme/country_flags.dart';
 import '../state/app_state.dart';
 import '../theme/app_theme.dart';
 import '../theme/colors.dart';
@@ -31,11 +35,30 @@ class PlayerScreen extends StatefulWidget {
 
 class _PlayerScreenState extends State<PlayerScreen> {
   Future<PlayerProfile>? _future;
+  // Best-effort round → Event map, used to decorate the per-GP pick-log tiles
+  // with the country flag + circuit map (same look as the calendar). Empty
+  // until events() resolves; tiles degrade gracefully without it.
+  Map<int, Event> _eventByRound = const {};
+  bool _kickedEvents = false;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     _future ??= AppState.of(context).api.leaguePlayer(widget.leagueId, widget.userId);
+    if (!_kickedEvents) {
+      _kickedEvents = true;
+      final api = AppState.of(context).api;
+      // ignore: discarded_futures
+      () async {
+        try {
+          final evs = await api.events();
+          if (mounted) {
+            setState(() =>
+                _eventByRound = {for (final e in evs) e.round: e});
+          }
+        } catch (_) {}
+      }();
+    }
   }
 
   @override
@@ -169,7 +192,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
             ),
           )
         else
-          ..._pickLogByGp(p.pickLog),
+          ..._pickLogByGp(p.pickLog, _eventByRound),
       ],
     );
   }
@@ -178,7 +201,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
 /// Group the pick log by Grand Prix (round). Returns one [_GpGroupTile] per GP,
 /// newest weekend first, the latest one expanded by default and the rest
 /// collapsed with their weekend total in the header.
-List<Widget> _pickLogByGp(List<PlayerPickLogItem> log) {
+List<Widget> _pickLogByGp(
+    List<PlayerPickLogItem> log, Map<int, Event> eventByRound) {
   final byRound = <int, List<PlayerPickLogItem>>{};
   for (final it in log) {
     byRound.putIfAbsent(it.round, () => []).add(it);
@@ -202,10 +226,27 @@ List<Widget> _pickLogByGp(List<PlayerPickLogItem> log) {
     ..sort((a, b) => b.latest.compareTo(a.latest));
   return [
     for (var i = 0; i < groups.length; i++) ...[
-      _GpGroupTile(group: groups[i], initiallyExpanded: i == 0),
+      _GpGroupTile(
+        group: groups[i],
+        event: eventByRound[groups[i].round],
+        initiallyExpanded: i == 0,
+      ),
       const SizedBox(height: Spacing.sm),
     ],
   ];
+}
+
+/// ISO 3166-1 alpha-2 code from a regional-indicator flag emoji (🇫🇷 → "FR").
+/// Returns null for anything that isn't a two-codepoint flag.
+String? _isoFromEmoji(String? emoji) {
+  if (emoji == null || emoji.isEmpty) return null;
+  final runes = emoji.runes.toList();
+  if (runes.length < 2) return null;
+  const base = 0x1F1E6;
+  final a = runes[0] - base;
+  final b = runes[1] - base;
+  if (a < 0 || a > 25 || b < 0 || b > 25) return null;
+  return String.fromCharCodes([65 + a, 65 + b]);
 }
 
 class _GpGroup {
@@ -227,8 +268,13 @@ class _GpGroup {
 /// that toggles its body of [_PickLogCard]s.
 class _GpGroupTile extends StatefulWidget {
   final _GpGroup group;
+  final Event? event;
   final bool initiallyExpanded;
-  const _GpGroupTile({required this.group, required this.initiallyExpanded});
+  const _GpGroupTile({
+    required this.group,
+    required this.event,
+    required this.initiallyExpanded,
+  });
 
   @override
   State<_GpGroupTile> createState() => _GpGroupTileState();
@@ -252,28 +298,59 @@ class _GpGroupTileState extends State<_GpGroupTile> {
               border: Border.all(color: t.strokeColor, width: Strokes.card),
               borderRadius: Radii.rLg,
             ),
-            padding: const EdgeInsets.symmetric(
-                horizontal: Spacing.md, vertical: Spacing.md),
-            child: Row(
+            clipBehavior: Clip.antiAlias,
+            child: Stack(
               children: [
-                Expanded(
-                  child: Text('R${g.round} · ${g.eventName}',
-                      maxLines: 1,
-                      overflow: TextOverflow.fade,
-                      softWrap: false,
-                      style: AppText.label(11)),
+                // Faint circuit map anchored to the right — same watermark
+                // treatment as the calendar race tiles.
+                if (widget.event != null)
+                  Positioned(
+                    right: -14,
+                    top: -18,
+                    bottom: -18,
+                    child: IgnorePointer(
+                      child: Opacity(
+                        opacity: 0.16,
+                        child: CircuitSvg(
+                          event: widget.event!,
+                          variant: 'white',
+                          width: 120,
+                          height: 120,
+                        ),
+                      ),
+                    ),
+                  ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: Spacing.md, vertical: Spacing.md),
+                  child: Row(
+                    children: [
+                      if (widget.event != null) ...[
+                        _flag(flagFor(widget.event!.country)),
+                        const SizedBox(width: Spacing.sm),
+                      ],
+                      Expanded(
+                        child: Text('R${g.round} · ${g.eventName}',
+                            maxLines: 1,
+                            overflow: TextOverflow.fade,
+                            softWrap: false,
+                            style: AppText.label(11)),
+                      ),
+                      const SizedBox(width: Spacing.sm),
+                      Text('${g.total}',
+                          style:
+                              AppText.display(15, color: BrandColors.accent)),
+                      const SizedBox(width: 4),
+                      Text('PTS',
+                          style: AppText.label(9,
+                              color: t.colorScheme.onSurface.withOpacity(0.5))),
+                      const SizedBox(width: Spacing.sm),
+                      Icon(_expanded ? Icons.expand_less : Icons.expand_more,
+                          size: 18,
+                          color: t.colorScheme.onSurface.withOpacity(0.6)),
+                    ],
+                  ),
                 ),
-                const SizedBox(width: Spacing.sm),
-                Text('${g.total}',
-                    style: AppText.display(15, color: BrandColors.accent)),
-                const SizedBox(width: 4),
-                Text('PTS',
-                    style: AppText.label(9,
-                        color: t.colorScheme.onSurface.withOpacity(0.5))),
-                const SizedBox(width: Spacing.sm),
-                Icon(_expanded ? Icons.expand_less : Icons.expand_more,
-                    size: 18,
-                    color: t.colorScheme.onSurface.withOpacity(0.6)),
               ],
             ),
           ),
@@ -287,6 +364,18 @@ class _GpGroupTileState extends State<_GpGroupTile> {
         ],
       ],
     );
+  }
+
+  Widget _flag(String? flag) {
+    if (flag == null) return const SizedBox(width: 22, height: 16);
+    final code = _isoFromEmoji(flag);
+    if (code != null) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(3),
+        child: CountryFlag.fromCountryCode(code, height: 16, width: 22),
+      );
+    }
+    return Text(flag, style: const TextStyle(fontSize: 16, height: 1));
   }
 }
 
