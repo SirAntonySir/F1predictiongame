@@ -15,6 +15,7 @@ import '../components/circuit_svg.dart';
 import '../components/error_view.dart';
 import '../components/ticket/pick_ticket.dart';
 import '../components/ticket/souvenir_ticket.dart';
+import '../components/ticket/weekend_souvenir_ticket.dart';
 import '../domain/prediction.dart';
 import '../domain/result_display.dart';
 import '../domain/scoring.dart';
@@ -326,16 +327,6 @@ class _SessionResultsScreenState extends State<SessionResultsScreen> {
     );
   }
 
-  Widget _weekendChip(ThemeData t, String label, int points) => Container(
-        padding:
-            const EdgeInsets.symmetric(horizontal: Spacing.sm, vertical: 4),
-        decoration: BoxDecoration(
-          border: Border.all(color: t.strokeColor, width: 1.5),
-          borderRadius: const BorderRadius.all(Radius.circular(999)),
-        ),
-        child: Text('$label · $points', style: AppText.label(10)),
-      );
-
   /// The full-weekend view: your cumulative weekend recap (from already-loaded
   /// MyScores for this round) on top, then the league's weekend leaderboard
   /// aggregated from the per-session breakdown.
@@ -356,48 +347,32 @@ class _SessionResultsScreenState extends State<SessionResultsScreen> {
         Padding(
           padding: const EdgeInsets.fromLTRB(
               Spacing.lg, Spacing.sm, Spacing.lg, Spacing.lg),
-          child: AppCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('YOUR WEEKEND',
-                    style: AppText.label(11,
-                        color: t.colorScheme.onSurface.withOpacity(0.6))),
-                const SizedBox(height: Spacing.xs),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.baseline,
-                  textBaseline: TextBaseline.alphabetic,
-                  children: [
-                    Text('$myTotal', style: AppText.display(28)),
-                    const SizedBox(width: 6),
-                    Text('PTS',
-                        style: AppText.label(11,
-                            color: t.colorScheme.onSurface.withOpacity(0.5))),
-                  ],
-                ),
-                if (mine.isNotEmpty) ...[
-                  const SizedBox(height: Spacing.sm),
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 6,
+          child: mine.isEmpty
+              ? AppCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      for (final s in mine)
-                        _weekendChip(
-                            t,
-                            _typeLabels[s.sessionType] ?? s.sessionType.name,
-                            s.pointsTotal),
+                      Text('YOUR WEEKEND',
+                          style: AppText.label(11,
+                              color:
+                                  t.colorScheme.onSurface.withOpacity(0.6))),
+                      const SizedBox(height: Spacing.xs),
+                      Text('No scored sessions this weekend yet.',
+                          style: AppText.body(12,
+                              color:
+                                  t.colorScheme.onSurface.withOpacity(0.6))),
                     ],
                   ),
-                ] else
-                  Padding(
-                    padding: const EdgeInsets.only(top: Spacing.xs),
-                    child: Text('No scored sessions this weekend yet.',
-                        style: AppText.body(12,
-                            color: t.colorScheme.onSurface.withOpacity(0.6))),
-                  ),
-              ],
-            ),
-          ),
+                )
+              : WeekendSouvenirTicket(
+                  event: event,
+                  sessions: [
+                    for (final s in mine)
+                      (type: s.sessionType, points: s.pointsTotal),
+                  ],
+                  total: myTotal,
+                  circuitWatermark: CircuitSvg(event: event),
+                ),
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(
