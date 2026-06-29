@@ -7,7 +7,10 @@ import '../api/models/member_prediction.dart';
 import '../api/models/session.dart';
 import '../api/models/live_snapshot.dart';
 import '../api/models/session_result.dart';
+import '../api/models/session_leaderboard_row.dart';
+import '../api/models/my_score.dart';
 import '../components/app_card.dart';
+import '../components/standings_list.dart';
 import '../components/circuit_svg.dart';
 import '../components/error_view.dart';
 import '../components/ticket/pick_ticket.dart';
@@ -78,6 +81,15 @@ class _SessionResultsScreenState extends State<SessionResultsScreen> {
   Future<List<Event>>? _eventsFuture;
   int? _activeSessionId;
   final Map<int, Future<_SessionPayload>> _payloads = {};
+  // 'events' = per-session view (default); 'gp' = the full-weekend view with
+  // your recap + the league's cumulative weekend leaderboard.
+  String _mode = 'events';
+  Future<List<SessionLeaderboardRow>>? _breakdownFuture;
+
+  Future<List<SessionLeaderboardRow>> _breakdownFor(String leagueId) {
+    return _breakdownFuture ??=
+        AppState.of(context).api.leagueSessionBreakdown(leagueId);
+  }
 
   @override
   void didChangeDependencies() {
@@ -201,6 +213,11 @@ class _SessionResultsScreenState extends State<SessionResultsScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     _header(event, active, t, prev: prev, next: next),
+                    if (AppState.of(context).auth.leagues.isNotEmpty)
+                      _modeToggle(t),
+                    if (_mode == 'gp')
+                      _fullGpView(event, t)
+                    else ...[
                     Padding(
                       padding: const EdgeInsets.fromLTRB(
                           Spacing.lg, Spacing.sm, Spacing.lg, Spacing.lg),
@@ -270,12 +287,177 @@ class _SessionResultsScreenState extends State<SessionResultsScreen> {
                         );
                       },
                     ),
+                    ],
                   ],
                 ),
               );
           },
         ),
       ),
+    );
+  }
+
+  Widget _modeToggle(ThemeData t) => Padding(
+        padding:
+            const EdgeInsets.fromLTRB(Spacing.lg, Spacing.xs, Spacing.lg, 0),
+        child: Row(children: [
+          _modePill('events', 'EVENTS', t),
+          const SizedBox(width: 6),
+          _modePill('gp', 'FULL GP', t),
+        ]),
+      );
+
+  Widget _modePill(String id, String label, ThemeData t) {
+    final on = _mode == id;
+    return GestureDetector(
+      onTap: () => setState(() => _mode = id),
+      child: Container(
+        padding:
+            const EdgeInsets.symmetric(horizontal: Spacing.lg, vertical: 7),
+        decoration: BoxDecoration(
+          color: on ? t.colorScheme.onSurface : Colors.transparent,
+          border: Border.all(color: t.strokeColor, width: 1.5),
+          borderRadius: const BorderRadius.all(Radius.circular(8)),
+        ),
+        child: Text(label,
+            style: AppText.label(10,
+                color: on ? t.colorScheme.surface : t.colorScheme.onSurface)),
+      ),
+    );
+  }
+
+  Widget _weekendChip(ThemeData t, String label, int points) => Container(
+        padding:
+            const EdgeInsets.symmetric(horizontal: Spacing.sm, vertical: 4),
+        decoration: BoxDecoration(
+          border: Border.all(color: t.strokeColor, width: 1.5),
+          borderRadius: const BorderRadius.all(Radius.circular(999)),
+        ),
+        child: Text('$label · $points', style: AppText.label(10)),
+      );
+
+  /// The full-weekend view: your cumulative weekend recap (from already-loaded
+  /// MyScores for this round) on top, then the league's weekend leaderboard
+  /// aggregated from the per-session breakdown.
+  Widget _fullGpView(Event event, ThemeData t) {
+    final scope = AppState.of(context);
+    final selfId = scope.auth.currentUserId;
+    final leagueId = scope.auth.leagues.first.id;
+    final mine = <MyScore>[
+      for (final sid in scope.predictions.allScoreIds)
+        if (scope.predictions.score(sid)?.eventRound == event.round)
+          scope.predictions.score(sid)!,
+    ]..sort((a, b) => a.sessionScheduledStart.compareTo(b.sessionScheduledStart));
+    final myTotal = mine.fold<int>(0, (s, x) => s + x.pointsTotal);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+              Spacing.lg, Spacing.sm, Spacing.lg, Spacing.lg),
+          child: AppCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('YOUR WEEKEND',
+                    style: AppText.label(11,
+                        color: t.colorScheme.onSurface.withOpacity(0.6))),
+                const SizedBox(height: Spacing.xs),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.baseline,
+                  textBaseline: TextBaseline.alphabetic,
+                  children: [
+                    Text('$myTotal', style: AppText.display(28)),
+                    const SizedBox(width: 6),
+                    Text('PTS',
+                        style: AppText.label(11,
+                            color: t.colorScheme.onSurface.withOpacity(0.5))),
+                  ],
+                ),
+                if (mine.isNotEmpty) ...[
+                  const SizedBox(height: Spacing.sm),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [
+                      for (final s in mine)
+                        _weekendChip(
+                            t,
+                            _typeLabels[s.sessionType] ?? s.sessionType.name,
+                            s.pointsTotal),
+                    ],
+                  ),
+                ] else
+                  Padding(
+                    padding: const EdgeInsets.only(top: Spacing.xs),
+                    child: Text('No scored sessions this weekend yet.',
+                        style: AppText.body(12,
+                            color: t.colorScheme.onSurface.withOpacity(0.6))),
+                  ),
+              ],
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+              Spacing.lg, 0, Spacing.lg, Spacing.xs),
+          child: Text('LEAGUE · THIS WEEKEND',
+              style: AppText.label(11,
+                  color: t.colorScheme.onSurface.withOpacity(0.6))),
+        ),
+        FutureBuilder<List<SessionLeaderboardRow>>(
+          future: _breakdownFor(leagueId),
+          builder: (_, snap) {
+            if (snap.connectionState != ConnectionState.done) {
+              return const Padding(
+                  padding: EdgeInsets.all(Spacing.lg), child: SizedBox.shrink());
+            }
+            if (snap.hasError || snap.data == null) {
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
+                child: Text("Couldn't load league weekend points.",
+                    style: AppText.body(12,
+                        color: t.colorScheme.onSurface.withOpacity(0.6))),
+              );
+            }
+            final byUser = <String, _WeekAgg>{};
+            for (final row
+                in snap.data!.where((r) => r.eventRound == event.round)) {
+              for (final m in row.members) {
+                final agg = byUser.putIfAbsent(
+                    m.userId, () => _WeekAgg(m.userId, m.displayName));
+                agg.points += m.pointsTotal;
+              }
+            }
+            final entries = [
+              for (final a in byUser.values)
+                if (a.points > 0)
+                  StandingsEntry(
+                      userId: a.userId,
+                      displayName: a.displayName,
+                      points: a.points),
+            ]..sort((x, y) => y.points.compareTo(x.points));
+            if (entries.isEmpty) {
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
+                child: Text('No league points scored this weekend yet.',
+                    style: AppText.body(12,
+                        color: t.colorScheme.onSurface.withOpacity(0.6))),
+              );
+            }
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
+              child: StandingsList(
+                entries: entries,
+                meId: selfId,
+                onTapRow: (uid) =>
+                    context.push('/league/$leagueId/player/$uid'),
+              ),
+            );
+          },
+        ),
+      ],
     );
   }
 
@@ -476,124 +658,13 @@ class _Body extends StatelessWidget {
             ),
           ),
         ],
-        if (payload.result.isNotEmpty) ...[
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-                Spacing.lg, Spacing.lg, Spacing.lg, Spacing.xs),
-            child: Text('FULL CLASSIFICATION',
-                style: AppText.label(11,
-                    color: t.colorScheme.onSurface.withOpacity(0.6))),
+        if (payload.result.isNotEmpty)
+          _ClassificationCard(
+            result: payload.result,
+            picks: payload.picks,
+            topN: topN,
+            sessionType: session.type,
           ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
-            child: Column(
-              children: [
-                // Column header strip — mirrors the predict-screen header
-                // (FP1/FP2/BEST) so the right-side columns are named even
-                // on rows where the badge/glyph happen to be empty.
-                _ClassificationHeader(t: t),
-                // Single outer border around the classification, internal
-                // dividers between rows. Outcome tints (green = exact, amber
-                // = in-topN, neutral highlight = miss) survive as row
-                // backgrounds — they carry the information.
-                Container(
-                  decoration: BoxDecoration(
-                    border: Border.all(color: t.strokeColor, width: Strokes.card),
-                    borderRadius: Radii.rLg,
-                  ),
-                  clipBehavior: Clip.antiAlias,
-                  child: Column(
-                    children: List.generate(payload.result.length, (i) {
-                      final r = payload.result[i];
-                      final isLast = i == payload.result.length - 1;
-                      final slot = payload.picks.indexOf(r.driverCode);
-                      final pickedSlot = slot == -1 ? null : slot + 1;
-                      final outcome = pickedSlot == null
-                          ? null
-                          : outcomeFor(
-                              r.driverCode, pickedSlot, payload.result, topN);
-                      final mine = pickedSlot != null;
-                      final rowBg = !mine
-                          ? null
-                          : (outcome == PickOutcome.exact
-                              ? BrandColors.ok.withOpacity(0.18)
-                              : outcome == PickOutcome.inTopN
-                                  ? BrandColors.near.withOpacity(0.22)
-                                  : t.rowHighlight);
-                      return Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: Spacing.sm, vertical: Spacing.sm),
-                        decoration: BoxDecoration(
-                          color: rowBg,
-                          border: isLast
-                              ? null
-                              : Border(
-                                  bottom: BorderSide(
-                                      color: t.strokeColor.withOpacity(0.25),
-                                      width: 1),
-                                ),
-                        ),
-                        child: Row(
-                          children: [
-                            SizedBox(
-                              width: _kPosCol,
-                              child:
-                                  Text('${r.position}', style: AppText.display(13)),
-                            ),
-                            const SizedBox(width: Spacing.xs),
-                            // Inset team-color bar — matches the DriverSectorRow
-                            // and the top P-slot anatomy.
-                            Container(
-                              width: 5,
-                              height: 22,
-                              decoration: BoxDecoration(
-                                color: teamColor(r.constructorId),
-                                borderRadius: BorderRadius.circular(2),
-                              ),
-                            ),
-                            const SizedBox(width: Spacing.sm),
-                            SizedBox(
-                              width: _kCodeCol,
-                              child: Text(r.driverCode,
-                                  style: AppText.body(12, weight: FontWeight.w800)),
-                            ),
-                            Expanded(
-                              child: Text(r.driverName,
-                                  style: AppText.body(12, weight: FontWeight.w500)),
-                            ),
-                            SizedBox(
-                              width: _kPickCol,
-                              child: pickedSlot == null
-                                  ? const SizedBox.shrink()
-                                  : Center(child: _PickSlotChip(slot: pickedSlot)),
-                            ),
-                            const SizedBox(width: Spacing.xs),
-                            SizedBox(
-                              width: _kOutcomeCol,
-                              child: outcome == null
-                                  ? const SizedBox.shrink()
-                                  : Center(child: _OutcomeTag(outcome: outcome)),
-                            ),
-                            const SizedBox(width: Spacing.sm),
-                            SizedBox(
-                              width: _kTimeCol,
-                              child: Text(
-                                displayTime(r, session.type),
-                                style: AppText.display(11,
-                                    color: t.colorScheme.onSurface.withOpacity(0.6)),
-                                textAlign: TextAlign.right,
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    }),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
         if (isPickable) ...[
           // Hide league members who didn't pick this session — the empty
           // "NO PICKS" row was noise. Section header only renders when at
@@ -628,6 +699,171 @@ class _Body extends StatelessWidget {
           }),
         ],
       ],
+    );
+  }
+}
+
+/// The session classification list. Caps to the top 5 rows with a "see full
+/// classification" expander when there are more than 5, keeping the rich
+/// per-driver rows (pick-slot highlight, outcome tick, lap time).
+class _ClassificationCard extends StatefulWidget {
+  final List<SessionResult> result;
+  final List<String> picks;
+  final int topN;
+  final SessionType sessionType;
+  const _ClassificationCard({
+    required this.result,
+    required this.picks,
+    required this.topN,
+    required this.sessionType,
+  });
+
+  @override
+  State<_ClassificationCard> createState() => _ClassificationCardState();
+}
+
+class _ClassificationCardState extends State<_ClassificationCard> {
+  bool _showFull = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Theme.of(context);
+    final results = widget.result;
+    final hasToggle = results.length > 5;
+    final visible = (!_showFull && hasToggle) ? 5 : results.length;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+              Spacing.lg, Spacing.lg, Spacing.lg, Spacing.xs),
+          child: Text('CLASSIFICATION',
+              style: AppText.label(11,
+                  color: t.colorScheme.onSurface.withOpacity(0.6))),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
+          child: Column(
+            children: [
+              _ClassificationHeader(t: t),
+              Container(
+                decoration: BoxDecoration(
+                  border: Border.all(color: t.strokeColor, width: Strokes.card),
+                  borderRadius: Radii.rLg,
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: Column(
+                  children: [
+                    for (var i = 0; i < visible; i++)
+                      _row(t, i, isLast: !hasToggle && i == visible - 1),
+                    if (hasToggle) _toggleRow(t),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _toggleRow(ThemeData t) {
+    final remaining = widget.result.length - 5;
+    return InkWell(
+      onTap: () => setState(() => _showFull = !_showFull),
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+            horizontal: Spacing.sm, vertical: Spacing.sm),
+        decoration: BoxDecoration(
+          border: Border(
+            top: BorderSide(color: t.strokeColor.withOpacity(0.25), width: 1),
+          ),
+        ),
+        child: Center(
+          child: Text(
+            _showFull
+                ? 'SHOW TOP 5  ▴'
+                : 'SEE FULL CLASSIFICATION (+$remaining)  ▾',
+            style: AppText.label(10, color: BrandColors.accent),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _row(ThemeData t, int i, {required bool isLast}) {
+    final r = widget.result[i];
+    final slot = widget.picks.indexOf(r.driverCode);
+    final pickedSlot = slot == -1 ? null : slot + 1;
+    final outcome = pickedSlot == null
+        ? null
+        : outcomeFor(r.driverCode, pickedSlot, widget.result, widget.topN);
+    final mine = pickedSlot != null;
+    final rowBg = !mine
+        ? null
+        : (outcome == PickOutcome.exact
+            ? BrandColors.ok.withOpacity(0.18)
+            : outcome == PickOutcome.inTopN
+                ? BrandColors.near.withOpacity(0.22)
+                : t.rowHighlight);
+    return Container(
+      padding: const EdgeInsets.symmetric(
+          horizontal: Spacing.sm, vertical: Spacing.sm),
+      decoration: BoxDecoration(
+        color: rowBg,
+        border: isLast
+            ? null
+            : Border(
+                bottom: BorderSide(
+                    color: t.strokeColor.withOpacity(0.25), width: 1),
+              ),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+              width: _kPosCol,
+              child: Text('${r.position}', style: AppText.display(13))),
+          const SizedBox(width: Spacing.xs),
+          Container(
+            width: 5,
+            height: 22,
+            decoration: BoxDecoration(
+                color: teamColor(r.constructorId),
+                borderRadius: BorderRadius.circular(2)),
+          ),
+          const SizedBox(width: Spacing.sm),
+          SizedBox(
+              width: _kCodeCol,
+              child: Text(r.driverCode,
+                  style: AppText.body(12, weight: FontWeight.w800))),
+          Expanded(
+              child: Text(r.driverName,
+                  style: AppText.body(12, weight: FontWeight.w500))),
+          SizedBox(
+            width: _kPickCol,
+            child: pickedSlot == null
+                ? const SizedBox.shrink()
+                : Center(child: _PickSlotChip(slot: pickedSlot)),
+          ),
+          const SizedBox(width: Spacing.xs),
+          SizedBox(
+            width: _kOutcomeCol,
+            child: outcome == null
+                ? const SizedBox.shrink()
+                : Center(child: _OutcomeTag(outcome: outcome)),
+          ),
+          const SizedBox(width: Spacing.sm),
+          SizedBox(
+            width: _kTimeCol,
+            child: Text(
+              displayTime(r, widget.sessionType),
+              style: AppText.display(11,
+                  color: t.colorScheme.onSurface.withOpacity(0.6)),
+              textAlign: TextAlign.right,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -719,6 +955,14 @@ class _PickSlotChip extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Mutable per-member accumulator for summing a weekend's session points.
+class _WeekAgg {
+  final String userId;
+  final String displayName;
+  int points = 0;
+  _WeekAgg(this.userId, this.displayName);
 }
 
 class _SessionPayload {

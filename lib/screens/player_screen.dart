@@ -169,10 +169,122 @@ class _PlayerScreenState extends State<PlayerScreen> {
             ),
           )
         else
-          for (final it in p.pickLog) ...[
+          ..._pickLogByGp(p.pickLog),
+      ],
+    );
+  }
+}
+
+/// Group the pick log by Grand Prix (round). Returns one [_GpGroupTile] per GP,
+/// newest weekend first, the latest one expanded by default and the rest
+/// collapsed with their weekend total in the header.
+List<Widget> _pickLogByGp(List<PlayerPickLogItem> log) {
+  final byRound = <int, List<PlayerPickLogItem>>{};
+  for (final it in log) {
+    byRound.putIfAbsent(it.round, () => []).add(it);
+  }
+  final groups = byRound.entries.map((e) {
+    final items = [...e.value]
+      ..sort((a, b) => a.scheduledStart.compareTo(b.scheduledStart));
+    final total =
+        items.fold<int>(0, (s, x) => s + (x.score?.points ?? 0));
+    final latest = items
+        .map((x) => x.scheduledStart)
+        .reduce((a, b) => a.isAfter(b) ? a : b);
+    return _GpGroup(
+      round: e.key,
+      eventName: items.first.eventName,
+      items: items,
+      total: total,
+      latest: latest,
+    );
+  }).toList()
+    ..sort((a, b) => b.latest.compareTo(a.latest));
+  return [
+    for (var i = 0; i < groups.length; i++) ...[
+      _GpGroupTile(group: groups[i], initiallyExpanded: i == 0),
+      const SizedBox(height: Spacing.sm),
+    ],
+  ];
+}
+
+class _GpGroup {
+  final int round;
+  final String eventName;
+  final List<PlayerPickLogItem> items;
+  final int total;
+  final DateTime latest;
+  _GpGroup({
+    required this.round,
+    required this.eventName,
+    required this.items,
+    required this.total,
+    required this.latest,
+  });
+}
+
+/// Collapsible per-GP tile: a bordered header (R{round} · event · weekend total)
+/// that toggles its body of [_PickLogCard]s.
+class _GpGroupTile extends StatefulWidget {
+  final _GpGroup group;
+  final bool initiallyExpanded;
+  const _GpGroupTile({required this.group, required this.initiallyExpanded});
+
+  @override
+  State<_GpGroupTile> createState() => _GpGroupTileState();
+}
+
+class _GpGroupTileState extends State<_GpGroupTile> {
+  late bool _expanded = widget.initiallyExpanded;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Theme.of(context);
+    final g = widget.group;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        InkWell(
+          onTap: () => setState(() => _expanded = !_expanded),
+          borderRadius: Radii.rLg,
+          child: Container(
+            decoration: BoxDecoration(
+              border: Border.all(color: t.strokeColor, width: Strokes.card),
+              borderRadius: Radii.rLg,
+            ),
+            padding: const EdgeInsets.symmetric(
+                horizontal: Spacing.md, vertical: Spacing.md),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text('R${g.round} · ${g.eventName}',
+                      maxLines: 1,
+                      overflow: TextOverflow.fade,
+                      softWrap: false,
+                      style: AppText.label(11)),
+                ),
+                const SizedBox(width: Spacing.sm),
+                Text('${g.total}',
+                    style: AppText.display(15, color: BrandColors.accent)),
+                const SizedBox(width: 4),
+                Text('PTS',
+                    style: AppText.label(9,
+                        color: t.colorScheme.onSurface.withOpacity(0.5))),
+                const SizedBox(width: Spacing.sm),
+                Icon(_expanded ? Icons.expand_less : Icons.expand_more,
+                    size: 18,
+                    color: t.colorScheme.onSurface.withOpacity(0.6)),
+              ],
+            ),
+          ),
+        ),
+        if (_expanded) ...[
+          const SizedBox(height: Spacing.sm),
+          for (final it in g.items) ...[
             _PickLogCard(item: it),
             const SizedBox(height: Spacing.sm),
           ],
+        ],
       ],
     );
   }
