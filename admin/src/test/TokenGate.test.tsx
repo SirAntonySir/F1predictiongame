@@ -38,6 +38,16 @@ describe('TokenGate', () => {
     expect(localStorage.getItem('f1pg_admin_token')).toBe('local-dev-token')
   })
 
+  it('toggles token visibility with the show/hide button', async () => {
+    renderGate(<div>secret</div>)
+    const input = screen.getByLabelText(/admin token/i)
+    expect(input).toHaveAttribute('type', 'password')
+    await userEvent.click(screen.getByRole('button', { name: /show token/i }))
+    expect(input).toHaveAttribute('type', 'text')
+    await userEvent.click(screen.getByRole('button', { name: /hide token/i }))
+    expect(input).toHaveAttribute('type', 'password')
+  })
+
   it('shows an error and keeps the form on an invalid token', async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ error: { code: 'UNAUTHORIZED', message: 'Invalid admin token' } }),

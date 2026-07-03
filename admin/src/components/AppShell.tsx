@@ -1,5 +1,6 @@
 import { NavLink, Outlet } from 'react-router-dom'
-import { Box, Flex, Heading } from '@radix-ui/themes'
+import { Box, Button, Flex, Heading } from '@radix-ui/themes'
+import { useAuth } from '../auth/AuthContext'
 
 const NAV: { to: string; label: string }[] = [
   { to: '/', label: 'Dashboard' },
@@ -13,16 +14,19 @@ const NAV: { to: string; label: string }[] = [
 ]
 
 export function AppShell() {
+  const { signOut } = useAuth()
+
   return (
     <Flex style={{ minHeight: '100vh' }}>
-      <Box
+      <Flex
+        direction="column"
         p="4"
         style={{ width: 220, borderRight: '2px solid var(--stroke)', background: 'var(--surface-muted)' }}
       >
         <Heading size="4" className="display" mb="4" style={{ color: 'var(--accent)' }}>
-          F1PG ADMIN
+          UNDERCUT ADMIN
         </Heading>
-        <Flex direction="column" gap="1" asChild>
+        <Flex direction="column" gap="1" asChild style={{ flex: 1 }}>
           <nav>
             {NAV.map((n) => (
               <NavLink
@@ -42,7 +46,16 @@ export function AppShell() {
             ))}
           </nav>
         </Flex>
-      </Box>
+        <Button
+          variant="ghost"
+          color="gray"
+          onClick={signOut}
+          className="label"
+          style={{ justifyContent: 'flex-start', padding: '8px 10px', margin: 0 }}
+        >
+          Log out
+        </Button>
+      </Flex>
       <Box p="5" style={{ flex: 1 }}>
         <Outlet />
       </Box>
