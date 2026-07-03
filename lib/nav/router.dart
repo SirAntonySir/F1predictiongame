@@ -105,6 +105,7 @@ GoRouter buildRouter(AuthController auth) {
         builder: (_, s) => SessionResultsScreen(
           round: int.parse(s.pathParameters['round']!),
           sessionId: int.parse(s.pathParameters['session']!),
+          initialMode: s.uri.queryParameters['mode'],
         ),
       ),
       GoRoute(path: '/settings', builder: (_, __) => const SettingsScreen()),

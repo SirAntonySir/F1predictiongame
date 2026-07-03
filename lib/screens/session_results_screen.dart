@@ -65,10 +65,15 @@ const _typeLabels = {
 class SessionResultsScreen extends StatefulWidget {
   final int round;
   final int sessionId;
+
+  /// Initial view mode ('events' | 'gp'). Carried through the route so that
+  /// Full-GP nav can jump from one GP to the next while staying in GP mode.
+  final String? initialMode;
   const SessionResultsScreen({
     super.key,
     required this.round,
     required this.sessionId,
+    this.initialMode,
   });
 
   @override
@@ -83,8 +88,9 @@ class _SessionResultsScreenState extends State<SessionResultsScreen> {
   int? _activeSessionId;
   final Map<int, Future<_SessionPayload>> _payloads = {};
   // 'events' = per-session view (default); 'gp' = the full-weekend view with
-  // your recap + the league's cumulative weekend leaderboard.
-  String _mode = 'events';
+  // your recap + the league's cumulative weekend leaderboard. Seeded from the
+  // route so Full-GP nav can cross into a new GP and stay in GP mode.
+  late String _mode = widget.initialMode == 'gp' ? 'gp' : 'events';
   Future<List<SessionLeaderboardRow>>? _breakdownFuture;
 
   Future<List<SessionLeaderboardRow>> _breakdownFor(String leagueId) {
@@ -190,33 +196,53 @@ class _SessionResultsScreenState extends State<SessionResultsScreen> {
                 .toList()
               ..sort((a, b) => a.scheduledStart.compareTo(b.scheduledStart));
             if (sessions.isEmpty) {
-              return _header(event, null, t, prev: null, next: null);
+              return _header(event, null, t, onPrev: null, onNext: null);
             }
             final active = sessions.firstWhere(
               (s) => s.id == _activeSessionId,
               orElse: () => sessions.last,
             );
-            // Chronological list of *all* pickable sessions across the season,
-            // used to advance past the last sub-tab of one event into the
-            // first sub-tab of the next.
-            final chronological = _allPickableSessions(allEvents);
-            final currentIdx =
-                chronological.indexWhere((e) => e.sessionId == active.id);
-            final prev = currentIdx > 0 ? chronological[currentIdx - 1] : null;
-            final next =
-                currentIdx >= 0 && currentIdx < chronological.length - 1
-                    ? chronological[currentIdx + 1]
+            // Full GP is only meaningful once a weekend has started — future
+            // GPs have no results/scores to aggregate.
+            final hasLeague = AppState.of(context).auth.leagues.isNotEmpty;
+            final gpAvailable = hasLeague && _eventHasStarted(event);
+            final inGp = gpAvailable && _mode == 'gp';
+
+            // The prev/next chevrons always switch *whole Grand Prix* —
+            // within-weekend session navigation is the job of the session
+            // tabs below. The only difference between modes is the set of
+            // GPs we step through:
+            //  • GP mode     → started GPs only (the ones with a Full-GP view),
+            //    staying in GP mode across the route change.
+            //  • Events mode → every GP in the season (future weekends are
+            //    valid here — they show picks / countdowns).
+            final navEvents = inGp
+                ? _startedEvents(allEvents)
+                : ([...allEvents]..sort((a, b) => a.round.compareTo(b.round)));
+            final navIdx = navEvents.indexWhere((e) => e.round == event.round);
+            final prevEvent = navIdx > 0 ? navEvents[navIdx - 1] : null;
+            final nextEvent =
+                navIdx >= 0 && navIdx < navEvents.length - 1
+                    ? navEvents[navIdx + 1]
                     : null;
+            final onPrev = prevEvent == null
+                ? null
+                : () => _navigateToEvent(prevEvent, gp: inGp);
+            final onNext = nextEvent == null
+                ? null
+                : () => _navigateToEvent(nextEvent, gp: inGp);
 
             return SingleChildScrollView(
                 padding: const EdgeInsets.only(bottom: Spacing.xxl),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    _header(event, active, t, prev: prev, next: next),
-                    if (AppState.of(context).auth.leagues.isNotEmpty)
-                      _modeToggle(t),
-                    if (_mode == 'gp')
+                    // In GP mode the header subtitle reads just "Round X" —
+                    // there's no single active session to name.
+                    _header(event, inGp ? null : active, t,
+                        onPrev: onPrev, onNext: onNext),
+                    if (gpAvailable) _modeToggle(t),
+                    if (inGp)
                       _fullGpView(event, t)
                     else ...[
                     Padding(
@@ -436,24 +462,46 @@ class _SessionResultsScreenState extends State<SessionResultsScreen> {
     );
   }
 
-  void _navigateTo(_PickableSessionRef target) {
-    if (target.eventRound == widget.round) {
-      setState(() => _activeSessionId = target.sessionId);
-    } else {
-      // Different event → URL changes. Use replace so the back button
-      // returns to wherever the user originally entered the race detail
-      // from (calendar / home / etc.) instead of breadcrumbing every
-      // swipe in between.
-      context.replace('/race/${target.eventRound}/${target.sessionId}');
-    }
+  /// Jump to another GP via the prev/next chevrons. Lands on the event's last
+  /// session (the race, or the latest displayable one) so the headline result
+  /// is what shows first. `gp: true` appends `?mode=gp` to keep Full-GP mode
+  /// across the route change. Uses `replace` so the back button returns to
+  /// wherever the user entered the race detail from (calendar / home / etc.)
+  /// instead of breadcrumbing every swipe in between.
+  void _navigateToEvent(Event target, {required bool gp}) {
+    final sessions = target.sessions
+        .where((s) => _displayableTypes.contains(s.type))
+        .toList()
+      ..sort((a, b) => a.scheduledStart.compareTo(b.scheduledStart));
+    if (sessions.isEmpty) return;
+    final suffix = gp ? '?mode=gp' : '';
+    context.replace('/race/${target.round}/${sessions.last.id}$suffix');
   }
+
+  /// A weekend counts as "started" once its earliest displayable session is in
+  /// the past — i.e. the GP is current or already run.
+  bool _eventHasStarted(Event e) {
+    DateTime? earliest;
+    for (final s in e.sessions) {
+      if (!_displayableTypes.contains(s.type)) continue;
+      if (earliest == null || s.scheduledStart.isBefore(earliest)) {
+        earliest = s.scheduledStart;
+      }
+    }
+    return earliest != null && earliest.isBefore(DateTime.now());
+  }
+
+  /// Started GPs in round order — the navigable set in Full-GP mode.
+  List<Event> _startedEvents(List<Event> events) =>
+      events.where(_eventHasStarted).toList()
+        ..sort((a, b) => a.round.compareTo(b.round));
 
   Widget _header(
     Event event,
     Session? active,
     ThemeData t, {
-    required _PickableSessionRef? prev,
-    required _PickableSessionRef? next,
+    required VoidCallback? onPrev,
+    required VoidCallback? onNext,
   }) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(
@@ -483,54 +531,21 @@ class _SessionResultsScreenState extends State<SessionResultsScreen> {
           // Prev / next session nav grouped on the right so the back arrow
           // on the left doesn't end up next to a near-identical chevron.
           IconButton(
-            onPressed: prev == null ? null : () => _navigateTo(prev),
+            onPressed: onPrev,
             icon: const Icon(Icons.chevron_left, size: 22),
-            tooltip: 'Previous session',
+            tooltip: 'Previous',
             visualDensity: VisualDensity.compact,
           ),
           IconButton(
-            onPressed: next == null ? null : () => _navigateTo(next),
+            onPressed: onNext,
             icon: const Icon(Icons.chevron_right, size: 22),
-            tooltip: 'Next session',
+            tooltip: 'Next',
             visualDensity: VisualDensity.compact,
           ),
         ],
       ),
     );
   }
-}
-
-/// Minimal reference into the chronological session list; lets nav decide
-/// whether to update internal state (same event) or change the URL (cross
-/// event) without dragging the entire Session/Event payload around.
-class _PickableSessionRef {
-  final int sessionId;
-  final int eventRound;
-  final SessionType type;
-  final DateTime scheduledStart;
-  const _PickableSessionRef({
-    required this.sessionId,
-    required this.eventRound,
-    required this.type,
-    required this.scheduledStart,
-  });
-}
-
-List<_PickableSessionRef> _allPickableSessions(List<Event> events) {
-  final out = <_PickableSessionRef>[];
-  for (final e in events) {
-    for (final s in e.sessions) {
-      if (!_displayableTypes.contains(s.type)) continue;
-      out.add(_PickableSessionRef(
-        sessionId: s.id,
-        eventRound: e.round,
-        type: s.type,
-        scheduledStart: s.scheduledStart,
-      ));
-    }
-  }
-  out.sort((a, b) => a.scheduledStart.compareTo(b.scheduledStart));
-  return out;
 }
 
 class _SessionTab extends StatelessWidget {

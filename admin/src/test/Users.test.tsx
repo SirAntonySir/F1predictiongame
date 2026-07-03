@@ -59,7 +59,7 @@ describe('Users', () => {
       const patch = fetchMock.mock.calls.find((c) => (c[1]?.method ?? 'GET') === 'PATCH')
       expect(patch).toBeTruthy()
       expect(String(patch![0])).toMatch(/\/admin\/users\/u1$/)
-      expect(JSON.parse(patch![1].body).displayName).toBe('Anton')
+      expect(JSON.parse(patch![1]!.body as string).displayName).toBe('Anton')
     })
   })
 
