@@ -147,7 +147,7 @@ class SettingsScreen extends StatelessWidget {
             const SizedBox(height: Spacing.xl),
             Text('ABOUT', style: AppText.label(11)),
             const SizedBox(height: Spacing.sm),
-            Text('F1 Prediction Game · v1.0.0',
+            Text('Undercut · v1.0.0',
                 style: AppText.body(12,
                     color: t.colorScheme.onSurface
                         .withValues(alpha: _mutedText))),

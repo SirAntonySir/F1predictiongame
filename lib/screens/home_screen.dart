@@ -364,7 +364,7 @@ class _HomeScreenState extends State<HomeScreen> {
       padding: const EdgeInsets.symmetric(horizontal: Spacing.xl),
       child: Row(
         children: [
-          // F1 logo plate + settings icon are fixed identity — Skeleton.keep
+          // Logo plate + settings icon are fixed identity — Skeleton.keep
           // so they don't go gray during the first-load placeholder.
           Skeleton.keep(
             child: Row(
@@ -373,11 +373,11 @@ class _HomeScreenState extends State<HomeScreen> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
                   color: t.colorScheme.onSurface,
-                  child: Text('F1',
+                  child: Text('UNDER',
                       style: AppText.display(14, color: t.colorScheme.surface)),
                 ),
                 const SizedBox(width: 4),
-                Text('PG', style: AppText.display(14)),
+                Text('CUT', style: AppText.display(14)),
               ],
             ),
           ),

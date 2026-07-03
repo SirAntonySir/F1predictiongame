@@ -114,7 +114,7 @@ class WeekendSouvenirTicket extends StatelessWidget {
       ticket: clone,
       shareText: 'My F1 weekend · ${event.name} · +$total',
       fileName:
-          'f1pg-weekend-${event.name.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '-')}.png',
+          'undercut-weekend-${event.name.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '-')}.png',
     );
   }
 }

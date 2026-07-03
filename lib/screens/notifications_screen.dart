@@ -175,7 +175,7 @@ class _PermissionNudge extends StatelessWidget {
           const SizedBox(height: Spacing.xs),
           Text(
             "Push is off in system settings, so reminders and results won't "
-            "arrive. Turn notifications on for F1PG to get them back.",
+            "arrive. Turn notifications on for Undercut to get them back.",
             style: AppText.body(13,
                 color: t.colorScheme.onSurface.withOpacity(0.75)),
           ),

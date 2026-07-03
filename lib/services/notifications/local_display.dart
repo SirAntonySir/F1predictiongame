@@ -18,7 +18,8 @@ class LocalDisplay {
 
   static const _channelId = 'push_messages';
   static const _channelName = 'Notifications';
-  static const _channelDesc = 'F1PG alerts: reminders, session start, results.';
+  static const _channelDesc =
+      'Undercut alerts: reminders, session start, results.';
 
   /// [onTapPayload] receives the notification's `payload` (a route string) when
   /// the user taps a banner we displayed in the foreground.

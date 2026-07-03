@@ -210,7 +210,7 @@ class _ImportScreenState extends State<ImportScreen> {
       // Write to a temp file and share — lets the user pick where it lands
       // (Files app, drive, AirDrop, etc.) without us needing a save-dialog.
       final dir = await getTemporaryDirectory();
-      final filename = 'f1pg-import-${_slug(league.name)}-$_season.json';
+      final filename = 'undercut-import-${_slug(league.name)}-$_season.json';
       final f = File('${dir.path}/$filename');
       await f.writeAsString(pretty);
       // iOS requires a non-zero anchor rect for the share popover. Derive it
@@ -223,7 +223,7 @@ class _ImportScreenState extends State<ImportScreen> {
         origin = offset & box.size;
       }
       await Share.shareXFiles([XFile(f.path)],
-          subject: 'F1PG import schema · $_season',
+          subject: 'Undercut import schema · $_season',
           sharePositionOrigin: origin);
       if (!mounted) return;
       BrandedToast.show(context, 'Schema downloaded', tone: ToastTone.ok);

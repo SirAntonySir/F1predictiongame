@@ -205,7 +205,7 @@ class PickTicket extends StatelessWidget {
       ticket: clone,
       shareText: 'My F1 prediction · ${event.name}',
       fileName:
-          'f1pg-${event.name.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '-')}.png',
+          'undercut-${event.name.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '-')}.png',
     );
   }
 }

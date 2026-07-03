@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../components/painted_splash.dart';
 import '../theme/app_theme.dart';
 import '../theme/colors.dart';
 import '../theme/tokens.dart';
@@ -13,7 +14,19 @@ const _devEmail = 'rockenstein.anton@gmail.com';
 class SplashScreen extends StatelessWidget {
   final Future<void> Function() onRetry;
   final Object? error;
-  const SplashScreen({super.key, required this.onRetry, this.error});
+
+  /// Boot is done: let the draw animation reach the fully painted artwork,
+  /// then [onAnimationDone] fires so the owner can swap to the app.
+  final bool ready;
+  final VoidCallback? onAnimationDone;
+
+  const SplashScreen({
+    super.key,
+    required this.onRetry,
+    this.error,
+    this.ready = false,
+    this.onAnimationDone,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -22,7 +35,12 @@ class SplashScreen extends StatelessWidget {
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
       themeMode: ThemeMode.system,
-      home: _SplashBody(error: error, onRetry: onRetry),
+      home: _SplashBody(
+        error: error,
+        onRetry: onRetry,
+        ready: ready,
+        onAnimationDone: onAnimationDone,
+      ),
     );
   }
 }
@@ -30,53 +48,28 @@ class SplashScreen extends StatelessWidget {
 class _SplashBody extends StatelessWidget {
   final Object? error;
   final Future<void> Function() onRetry;
-  const _SplashBody({required this.error, required this.onRetry});
+  final bool ready;
+  final VoidCallback? onAnimationDone;
+  const _SplashBody({
+    required this.error,
+    required this.onRetry,
+    required this.ready,
+    required this.onAnimationDone,
+  });
 
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
     return Scaffold(
       backgroundColor: t.colorScheme.surface,
-      body: SafeArea(
-        child: Center(
-          child: error == null
-              ? const _Loading()
-              : _BootError(error: error!, onRetry: onRetry),
-        ),
-      ),
-    );
-  }
-}
-
-class _Loading extends StatelessWidget {
-  const _Loading();
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 56,
-          height: 56,
-          alignment: Alignment.center,
-          decoration: const BoxDecoration(
-            color: BrandColors.accent,
-            shape: BoxShape.circle,
-          ),
-          child: Text('F1',
-              style: AppText.label(18, color: Colors.white)),
-        ),
-        const SizedBox(height: Spacing.lg),
-        const SizedBox(
-          width: 22,
-          height: 22,
-          child: CircularProgressIndicator(
-            strokeWidth: 2.4,
-            valueColor: AlwaysStoppedAnimation<Color>(BrandColors.accent),
-          ),
-        ),
-      ],
+      // Loading is full-bleed artwork; the error card keeps its safe area.
+      body: error == null
+          ? PaintedSplash(ready: ready, onFinished: onAnimationDone)
+          : SafeArea(
+              child: Center(
+                child: _BootError(error: error!, onRetry: onRetry),
+              ),
+            ),
     );
   }
 }
@@ -111,7 +104,7 @@ class _BootError extends StatelessWidget {
       build = info.buildNumber;
     } catch (_) {}
     final subject =
-        Uri.encodeComponent('[F1PG] Boot failed: ${error.runtimeType}');
+        Uri.encodeComponent('[Undercut] Boot failed: ${error.runtimeType}');
     final body = Uri.encodeComponent('''
 What I was doing:
 (launching the app — describe anything unusual if you can)

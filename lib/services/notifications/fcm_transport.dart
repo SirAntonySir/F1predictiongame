@@ -59,7 +59,7 @@ void attachFcmHandlers({
     if (n != null) {
       // ignore: discarded_futures
       display.show(
-        title: n.title ?? 'F1PG',
+        title: n.title ?? 'Undercut',
         body: n.body ?? '',
         payload: m.data['route'] as String?,
       );

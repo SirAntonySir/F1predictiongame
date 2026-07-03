@@ -68,7 +68,7 @@ class _F1PgAppState extends State<F1PgApp> {
       child: ListenableBuilder(
         listenable: widget.theme,
         builder: (_, __) => MaterialApp.router(
-          title: 'F1PG',
+          title: 'Undercut',
           theme: AppTheme.light(),
           darkTheme: AppTheme.dark(),
           themeMode: widget.theme.mode,

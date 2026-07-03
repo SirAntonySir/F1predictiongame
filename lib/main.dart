@@ -51,6 +51,8 @@ class _Boot extends StatefulWidget {
 class _BootState extends State<_Boot> {
   Future<void>? _bootstrap;
   Object? _bootError;
+  // The splash wipe finishes its cycle before we swap to the app.
+  bool _splashFinished = false;
 
   @override
   void initState() {
@@ -73,14 +75,22 @@ class _BootState extends State<_Boot> {
     return FutureBuilder<void>(
       future: _bootstrap,
       builder: (context, snap) {
-        if (snap.connectionState != ConnectionState.done ||
-            _bootError != null) {
-          return SplashScreen(
-            onRetry: () async => _start(),
-            error: _bootError,
-          );
-        }
-        return _AfterBoot(api: widget.api, auth: widget.auth);
+        final booted = snap.connectionState == ConnectionState.done &&
+            _bootError == null;
+        // Cross-fade the splash into the app instead of a hard cut — and only
+        // after the wipe animation has played its current cycle to the end.
+        return AnimatedSwitcher(
+          duration: const Duration(milliseconds: 350),
+          child: booted && _splashFinished
+              ? _AfterBoot(api: widget.api, auth: widget.auth)
+              : SplashScreen(
+                  onRetry: () async => _start(),
+                  error: _bootError,
+                  ready: booted,
+                  onAnimationDone: () =>
+                      setState(() => _splashFinished = true),
+                ),
+        );
       },
     );
   }

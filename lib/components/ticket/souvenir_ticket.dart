@@ -153,7 +153,7 @@ class SouvenirTicket extends StatelessWidget {
       context: context,
       ticket: clone,
       shareText: 'My F1 souvenir · ${event.name} · +$scorePoints',
-      fileName: 'f1pg-souvenir-${event.name.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '-')}.png',
+      fileName: 'undercut-souvenir-${event.name.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '-')}.png',
     );
   }
 }

@@ -30,6 +30,9 @@ dependencies:
   share_plus: ^10.1.2
   path_provider: ^2.1.5
   flutter_svg: ^2.0.10+1
+  # Parses SVG path `d=` data into ui.Path (same parser flutter_svg uses).
+  # Powers the stroke-draw splash animation in components/painted_splash.dart.
+  path_parsing: ^1.1.0
   country_flags: ^3.2.0
 
 dev_dependencies:
@@ -42,6 +45,7 @@ flutter:
   uses-material-design: true
   assets:
     - assets/
+    - assets/loading/
   fonts:
     # Stampete by JOEBOB graphics — shareware, non-commercial use only.
     # Used by ticket data cells (driver codes + points) to give the picks a

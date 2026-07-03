@@ -27,7 +27,7 @@ class ErrorView extends StatelessWidget {
   Future<void> _report() async {
     final info = await PackageInfo.fromPlatform();
     final subject = Uri.encodeComponent(
-        '[F1PG] ${error.runtimeType} in ${where ?? 'app'}');
+        '[Undercut] ${error.runtimeType} in ${where ?? 'app'}');
     final body = Uri.encodeComponent('''
 What I was doing:
 (describe what you tapped before this screen showed)

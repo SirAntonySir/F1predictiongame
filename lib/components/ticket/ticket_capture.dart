@@ -79,7 +79,7 @@ Future<Uint8List> captureBrandedTicket({
 Future<void> shareBrandedTicket({
   required BuildContext context,
   required Widget ticket,
-  String fileName = 'f1pg-ticket.png',
+  String fileName = 'undercut-ticket.png',
   String? shareText,
   double width = 520,
   double pixelRatio = 3.0,
@@ -120,7 +120,7 @@ Rect _shareOriginFrom(BuildContext context) {
   return Rect.fromLTWH(size.width / 2, size.height / 2, 1, 1);
 }
 
-/// F1PG brand frame around the ticket so the exported image is self-
+/// Undercut brand frame around the ticket so the exported image is self-
 /// identifying. Private — callers go through the capture helpers above so the
 /// framing stays consistent across every share entry point.
 class _BrandedTicketFrame extends StatelessWidget {
@@ -156,7 +156,7 @@ class _BrandedTicketFrame extends StatelessWidget {
               ),
               const SizedBox(width: 10),
               Text(
-                'F1PG',
+                'UNDERCUT',
                 style: GoogleFonts.barlowCondensed(
                   fontSize: 19,
                   fontWeight: FontWeight.w800,
@@ -167,7 +167,7 @@ class _BrandedTicketFrame extends StatelessWidget {
               ),
               const Spacer(),
               Text(
-                'PREDICTION GAME',
+                'F1 PREDICTIONS',
                 style: GoogleFonts.barlowCondensed(
                   fontSize: 10,
                   fontWeight: FontWeight.w600,
@@ -182,7 +182,7 @@ class _BrandedTicketFrame extends StatelessWidget {
           child,
           const SizedBox(height: 12),
           Text(
-            'shared from the F1PG app',
+            'shared from the Undercut app',
             textAlign: TextAlign.center,
             style: GoogleFonts.barlowCondensed(
               fontSize: 9,

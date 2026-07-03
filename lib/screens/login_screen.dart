@@ -161,7 +161,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 }
 
-/// Branded F1 PG logo row that sits atop every auth / onboarding
+/// Branded Undercut logo row that sits atop every auth / onboarding
 /// screen. Mirrors the home screen's topbar so the user sees the same
 /// brand before and after sign-in.
 class _AuthTopbar extends StatelessWidget {
@@ -178,11 +178,11 @@ class _AuthTopbar extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
             color: t.colorScheme.onSurface,
-            child: Text('F1',
+            child: Text('UNDER',
                 style: AppText.display(14, color: t.colorScheme.surface)),
           ),
           const SizedBox(width: 4),
-          Text('PG', style: AppText.display(14)),
+          Text('CUT', style: AppText.display(14)),
         ],
       ),
     );
