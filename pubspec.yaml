@@ -34,6 +34,15 @@ dependencies:
   # Powers the stroke-draw splash animation in components/painted_splash.dart.
   path_parsing: ^1.1.0
   country_flags: ^3.2.0
+  flutter_dynamic_icon_plus: ^1.4.1
+
+# path_provider_foundation 2.6.0 switched to FFI via package:objective_c,
+# whose dylib fails to load on the iOS 26 simulator (dlopen can't resolve
+# 'objective_c.framework/objective_c'; flutter/flutter#181382 family).
+# 2.5.1 is the last CocoaPods-based release. Drop this once a fixed
+# path_provider_foundation ships.
+dependency_overrides:
+  path_provider_foundation: 2.5.1
 
 dev_dependencies:
   flutter_test:
@@ -45,7 +54,8 @@ flutter:
   uses-material-design: true
   assets:
     - assets/
-    - assets/loading/
+    - assets/avatar/
+    - assets/avatar/icons/
   fonts:
     # Stampete by JOEBOB graphics — shareware, non-commercial use only.
     # Used by ticket data cells (driver codes + points) to give the picks a

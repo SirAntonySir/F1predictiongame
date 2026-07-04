@@ -20,12 +20,18 @@ class SplashScreen extends StatelessWidget {
   final bool ready;
   final VoidCallback? onAnimationDone;
 
+  /// The user's saved Settings theme choice (loaded before runApp). The
+  /// splash must not hardcode ThemeMode.system: a dark-theme user on a
+  /// light-mode OS would get a light flash before the app comes up dark.
+  final ThemeMode themeMode;
+
   const SplashScreen({
     super.key,
     required this.onRetry,
     this.error,
     this.ready = false,
     this.onAnimationDone,
+    this.themeMode = ThemeMode.system,
   });
 
   @override
@@ -34,7 +40,7 @@ class SplashScreen extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
-      themeMode: ThemeMode.system,
+      themeMode: themeMode,
       home: _SplashBody(
         error: error,
         onRetry: onRetry,

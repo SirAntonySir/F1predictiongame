@@ -38,17 +38,21 @@ class PlayerProfile {
 class PlayerHeader {
   final String userId;
   final String displayName;
+  /// Opaque AvatarConfig JSON (or null → default livery). Rendered client-side.
+  final String? avatarConfig;
   final DateTime joinedAt;
   final bool isSelf;
   const PlayerHeader({
     required this.userId,
     required this.displayName,
+    this.avatarConfig,
     required this.joinedAt,
     required this.isSelf,
   });
   factory PlayerHeader.fromJson(Map<String, dynamic> j) => PlayerHeader(
         userId: j['userId'] as String,
         displayName: j['displayName'] as String,
+        avatarConfig: j['avatar'] as String?,
         joinedAt: DateTime.parse(j['joinedAt'] as String),
         isSelf: j['isSelf'] as bool,
       );

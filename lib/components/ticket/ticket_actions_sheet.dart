@@ -85,9 +85,12 @@ class _TicketActionsBody extends StatelessWidget {
     return BigPill(
       label: a.label,
       // Share is the accent primary; navigation actions sit on the muted
-      // surface so the export action stays visually dominant.
+      // surface so the export action stays visually dominant. The stroke keeps
+      // the muted pills legible in light mode, where mutedSurface is nearly
+      // the same white as the sheet behind it.
       background: a.isShare ? BrandColors.accent : t.mutedSurface,
       foreground: a.isShare ? Colors.white : t.colorScheme.onSurface,
+      border: a.isShare ? null : t.strokeColor,
       onTap: () {
         Navigator.of(context).pop();
         // Defer to the next frame so the sheet finishes dismissing before the

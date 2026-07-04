@@ -14,6 +14,8 @@ import '../screens/preseason_standings_screen.dart';
 import '../screens/rules_screen.dart';
 import '../screens/search_screen.dart';
 import '../screens/session_results_screen.dart';
+import '../screens/app_icon_screen.dart';
+import '../screens/avatar_screen.dart';
 import '../screens/settings_screen.dart';
 import '../screens/signup_screen.dart';
 import '../screens/standings/standings_screen.dart';
@@ -109,6 +111,8 @@ GoRouter buildRouter(AuthController auth) {
         ),
       ),
       GoRoute(path: '/settings', builder: (_, __) => const SettingsScreen()),
+      GoRoute(path: '/avatar', builder: (_, __) => const AvatarScreen()),
+      GoRoute(path: '/app-icon', builder: (_, __) => const AppIconScreen()),
       GoRoute(path: '/notifications', builder: (_, __) => const NotificationsScreen()),
       GoRoute(path: '/search', builder: (_, __) => const SearchScreen()),
       GoRoute(path: '/rules', builder: (_, __) => const RulesScreen()),

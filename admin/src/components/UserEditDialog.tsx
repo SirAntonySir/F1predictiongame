@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Button, Dialog, Flex, Text, TextField } from '@radix-ui/themes'
 import { useUpdateUser, useSetUserPassword } from '../api/admin'
+import { SecretField } from '../ui/SecretField'
 import type { AdminUserRow } from '../api/types'
 
 export function UserEditDialog({ user, onClose }: { user: AdminUserRow; onClose: () => void }) {
@@ -39,7 +40,7 @@ export function UserEditDialog({ user, onClose }: { user: AdminUserRow; onClose:
           </label>
           <label>
             <Text size="1" className="label">Set new password</Text>
-            <TextField.Root mt="1" aria-label="Set new password" type="password" placeholder="(leave blank to keep)" value={password} onChange={(e) => setPassword(e.target.value)} />
+            <SecretField mt="1" aria-label="Set new password" secretLabel="password" placeholder="(leave blank to keep)" value={password} onChange={(e) => setPassword(e.target.value)} />
           </label>
           <Flex gap="2" justify="end" mt="2">
             <Button variant="soft" color="gray" onClick={onClose}>Cancel</Button>

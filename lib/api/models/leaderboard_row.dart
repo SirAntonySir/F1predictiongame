@@ -1,6 +1,8 @@
 class LeaderboardRow {
   final String userId;
   final String displayName;
+  /// Opaque AvatarConfig JSON (or null → default livery). Rendered client-side.
+  final String? avatarConfig;
   final int inSeasonPoints;
   final int preseasonPoints;
   final int pointsTotal;
@@ -13,6 +15,7 @@ class LeaderboardRow {
   const LeaderboardRow({
     required this.userId,
     required this.displayName,
+    this.avatarConfig,
     required this.inSeasonPoints,
     required this.preseasonPoints,
     required this.pointsTotal,
@@ -24,6 +27,7 @@ class LeaderboardRow {
   factory LeaderboardRow.fromJson(Map<String, dynamic> j) => LeaderboardRow(
         userId: j['userId'] as String,
         displayName: j['displayName'] as String,
+        avatarConfig: j['avatarConfig'] as String?,
         inSeasonPoints: (j['inSeasonPoints'] as num).toInt(),
         preseasonPoints: (j['preseasonPoints'] as num).toInt(),
         pointsTotal: (j['pointsTotal'] as num).toInt(),

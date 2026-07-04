@@ -19,6 +19,7 @@ SHELL := /bin/zsh
 # iPhone 17 Pro simulator (override with: make app DEVICE=chrome)
 DEVICE      ?= 76ADD67A-99F4-4B62-A103-D4B51A0F0C82
 API_URL     ?= http://localhost:3000
+LIVE_API_URL ?= https://f1pg-backend.onrender.com
 ADMIN_TOKEN ?= local-dev-token
 BACKEND     := backend
 
@@ -88,7 +89,8 @@ admin-install:  ## install admin tool deps
 	cd admin && npm install
 
 .PHONY: admin
-admin:          ## run the admin tool dev server (vite)
+admin: API_URL := $(LIVE_API_URL)
+admin:          ## run the admin tool dev server against the live backend (override: make admin API_URL=http://localhost:3000)
 	cd admin && VITE_API_URL=$(API_URL) npm run dev
 
 .PHONY: frontend-install

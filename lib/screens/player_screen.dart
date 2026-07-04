@@ -6,6 +6,7 @@ import 'package:skeletonizer/skeletonizer.dart';
 import 'package:country_flags/country_flags.dart';
 import '../api/models/event.dart';
 import '../api/models/player_profile.dart';
+import '../components/avatar_thumbnail.dart';
 import '../components/circuit_svg.dart';
 import '../components/error_view.dart';
 import '../theme/country_flags.dart';
@@ -139,7 +140,11 @@ class _PlayerScreenState extends State<PlayerScreen> {
             ),
         ]),
         const SizedBox(height: Spacing.md),
-        _StandingHeader(standing: p.standing, season: p.seasonYear),
+        _StandingHeader(
+          standing: p.standing,
+          season: p.seasonYear,
+          avatarConfig: p.player.avatarConfig,
+        ),
 
         if (p.recentForm.isNotEmpty) ...[
           const SizedBox(height: Spacing.xl),
@@ -379,63 +384,92 @@ class _GpGroupTileState extends State<_GpGroupTile> {
   }
 }
 
-/// Top header card with league rank + the three point totals.
+/// Top header card with league rank + the three point totals, plus the
+/// player's avatar as a centered hero shot fading out toward the bottom.
 class _StandingHeader extends StatelessWidget {
   final PlayerStanding standing;
   final int season;
-  const _StandingHeader({required this.standing, required this.season});
+  final String? avatarConfig;
+  const _StandingHeader({
+    required this.standing,
+    required this.season,
+    this.avatarConfig,
+  });
 
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
     return Container(
-      padding: const EdgeInsets.all(Spacing.lg),
-      decoration: BoxDecoration(
+      // Border sits in foregroundDecoration so it paints *over* the hero bust
+      // (the svg is behind the card's border, not clipped by it).
+      foregroundDecoration: BoxDecoration(
         border: Border.all(color: t.strokeColor, width: Strokes.card),
         borderRadius: Radii.rLg,
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      decoration: const BoxDecoration(borderRadius: Radii.rLg),
+      // Fixed height (bounded, so bust + stats can both be Positioned.fill):
+      // tall enough that the full upper body shows, with the rank pinned to
+      // the top and the metrics row pinned to the bottom.
+      height: 210,
+      clipBehavior: Clip.antiAlias,
+      child: Stack(
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                standing.leagueRank == null
-                    ? '—'
-                    : 'P${standing.leagueRank}',
-                style: AppText.display(36, color: BrandColors.accent),
-              ),
-              const SizedBox(width: Spacing.sm),
-              Padding(
-                padding: const EdgeInsets.only(bottom: 6),
-                child: Text(
-                  standing.leagueRank == null
-                      ? 'unranked'
-                      : 'of ${standing.leagueSize}',
-                  style: AppText.label(10,
-                      color: t.colorScheme.onSurface.withOpacity(0.55)),
-                ),
-              ),
-              const Spacer(),
-              Padding(
-                padding: const EdgeInsets.only(bottom: 6),
-                child: Text('SEASON $season',
-                    style: AppText.label(10,
-                        color: t.colorScheme.onSurface.withOpacity(0.55))),
-              ),
-            ],
+          // Hero bust behind the stats: full upper body, centered, fading out
+          // toward the bottom so the metrics row stays readable.
+          Positioned.fill(
+            child: AvatarBust(configJson: avatarConfig),
           ),
-          const SizedBox(height: Spacing.md),
-          Row(children: [
-            _MetricCell(label: 'TOTAL', value: '${standing.pointsTotal}'),
-            const SizedBox(width: Spacing.lg),
-            _MetricCell(label: 'SEASON', value: '${standing.inSeasonPoints}'),
-            const SizedBox(width: Spacing.lg),
-            _MetricCell(label: 'PRESEASON', value: '${standing.preseasonPoints}'),
-            const Spacer(),
-            _MetricCell(label: 'SESSIONS', value: '${standing.sessionsScored}', muted: true),
-          ]),
+          Positioned.fill(
+            child: Padding(
+              padding: const EdgeInsets.all(Spacing.lg),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        standing.leagueRank == null
+                            ? '—'
+                            : 'P${standing.leagueRank}',
+                        style: AppText.display(36, color: BrandColors.accent),
+                      ),
+                      const SizedBox(width: Spacing.sm),
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 6),
+                        child: Text(
+                          standing.leagueRank == null
+                              ? 'unranked'
+                              : 'of ${standing.leagueSize}',
+                          style: AppText.label(10,
+                              color:
+                                  t.colorScheme.onSurface.withOpacity(0.55)),
+                        ),
+                      ),
+                      const Spacer(),
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 6),
+                        child: Text('SEASON $season',
+                            style: AppText.label(10,
+                                color: t.colorScheme.onSurface
+                                    .withOpacity(0.55))),
+                      ),
+                    ],
+                  ),
+                  const Spacer(),
+                  Row(children: [
+                    _MetricCell(label: 'TOTAL', value: '${standing.pointsTotal}'),
+                    const SizedBox(width: Spacing.lg),
+                    _MetricCell(label: 'SEASON', value: '${standing.inSeasonPoints}'),
+                    const SizedBox(width: Spacing.lg),
+                    _MetricCell(label: 'PRESEASON', value: '${standing.preseasonPoints}'),
+                    const Spacer(),
+                    _MetricCell(label: 'SESSIONS', value: '${standing.sessionsScored}', muted: true),
+                  ]),
+                ],
+              ),
+            ),
+          ),
         ],
       ),
     );

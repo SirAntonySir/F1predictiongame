@@ -15,6 +15,7 @@ import 'state/live_session_controller.dart';
 import 'state/notification_settings_controller.dart';
 import 'state/predictions_controller.dart';
 import 'state/preseason_controller.dart';
+import 'state/avatar_controller.dart';
 import 'state/theme_controller.dart';
 import 'state/token_storage.dart';
 
@@ -37,13 +38,19 @@ Future<void> main() async {
   );
   auth.api = api;
 
-  runApp(_Boot(api: api, auth: auth));
+  // Load the saved theme choice before the first frame so the splash
+  // background matches the app (a dark-theme user must never see a light
+  // flash). Cheap: one SharedPreferences read.
+  final theme = await ThemeController.load();
+
+  runApp(_Boot(api: api, auth: auth, theme: theme));
 }
 
 class _Boot extends StatefulWidget {
   final HttpApiClient api;
   final AuthController auth;
-  const _Boot({required this.api, required this.auth});
+  final ThemeController theme;
+  const _Boot({required this.api, required this.auth, required this.theme});
   @override
   State<_Boot> createState() => _BootState();
 }
@@ -51,8 +58,11 @@ class _Boot extends StatefulWidget {
 class _BootState extends State<_Boot> {
   Future<void>? _bootstrap;
   Object? _bootError;
-  // The splash wipe finishes its cycle before we swap to the app.
-  bool _splashFinished = false;
+  // The app mounts UNDERNEATH the splash overlay; this flips once the first
+  // routed screen (home / login) has painted its first frame.
+  bool _appPainted = false;
+  // The splash artwork finished + faded — remove the overlay entirely.
+  bool _splashDone = false;
 
   @override
   void initState() {
@@ -77,19 +87,39 @@ class _BootState extends State<_Boot> {
       builder: (context, snap) {
         final booted = snap.connectionState == ConnectionState.done &&
             _bootError == null;
-        // Cross-fade the splash into the app instead of a hard cut — and only
-        // after the wipe animation has played its current cycle to the end.
-        return AnimatedSwitcher(
-          duration: const Duration(milliseconds: 350),
-          child: booted && _splashFinished
-              ? _AfterBoot(api: widget.api, auth: widget.auth)
-              : SplashScreen(
-                  onRetry: () async => _start(),
-                  error: _bootError,
-                  ready: booted,
-                  onAnimationDone: () =>
-                      setState(() => _splashFinished = true),
+        // The splash is an overlay: once booted, the real app builds and
+        // routes BENEATH it (home screen mounts, kicks off its fetches).
+        // Only when that first screen has painted does the splash finish
+        // its artwork and cross-fade away — never a half-built frame.
+        return Directionality(
+          textDirection: TextDirection.ltr,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              if (booted)
+                _AfterBoot(
+                  api: widget.api,
+                  auth: widget.auth,
+                  theme: widget.theme,
+                  onFirstFrame: () {
+                    if (!_appPainted) setState(() => _appPainted = true);
+                  },
                 ),
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 350),
+                child: _splashDone
+                    ? const SizedBox.shrink()
+                    : SplashScreen(
+                        onRetry: () async => _start(),
+                        error: _bootError,
+                        ready: booted && _appPainted,
+                        themeMode: widget.theme.mode,
+                        onAnimationDone: () =>
+                            setState(() => _splashDone = true),
+                      ),
+              ),
+            ],
+          ),
         );
       },
     );
@@ -99,7 +129,17 @@ class _BootState extends State<_Boot> {
 class _AfterBoot extends StatefulWidget {
   final HttpApiClient api;
   final AuthController auth;
-  const _AfterBoot({required this.api, required this.auth});
+  final ThemeController theme;
+
+  /// Fired after the routed app (or the late-boot error screen) has painted
+  /// its first frame — the splash overlay above waits for this to lift.
+  final VoidCallback onFirstFrame;
+  const _AfterBoot({
+    required this.api,
+    required this.auth,
+    required this.theme,
+    required this.onFirstFrame,
+  });
   @override
   State<_AfterBoot> createState() => _AfterBootState();
 }
@@ -114,7 +154,20 @@ class _AfterBootState extends State<_AfterBoot> {
   }
 
   Future<_LateState> _loadLate() async {
-    final theme = await ThemeController.load();
+    // Theme was already loaded before runApp (the splash uses it); reuse the
+    // same controller so a Settings change keeps a single source of truth.
+    final theme = widget.theme;
+    final avatar = await AvatarController.load();
+    // Backend sync: pushes on save (gated on login), and reconciles with the
+    // server's stored avatar. Bootstrap already ran before this widget, so the
+    // controller wasn't attached to catch it — reconcile once explicitly with
+    // the avatar auth already fetched. Later logins reconcile via AuthController.
+    avatar.attachSync(widget.api, () => widget.auth.isLoggedIn);
+    widget.auth.attachAvatarController(avatar);
+    if (widget.auth.isLoggedIn) {
+      // ignore: discarded_futures
+      avatar.reconcileWithServer(widget.auth.user?.avatar);
+    }
     // Server-backed: the backend owns notification scheduling + preferences now.
     final notifications = NotificationSettingsController(api: widget.api);
 
@@ -212,6 +265,7 @@ class _AfterBootState extends State<_AfterBoot> {
     });
     return _LateState(
       theme: theme,
+      avatar: avatar,
       predictions: preds,
       preseason: preseason,
       league: league,
@@ -227,33 +281,72 @@ class _AfterBootState extends State<_AfterBoot> {
       future: _late,
       builder: (_, snap) {
         if (snap.connectionState != ConnectionState.done) {
-          return SplashScreen(onRetry: () async {}, error: null);
+          // The splash overlay above still covers us — nothing to show yet.
+          return const ColoredBox(color: Color(0xFF000000));
         }
         // FutureBuilder hands us a `done` state when the future errored *or*
         // completed normally. Guard so a thrown _loadLate() doesn't surface
-        // as a cryptic null-check error.
+        // as a cryptic null-check error. Ping the overlay so it lifts and
+        // reveals the error card instead of resting on the artwork forever.
         if (snap.hasError || snap.data == null) {
-          return SplashScreen(onRetry: () async {}, error: snap.error);
+          return _FirstFramePing(
+            onFirstFrame: widget.onFirstFrame,
+            child: SplashScreen(
+              onRetry: () async {},
+              error: snap.error,
+              themeMode: widget.theme.mode,
+            ),
+          );
         }
         final s = snap.data!;
-        return F1PgApp(
-          api: widget.api,
-          auth: widget.auth,
-          league: s.league,
-          theme: s.theme,
-          predictions: s.predictions,
-          preseason: s.preseason,
-          notifications: s.notifications,
-          homeCache: s.homeCache,
-          live: s.live,
+        // The routed app: its initial screen (home / login) mounts and
+        // paints within this frame — the ping tells the splash overlay.
+        return _FirstFramePing(
+          onFirstFrame: widget.onFirstFrame,
+          child: F1PgApp(
+            api: widget.api,
+            auth: widget.auth,
+            avatar: s.avatar,
+            league: s.league,
+            theme: s.theme,
+            predictions: s.predictions,
+            preseason: s.preseason,
+            notifications: s.notifications,
+            homeCache: s.homeCache,
+            live: s.live,
+          ),
         );
       },
     );
   }
 }
 
+/// Invokes [onFirstFrame] once, after the frame in which [child] first
+/// builds has been painted — i.e. the routed screen is actually on screen.
+class _FirstFramePing extends StatefulWidget {
+  final VoidCallback onFirstFrame;
+  final Widget child;
+  const _FirstFramePing({required this.onFirstFrame, required this.child});
+  @override
+  State<_FirstFramePing> createState() => _FirstFramePingState();
+}
+
+class _FirstFramePingState extends State<_FirstFramePing> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) widget.onFirstFrame();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
+}
+
 class _LateState {
   final ThemeController theme;
+  final AvatarController avatar;
   final PredictionsController predictions;
   final PreseasonController preseason;
   final LeagueController league;
@@ -262,6 +355,7 @@ class _LateState {
   final LiveSessionController live;
   _LateState({
     required this.theme,
+    required this.avatar,
     required this.predictions,
     required this.preseason,
     required this.league,

@@ -5,6 +5,7 @@ import 'nav/router.dart';
 import 'nav/deep_link.dart';
 import 'state/app_state.dart';
 import 'state/auth_controller.dart';
+import 'state/avatar_controller.dart';
 import 'state/home_cache_controller.dart';
 import 'state/league_controller.dart';
 import 'state/live_session_controller.dart';
@@ -17,6 +18,7 @@ import 'theme/app_theme.dart';
 class F1PgApp extends StatefulWidget {
   final ApiClient api;
   final AuthController auth;
+  final AvatarController avatar;
   final LeagueController league;
   final ThemeController theme;
   final PredictionsController predictions;
@@ -29,6 +31,7 @@ class F1PgApp extends StatefulWidget {
     super.key,
     required this.api,
     required this.auth,
+    required this.avatar,
     required this.league,
     required this.theme,
     required this.predictions,
@@ -58,6 +61,7 @@ class _F1PgAppState extends State<F1PgApp> {
     return AppState(
       api: widget.api,
       auth: widget.auth,
+      avatar: widget.avatar,
       league: widget.league,
       theme: widget.theme,
       predictions: widget.predictions,

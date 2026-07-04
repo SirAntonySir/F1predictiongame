@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 import '../api/api_client.dart';
 import 'auth_controller.dart';
+import 'avatar_controller.dart';
 import 'home_cache_controller.dart';
 import 'league_controller.dart';
 import 'live_session_controller.dart';
@@ -12,6 +13,7 @@ import 'theme_controller.dart';
 class AppState extends StatefulWidget {
   final ApiClient api;
   final AuthController auth;
+  final AvatarController avatar;
   final LeagueController league;
   final ThemeController theme;
   final PredictionsController predictions;
@@ -25,6 +27,7 @@ class AppState extends StatefulWidget {
     super.key,
     required this.api,
     required this.auth,
+    required this.avatar,
     required this.league,
     required this.theme,
     required this.predictions,
@@ -52,6 +55,7 @@ class _AppStateState extends State<AppState> {
   Widget build(BuildContext context) => _AppStateScope(
         api: widget.api,
         auth: widget.auth,
+        avatar: widget.avatar,
         league: widget.league,
         theme: widget.theme,
         predictions: widget.predictions,
@@ -66,6 +70,7 @@ class _AppStateState extends State<AppState> {
 class _AppStateScope extends InheritedWidget {
   final ApiClient api;
   final AuthController auth;
+  final AvatarController avatar;
   final LeagueController league;
   final ThemeController theme;
   final PredictionsController predictions;
@@ -77,6 +82,7 @@ class _AppStateScope extends InheritedWidget {
   const _AppStateScope({
     required this.api,
     required this.auth,
+    required this.avatar,
     required this.league,
     required this.theme,
     required this.predictions,

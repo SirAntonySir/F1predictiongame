@@ -362,66 +362,75 @@ class _HomeScreenState extends State<HomeScreen> {
     final t = Theme.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: Spacing.xl),
-      child: Row(
+      child: Column(
         children: [
-          // Logo plate + settings icon are fixed identity — Skeleton.keep
-          // so they don't go gray during the first-load placeholder.
-          Skeleton.keep(
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                  color: t.colorScheme.onSurface,
-                  child: Text('UNDER',
-                      style: AppText.display(14, color: t.colorScheme.surface)),
+          Row(
+            children: [
+              // Logo plate + settings icon are fixed identity — Skeleton.keep
+              // so they don't go gray during the first-load placeholder.
+              Skeleton.keep(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                      color: t.colorScheme.onSurface,
+                      child: Text('UNDER',
+                          style: AppText.display(14, color: t.colorScheme.surface)),
+                    ),
+                    const SizedBox(width: 4),
+                    Text('CUT', style: AppText.display(14)),
+                  ],
                 ),
-                const SizedBox(width: 4),
-                Text('CUT', style: AppText.display(14)),
-              ],
-            ),
-          ),
-          const Spacer(),
-          // Tapping the league pill jumps to the league standings tab.
-          GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: () => context.go('/standings/league'),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: Spacing.md, vertical: 5),
-              decoration: BoxDecoration(
-                // strokeColor adapts per theme — matches every other pill
-                // border in the app (settings, standings tabs, etc.).
-                border: Border.all(color: t.strokeColor, width: 1.5),
-                borderRadius: const BorderRadius.all(Radius.circular(999)),
               ),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Skeleton.keep(
-                  child: Container(width: 8, height: 8, decoration: const BoxDecoration(color: BrandColors.accent, shape: BoxShape.circle)),
+              const Spacer(),
+              Skeleton.keep(
+                child: IconButton(
+                  onPressed: () => context.push('/search'),
+                  icon: const Icon(Icons.search),
+                  tooltip: 'Search',
                 ),
-                const SizedBox(width: 6),
-                Text('$leagueName · $memberCount', style: AppText.label(11)),
-              ]),
-            ),
+              ),
+              Skeleton.keep(
+                child: IconButton(
+                  onPressed: () => context.push('/notifications'),
+                  icon: const Icon(Icons.notifications_outlined),
+                  tooltip: 'Notifications',
+                ),
+              ),
+              Skeleton.keep(
+                child: IconButton(
+                  onPressed: () => context.push('/settings'),
+                  icon: const Icon(Icons.settings_outlined),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: Spacing.sm),
-          Skeleton.keep(
-            child: IconButton(
-              onPressed: () => context.push('/search'),
-              icon: const Icon(Icons.search),
-              tooltip: 'Search',
-            ),
-          ),
-          Skeleton.keep(
-            child: IconButton(
-              onPressed: () => context.push('/notifications'),
-              icon: const Icon(Icons.notifications_outlined),
-              tooltip: 'Notifications',
-            ),
-          ),
-          Skeleton.keep(
-            child: IconButton(
-              onPressed: () => context.push('/settings'),
-              icon: const Icon(Icons.settings_outlined),
+          const SizedBox(height: Spacing.xs),
+          // League pill on its own line, centered — the top row keeps only the
+          // fixed identity (logo + action icons) so long league names don't
+          // fight the icons for width. Tapping it still jumps to the league
+          // standings tab.
+          Center(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => context.go('/standings/league'),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: Spacing.md, vertical: 5),
+                decoration: BoxDecoration(
+                  // strokeColor adapts per theme — matches every other pill
+                  // border in the app (settings, standings tabs, etc.).
+                  border: Border.all(color: t.strokeColor, width: 1.5),
+                  borderRadius: const BorderRadius.all(Radius.circular(999)),
+                ),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Skeleton.keep(
+                    child: Container(width: 8, height: 8, decoration: const BoxDecoration(color: BrandColors.accent, shape: BoxShape.circle)),
+                  ),
+                  const SizedBox(width: 6),
+                  Text('$leagueName · $memberCount', style: AppText.label(11)),
+                ]),
+              ),
             ),
           ),
         ],
@@ -611,36 +620,36 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   List<Widget> _chips(Session next, Event nextEvent) {
-    final order = [SessionType.fp1, SessionType.fp2, SessionType.fp3,
-      SessionType.qualifying, SessionType.sprint_quali, SessionType.sprint, SessionType.race];
-    final labels = {
+    const labels = {
       SessionType.fp1:'FP1', SessionType.fp2:'FP2', SessionType.fp3:'FP3',
       SessionType.qualifying:'QUALI', SessionType.sprint_quali:'SQ',
       SessionType.sprint:'SPRINT', SessionType.race:'RACE',
     };
+    // Chronological order — a hardcoded type order breaks sprint weekends,
+    // where the real sequence is FP1 → SQ → Sprint → Quali → Race.
+    final sessions = [...nextEvent.sessions]
+      ..sort((a, b) => a.scheduledStart.compareTo(b.scheduledStart));
     return [
-      for (final t in order)
-        if (nextEvent.sessions.any((s) => s.type == t))
-          () {
-            final session = nextEvent.sessions.firstWhere((s) => s.type == t);
-            // "Done" = finished (results in) OR simply past its scheduled end,
-            // so practice sessions — which never get a 'finished' status — also
-            // strike through once they're over.
-            final isDone = session.status == SessionStatus.finished ||
-                session.scheduledEnd.isBefore(DateTime.now());
-            return SessionChip(
-              label: labels[t]!,
-              state: isDone
-                  ? ChipState.done
-                  : (next.id == session.id ? ChipState.next : ChipState.idle),
-              // Tapping retargets the hero's countdown at this session.
-              // Past/finished sessions stay non-interactive — nothing to
-              // count down to.
-              onTap: isDone
-                  ? null
-                  : () => setState(() => _heroSessionOverride = session.id),
-            );
-          }(),
+      for (final session in sessions)
+        () {
+          // "Done" = finished (results in) OR simply past its scheduled end,
+          // so practice sessions — which never get a 'finished' status — also
+          // strike through once they're over.
+          final isDone = session.status == SessionStatus.finished ||
+              session.scheduledEnd.isBefore(DateTime.now());
+          return SessionChip(
+            label: labels[session.type]!,
+            state: isDone
+                ? ChipState.done
+                : (next.id == session.id ? ChipState.next : ChipState.idle),
+            // Tapping retargets the hero's countdown at this session.
+            // Past/finished sessions stay non-interactive — nothing to
+            // count down to.
+            onTap: isDone
+                ? null
+                : () => setState(() => _heroSessionOverride = session.id),
+          );
+        }(),
     ];
   }
 

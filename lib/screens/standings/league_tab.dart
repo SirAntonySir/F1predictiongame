@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:skeletonizer/skeletonizer.dart';
 import '../../api/models/leaderboard_row.dart';
+import '../../avatar/avatar_palette.dart';
 import '../../components/app_card.dart';
+import '../../components/avatar_thumbnail.dart';
 import '../../components/cached_view.dart';
 import '../../components/league_row.dart';
 import '../../components/racing_stripes.dart';
@@ -216,6 +218,7 @@ class _LeagueTabState extends State<LeagueTab> {
                             child: LeagueRow(
                               rank: i + 1,
                               name: r.displayName,
+                              avatarConfig: r.avatarConfig,
                               inSeasonPoints: r.inSeasonPoints,
                               preseasonPoints: r.preseasonPoints,
                               pointsTotal: r.pointsTotal,
@@ -455,6 +458,16 @@ class _PodiumStep extends StatelessWidget {
                   ),
                 ),
               ),
+              // Driver bust, centered in the step behind the name/points.
+              // Forced to the crossed-arms pose and mirrored left-to-right so
+              // all three podium figures read as one matched, podium-facing set.
+              Positioned.fill(
+                child: AvatarBust(
+                  configJson: row.avatarConfig,
+                  forcePose: AvatarPose.pose2,
+                  mirror: true,
+                ),
+              ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(8, 7, 8, 8),
                 child: Column(
@@ -468,8 +481,7 @@ class _PodiumStep extends StatelessWidget {
                         'P$pos',
                         style: AppText.label(
                           9,
-                          color:
-                              isLeader ? Colors.black : Colors.white,
+                          color: isLeader ? Colors.black : Colors.white,
                         ),
                       ),
                     ),

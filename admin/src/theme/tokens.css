@@ -32,6 +32,12 @@ h1, h2, h3, .display {
   letter-spacing: -0.01em;
   font-weight: 400;
 }
+/* SecretField masking: real type="password" would trigger the browser's
+   save-password prompt, so secrets are text inputs masked via CSS instead. */
+.secret-hidden input {
+  -webkit-text-security: disc;
+}
+
 .label {
   font-family: var(--font-body);
   font-weight: 800;

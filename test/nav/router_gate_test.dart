@@ -7,7 +7,9 @@ import 'package:predictiongame/api/models/user.dart';
 import 'package:predictiongame/api/models/user_league.dart';
 import 'package:predictiongame/nav/router.dart';
 import 'package:predictiongame/state/app_state.dart';
+import 'package:predictiongame/avatar/avatar_config.dart';
 import 'package:predictiongame/state/auth_controller.dart';
+import 'package:predictiongame/state/avatar_controller.dart';
 import 'package:predictiongame/state/home_cache_controller.dart';
 import 'package:predictiongame/state/live_session_controller.dart';
 import 'package:predictiongame/state/league_controller.dart';
@@ -30,6 +32,7 @@ Widget _withAppState({required AuthController auth, required GoRouter router}) {
   return AppState(
     api: _FakeApi(),
     auth: auth,
+    avatar: AvatarController(const AvatarConfig()),
     league: LeagueController(api: _FakeApi()),
     theme: ThemeController(ThemeMode.system),
     predictions: PredictionsController(api: _FakeApi()),

@@ -5,10 +5,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path_parsing/path_parsing.dart';
 
+import '../avatar/avatar_palette.dart';
+import '../state/avatar_controller.dart';
+
 /// Full-bleed boot splash that draws an SVG artwork like an artist:
 /// every stroke sketches itself on in document order (SVG-Artista style
 /// dash-offset draw), then the color fills fade in over the ink.
-/// The loop erases in reverse and repeats while the app boots.
+/// Plays ONCE and rests on the fully painted artwork while the app boots.
 ///
 /// General-purpose: any flat-color SVG works (paths, rects, ellipses,
 /// circles, polygons; translate/rotate/scale transforms; hex colors).
@@ -16,16 +19,30 @@ import 'package:path_parsing/path_parsing.dart';
 /// attribute inheritance. The asset is parsed ONCE into ui.Path objects
 /// + cached PathMetrics; per frame only progress values change.
 class PaintedSplash extends StatefulWidget {
-  /// When true, the loop stops repeating: the animation plays to the fully
-  /// painted artwork and [onFinished] fires exactly once.
+  /// When true, [onFinished] fires exactly once as soon as the artwork is
+  /// fully painted (immediately if the one-shot animation already ended).
   final bool ready;
   final VoidCallback? onFinished;
-  final String asset;
+
+  /// Explicit artwork asset. When null, the saved avatar config's pose is
+  /// used — that's the boot-splash path.
+  final String? asset;
+
+  /// Explicit avatar recolor ops (the builder preview passes the config it
+  /// is editing). When null, the saved on-device avatar config is loaded —
+  /// that's the boot-splash path.
+  final Map<AvatarRegion, RegionOp>? ops;
+
+  /// One-shot play time. The boot splash keeps the leisurely default; the
+  /// builder preview passes something snappier.
+  final Duration duration;
   const PaintedSplash({
     super.key,
     this.ready = false,
     this.onFinished,
-    this.asset = 'assets/loading/loading.svg',
+    this.asset,
+    this.ops,
+    this.duration = const Duration(milliseconds: 3000),
   });
 
   @override
@@ -34,68 +51,74 @@ class PaintedSplash extends StatefulWidget {
 
 class _PaintedSplashState extends State<PaintedSplash>
     with SingleTickerProviderStateMixin {
-  static const _cycleMs = 4000;
+  // One-shot timeline (controller value 0..1): strokes sketch in, fills
+  // wash over them, ends fully painted and stays there.
+  static const _drawEnd = 0.55;
+  static const _fillStart = 0.40;
+  static const _fillEnd = 0.95;
 
-  // Timeline within one cycle (controller value 0..1):
-  // strokes sketch in, fills wash over them, hold, erase in reverse.
-  static const _drawEnd = 0.42;
-  static const _fillStart = 0.30;
-  static const _fillEnd = 0.70;
-  static const _eraseStart = 0.82;
-  // Fully painted moment the handoff finishes on (middle of the hold).
-  static const _holdMid = 0.76;
+  // Parsed rainbow masters, keyed by asset. Parsing is ~1.4k paths of
+  // regex + path building; the builder preview re-renders on every color
+  // tweak and must not pay that again.
+  static final Map<String, SplashArt> _masterCache = {};
 
   late final AnimationController _controller;
+  SplashArt? _master;
   SplashArt? _art;
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: _cycleMs));
-    if (widget.ready) {
-      _finishAtFullArt();
-    } else {
-      _controller.repeat();
-    }
+    _controller =
+        AnimationController(vsync: this, duration: widget.duration);
+    _controller.forward();
+    if (widget.ready) _notifyWhenPainted();
     _loadArt();
   }
 
   Future<void> _loadArt() async {
-    final text = await rootBundle.loadString(widget.asset);
-    final art = SplashArt.parse(text);
-    if (mounted) setState(() => _art = art);
+    var asset = widget.asset;
+    var ops = widget.ops;
+    if (asset == null || ops == null) {
+      final config = await AvatarController.loadConfig();
+      asset ??= config.pose.asset;
+      ops ??= config.ops;
+    }
+    var master = _masterCache[asset];
+    if (master == null) {
+      final text = await rootBundle.loadString(asset);
+      master = _masterCache[asset] = SplashArt.parse(text);
+    }
+    if (!mounted) return;
+    setState(() {
+      _master = master;
+      _art = recolorArt(master!, ops!);
+    });
   }
 
   @override
   void didUpdateWidget(PaintedSplash old) {
     super.didUpdateWidget(old);
-    if (widget.ready && !old.ready) _finishAtFullArt();
+    if (widget.ready && !old.ready) _notifyWhenPainted();
+    // Live recolor (builder color tweaks): remap colors on the cached
+    // master, no reparse, no animation restart.
+    if (widget.ops != null && widget.ops != old.ops && _master != null) {
+      setState(() => _art = recolorArt(_master!, widget.ops!));
+    }
   }
 
-  Duration _scaled(double delta) => Duration(
-      milliseconds: (delta.abs() * _cycleMs).round().clamp(1, _cycleMs));
-
-  /// Play on to the fully painted artwork at loop speed, then notify.
-  /// If mid-erase, finish the erase and paint once more — the splash always
-  /// exits on the complete artwork, never a half-drawn frame.
+  /// Fire [PaintedSplash.onFinished] once the artwork is fully painted —
+  /// immediately if the one-shot animation already ended.
   ///
   /// `.orCancel` is load-bearing: a bare TickerFuture never completes when
   /// its animation is interrupted, which would leave the splash stuck.
-  Future<void> _finishAtFullArt() async {
-    _controller.stop();
-    try {
-      if (_controller.value > _holdMid) {
-        await _controller
-            .animateTo(1.0, duration: _scaled(1.0 - _controller.value))
-            .orCancel;
-        _controller.value = 0.0;
+  Future<void> _notifyWhenPainted() async {
+    if (!_controller.isCompleted) {
+      try {
+        await _controller.forward().orCancel;
+      } on TickerCanceled {
+        return; // disposed mid-flight — owner moved on.
       }
-      await _controller
-          .animateTo(_holdMid, duration: _scaled(_holdMid - _controller.value))
-          .orCancel;
-    } on TickerCanceled {
-      return; // disposed (or superseded) mid-flight — owner moved on.
     }
     if (mounted) widget.onFinished?.call();
   }
@@ -106,12 +129,8 @@ class _PaintedSplashState extends State<PaintedSplash>
     super.dispose();
   }
 
-  /// Map the cycle position to (strokeProgress, fillProgress).
+  /// Map the one-shot timeline position to (strokeProgress, fillProgress).
   static (double, double) progressAt(double v) {
-    if (v >= _eraseStart) {
-      final e = ((v - _eraseStart) / (1 - _eraseStart)).clamp(0.0, 1.0);
-      return (1 - e, 1 - e);
-    }
     final stroke = (v / _drawEnd).clamp(0.0, 1.0);
     final fill = ((v - _fillStart) / (_fillEnd - _fillStart)).clamp(0.0, 1.0);
     return (stroke, fill);
@@ -121,25 +140,34 @@ class _PaintedSplashState extends State<PaintedSplash>
   Widget build(BuildContext context) {
     final art = _art;
     if (art == null) return const SizedBox.expand();
+    // Fit the FIGURE, not the SVG canvas: poses are traced with different
+    // canvas sizes and margins, so containing the viewBox would place each
+    // pose differently. The pose frame (figure height in a pose-1-shaped
+    // box) makes figure HEIGHT the scale reference, so every pose renders
+    // the character at the same size as pose 1.
+    final frame = art.poseFrame;
     return SizedBox.expand(
       child: FittedBox(
-        fit: BoxFit.cover,
+        // Contain, not cover: the artwork has a transparent background, so
+        // the whole figure fits on screen and the margins read as surface.
+        fit: BoxFit.contain,
         clipBehavior: Clip.hardEdge,
         child: SizedBox(
-          width: art.width,
-          height: art.height,
+          width: frame.width,
+          height: frame.height,
           child: AnimatedBuilder(
             animation: _controller,
             builder: (context, _) {
               final (stroke, fill) = progressAt(_controller.value);
               return RepaintBoundary(
                 child: CustomPaint(
-                  size: Size(art.width, art.height),
+                  size: frame.size,
                   isComplex: true,
                   painter: _ArtPainter(
                     art: art,
                     strokeProgress: stroke,
                     fillProgress: fill,
+                    origin: frame.topLeft,
                   ),
                 ),
               );
@@ -160,7 +188,15 @@ class _PaintedSplashState extends State<PaintedSplash>
 @visibleForTesting
 void debugPaintSplashArt(
     Canvas canvas, SplashArt art, double stroke, double fill) {
-  _ArtPainter(art: art, strokeProgress: stroke, fillProgress: fill)
+  paintSplashArt(canvas, art);
+}
+
+/// Paint fully-drawn artwork in its raw SVG coordinate space. The caller sets
+/// up any scale/translate on [canvas] first (e.g. to fit a crop). Used to
+/// rasterize static avatar thumbnails; the animated splash uses [_ArtPainter]
+/// directly with progress values.
+void paintSplashArt(Canvas canvas, SplashArt art) {
+  _ArtPainter(art: art, strokeProgress: 1, fillProgress: 1)
       .paint(canvas, Size(art.width, art.height));
 }
 
@@ -168,10 +204,16 @@ class _ArtPainter extends CustomPainter {
   final SplashArt art;
   final double strokeProgress;
   final double fillProgress;
+
+  /// Point in SVG coordinates painted at the widget's top-left — the
+  /// content-bounds origin for figure-fit framing. Zero keeps raw SVG
+  /// coordinates (icon baking relies on that).
+  final Offset origin;
   _ArtPainter({
     required this.art,
     required this.strokeProgress,
     required this.fillProgress,
+    this.origin = Offset.zero,
   });
 
   // Per-element stagger: element i is active during a sliding window of the
@@ -183,6 +225,7 @@ class _ArtPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    canvas.translate(-origin.dx, -origin.dy);
     // 1. Strokes sketch on (document order = artist's ink pass).
     final strokePaint = Paint()
       ..style = PaintingStyle.stroke
@@ -224,7 +267,8 @@ class _ArtPainter extends CustomPainter {
   bool shouldRepaint(_ArtPainter old) =>
       old.art != art ||
       old.strokeProgress != strokeProgress ||
-      old.fillProgress != fillProgress;
+      old.fillProgress != fillProgress ||
+      old.origin != origin;
 }
 
 /// A parsed SVG artwork: strokes (with cached metrics for partial drawing)
@@ -240,6 +284,49 @@ class SplashArt {
     required this.strokes,
     required this.fills,
   });
+
+  /// Tight bounding box of the drawn content (figure + shadow), padded for
+  /// stroke width. Trace canvases carry arbitrary margins per pose; framing
+  /// against this box gives every pose the same on-screen placement.
+  late final Rect contentBounds = () {
+    Rect? union;
+    void add(Rect r) => union = union?.expandToInclude(r) ?? r;
+    for (final s in strokes) {
+      add(s.path.getBounds());
+    }
+    for (final f in fills) {
+      add(f.path.getBounds());
+    }
+    return union?.inflate(4) ?? Rect.fromLTWH(0, 0, width, height);
+  }();
+
+  /// Pose 1 (Victory)'s figure aspect ratio — the framing reference every
+  /// pose is normalized to. Guarded by a test against the shipped asset;
+  /// update if pose1.svg is ever regenerated with different framing.
+  static const referenceFigureAspect = 1443 / 2125;
+
+  /// The rect the renderer fits on screen: this pose's figure height in a
+  /// pose-1-shaped frame, centered on the figure. Height is the scale
+  /// reference — every pose's frame has the same aspect, so `contain`
+  /// always resolves to the same figure height regardless of how wide a
+  /// pose is (arms up vs arms crossed). Poses narrower than pose 1 get
+  /// symmetric side margins instead of being blown up to fill the width.
+  /// A pose WIDER than pose 1 would clip — regenerate such an asset to the
+  /// reference framing instead.
+  late final Rect poseFrame = Rect.fromCenter(
+    center: contentBounds.center,
+    width: contentBounds.height * referenceFigureAspect,
+    height: contentBounds.height,
+  );
+
+  /// Per-element vertical center in SVG coords (fills, then strokes — same
+  /// order the paint loop and [recolorArt] iterate). Cached once on the parsed
+  /// master so position-aware recoloring doesn't re-measure bounds on every
+  /// live color tweak.
+  late final List<double> fillCentersY =
+      [for (final f in fills) f.path.getBounds().center.dy];
+  late final List<double> strokeCentersY =
+      [for (final s in strokes) s.path.getBounds().center.dy];
 
   static final _viewBoxRe =
       RegExp(r'viewBox="\s*[\d.+-]+\s+[\d.+-]+\s+([\d.+-]+)\s+([\d.+-]+)\s*"');

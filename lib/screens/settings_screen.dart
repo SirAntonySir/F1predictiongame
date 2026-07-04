@@ -53,6 +53,22 @@ class SettingsScreen extends StatelessWidget {
               ]),
             ),
             const SizedBox(height: Spacing.xl),
+            Text('AVATAR', style: AppText.label(11)),
+            const SizedBox(height: Spacing.sm),
+            _SettingsCard(
+              title: 'Driver avatar',
+              subtitle: 'Livery for your loading screen',
+              trailing: _chevron(t),
+              onTap: () => context.push('/avatar'),
+            ),
+            const SizedBox(height: Spacing.sm),
+            _SettingsCard(
+              title: 'App icon',
+              subtitle: 'One baked icon per pose & livery',
+              trailing: _chevron(t),
+              onTap: () => context.push('/app-icon'),
+            ),
+            const SizedBox(height: Spacing.xl),
             Text('ACCOUNT', style: AppText.label(11)),
             const SizedBox(height: Spacing.sm),
             _SettingsCard(

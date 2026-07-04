@@ -25,6 +25,7 @@ import 'models/session_leaderboard_row.dart';
 import 'models/live_snapshot.dart';
 import 'models/notification_prefs.dart';
 import 'models/session_result.dart';
+import 'models/user.dart';
 import 'models/standing.dart';
 import 'models/upcoming_prediction.dart';
 
@@ -193,6 +194,17 @@ class HttpApiClient implements ApiClient {
   Future<MeResult> me() async {
     final j = await _request('GET', '/api/auth/me') as Map<String, dynamic>;
     return MeResult.fromJson(j);
+  }
+
+  @override
+  Future<User> patchMe({String? displayName, String? avatar}) async {
+    final body = <String, dynamic>{
+      if (displayName != null) 'displayName': displayName,
+      if (avatar != null) 'avatar': avatar,
+    };
+    final j = await _request('PATCH', '/api/auth/me', body: body)
+        as Map<String, dynamic>;
+    return User.fromJson(j['user'] as Map<String, dynamic>);
   }
 
   @override

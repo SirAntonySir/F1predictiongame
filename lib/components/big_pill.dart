@@ -14,12 +14,16 @@ class BigPill extends StatelessWidget {
   final IconData? trailing;
   final Color background;
   final Color foreground;
+  /// Outline stroke for pills whose fill is too close to the surface behind
+  /// them (mutedSurface on white in light mode). Null keeps the pill flat.
+  final Color? border;
   final VoidCallback? onTap;
   const BigPill({
     super.key,
     required this.label,
     required this.background,
     required this.foreground,
+    this.border,
     this.trailing,
     this.onTap,
   });
@@ -31,7 +35,12 @@ class BigPill extends StatelessWidget {
       opacity: disabled ? 0.55 : 1.0,
       child: Material(
         color: background,
-        borderRadius: Radii.rLg,
+        shape: RoundedRectangleBorder(
+          borderRadius: Radii.rLg,
+          side: border == null
+              ? BorderSide.none
+              : BorderSide(color: border!, width: Strokes.subtle),
+        ),
         child: InkWell(
           onTap: onTap,
           borderRadius: Radii.rLg,

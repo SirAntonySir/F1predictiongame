@@ -4,6 +4,7 @@ import '../theme/app_theme.dart';
 import '../theme/colors.dart';
 import '../theme/tokens.dart';
 import '../theme/typography.dart';
+import 'avatar_thumbnail.dart';
 import 'trend_badge.dart';
 
 /// Which column the row should emphasise. Drives both the bold/large
@@ -14,6 +15,9 @@ enum LeagueRowFocus { inSeason, total }
 
 // Shared column widths so the league header and rows align exactly.
 const double leagueRowPosCol = 26;
+// Avatar head-crop diameter; the header reserves this + a gap so "PLAYER"
+// stays aligned over the names.
+const double leagueRowAvatarCol = 28;
 // Wide enough to hold the one-row trend badge ("▲ 12") without wrapping the
 // number under the arrow. Reserved on every row so the points columns line up.
 const double leagueRowTrendCol = 38;
@@ -23,6 +27,11 @@ const double leagueRowPointsGap = 8;
 class LeagueRow extends StatelessWidget {
   final int rank;
   final String name;
+  /// Opaque AvatarConfig JSON for the member's head-crop thumbnail (null →
+  /// default livery). Kept for a future helmet-only marker; avatars are off in
+  /// the leaderboard for now ([showAvatar] defaults false).
+  final String? avatarConfig;
+  final bool showAvatar;
   final String? subtitle;
   final int inSeasonPoints;
   final int preseasonPoints;
@@ -41,6 +50,8 @@ class LeagueRow extends StatelessWidget {
     super.key,
     required this.rank,
     required this.name,
+    this.avatarConfig,
+    this.showAvatar = false,
     this.subtitle,
     required this.inSeasonPoints,
     required this.preseasonPoints,
@@ -78,6 +89,13 @@ class LeagueRow extends StatelessWidget {
                       color: isMe ? BrandColors.accent : t.colorScheme.onSurface)),
             ),
             const SizedBox(width: Spacing.sm),
+            if (showAvatar) ...[
+              AvatarThumbnail(
+                  configJson: avatarConfig,
+                  size: leagueRowAvatarCol,
+                  background: false),
+              const SizedBox(width: Spacing.sm),
+            ],
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,

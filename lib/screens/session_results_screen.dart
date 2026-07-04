@@ -270,9 +270,16 @@ class _SessionResultsScreenState extends State<SessionResultsScreen> {
                         final scope = AppState.of(context);
                         final live = scope.live;
                         final snap = live.snapshot;
+                        // Only take the live branch when the snapshot actually
+                        // has live data. `pre` and `unavailable` (no OpenF1
+                        // key yet) have an empty order AND an empty league
+                        // list — rendering LiveResultsBody for those hides the
+                        // league picks the regular payload below would show
+                        // (the session has started, so picks are unlocked).
                         if (live.isLiveFor(active.id) &&
                             snap != null &&
-                            snap.state != LiveState.finalised) {
+                            (snap.state == LiveState.live ||
+                                snap.state == LiveState.provisional)) {
                           // Lazy + idempotent: load my picks so live rows tint.
                           // ignore: discarded_futures
                           scope.predictions.fetchPrediction(active.id);

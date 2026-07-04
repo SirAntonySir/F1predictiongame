@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../api/api_client.dart';
 import '../api/models/user.dart';
 import '../api/models/user_league.dart';
+import 'avatar_controller.dart';
 import 'predictions_controller.dart';
 import 'token_storage.dart';
 
@@ -29,6 +30,17 @@ class AuthController extends ChangeNotifier {
   PredictionsController? _predictions;
   void attachPredictionsController(PredictionsController c) { _predictions = c; }
 
+  AvatarController? _avatar;
+  void attachAvatarController(AvatarController c) { _avatar = c; }
+
+  /// Push the freshly-fetched server avatar into the avatar controller (or
+  /// seed the server from a non-default local config). Best-effort; a null
+  /// controller (not yet attached at cold-start bootstrap) is a no-op —
+  /// main() reconciles once explicitly after the controller loads.
+  Future<void> _syncAvatar() async {
+    await _avatar?.reconcileWithServer(_user?.avatar);
+  }
+
   bool consumeSessionExpiredFlag() {
     if (!_sessionExpiredFlag) return false;
     _sessionExpiredFlag = false;
@@ -46,6 +58,7 @@ class AuthController extends ChangeNotifier {
       final me = await api.me();
       _user = me.user;
       _leagues = me.leagues;
+      await _syncAvatar();
     } on UnauthorizedException {
       await _wipe();
     }
@@ -59,6 +72,7 @@ class AuthController extends ChangeNotifier {
     _user = r.user;
     _leagues = const [];
     await _wipeLegacyStores();
+    await _syncAvatar();
     notifyListeners();
   }
 
@@ -70,6 +84,7 @@ class AuthController extends ChangeNotifier {
     final me = await api.me();
     _leagues = me.leagues;
     await _wipeLegacyStores();
+    await _syncAvatar();
     notifyListeners();
   }
 
@@ -77,6 +92,7 @@ class AuthController extends ChangeNotifier {
     final me = await api.me();
     _user = me.user;
     _leagues = me.leagues;
+    await _syncAvatar();
     notifyListeners();
   }
 

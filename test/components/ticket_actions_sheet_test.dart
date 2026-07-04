@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:predictiongame/api/models/event.dart';
+import 'package:predictiongame/components/big_pill.dart';
 import 'package:predictiongame/components/ticket/pick_ticket.dart';
 import 'package:predictiongame/components/ticket/souvenir_ticket.dart';
+import 'package:predictiongame/theme/app_theme.dart';
 
 const _event = Event(
   round: 9,
@@ -13,8 +15,9 @@ const _event = Event(
   sessions: [],
 );
 
-Future<void> _pump(WidgetTester tester, Widget child) async {
+Future<void> _pump(WidgetTester tester, Widget child, {ThemeData? theme}) async {
   await tester.pumpWidget(MaterialApp(
+    theme: theme,
     home: Scaffold(body: Center(child: child)),
   ));
 }
@@ -69,6 +72,32 @@ void main() {
     expect(find.text('Open race details'), findsNothing);
     expect(find.text('Edit pick'), findsOneWidget);
     expect(find.text('Share ticket'), findsOneWidget);
+  });
+
+  testWidgets(
+      'nav pills carry a stroke in light mode; the accent Share pill stays flat',
+      (tester) async {
+    await _pump(
+      tester,
+      theme: AppTheme.light(),
+      PickTicket(
+        event: _event,
+        driverCodes: const ['VER'],
+        illustration: const SizedBox(),
+        onBodyTap: () {},
+        onStubTap: () {},
+      ),
+    );
+
+    await tester.longPress(find.byType(PickTicket));
+    await tester.pumpAndSettle();
+
+    final pills = tester.widgetList<BigPill>(find.byType(BigPill)).toList();
+    final nav = pills.firstWhere((p) => p.label == 'Open race details');
+    final share = pills.firstWhere((p) => p.label == 'Share ticket');
+    expect(nav.border, isNotNull,
+        reason: 'mutedSurface pills are invisible on the white sheet without a stroke');
+    expect(share.border, isNull);
   });
 
   testWidgets(

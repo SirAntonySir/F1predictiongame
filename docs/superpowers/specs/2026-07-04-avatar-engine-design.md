@@ -79,6 +79,21 @@ on switch — accepted.
 - The app-icon picker offers "Classic" (the shipped ticket icon, primary)
   plus the four avatar liveries as alternates; `iconVariant` defaults to
   `classic` so installing the update never silently changes the icon.
+- Pose 3 ("Kneeling", sim1pose3.svg) added: splash + builder. Its trace
+  has more shades per region (48 distinct fills vs 22) — the hue-bin
+  classifier handles that unchanged, verified by rendered review frames.
+  `AvatarPose.hasBakedIcons` gates the icon gallery, `iconVariants`, and
+  `validIconVariant` to poses with a baked, natively-registered icon set.
+- All launcher icons rebaked (current palette — the original bake predated
+  the white helmet-stripe presets) including pose 3, in TWO background sets:
+  dark #2E2C31 (`poseN_livery`, unchanged ids) and ticket-cream #EFEAE0
+  (`poseN_livery_light`) for light-mode home screens — 72 variants total,
+  selected via a DARK/LIGHT toggle in the gallery. Alternate icons are loose
+  PNGs (legacy CFBundleIcons), so they cannot auto-switch with the OS
+  appearance; the light set is a manual choice. The repeatable bake lives in
+  test/tools/bake_icons_test.dart (`--dart-define=BAKE=true`) with per-pose
+  crop squares; pose 1 keeps the original square so the primary icon stays
+  in sync with `pose1_undercut`.
 
 ## Out of scope (v1)
 

@@ -12,6 +12,7 @@ import 'models/my_score.dart';
 import 'models/pick.dart';
 import 'models/prediction_view.dart';
 import 'models/preseason_mine.dart';
+import 'models/user.dart';
 import '../domain/preseason.dart';
 import 'models/season.dart';
 import 'models/session.dart';
@@ -45,6 +46,9 @@ abstract class ApiClient {
   Future<AuthResult> signup({required String email, required String password, required String displayName});
   Future<AuthResult> login({required String email, required String password});
   Future<MeResult>   me();
+  /// PATCH /api/auth/me. Only non-null fields are sent. [avatar] is the raw
+  /// AvatarConfig JSON string. Returns the updated user.
+  Future<User>       patchMe({String? displayName, String? avatar});
   Future<void>       logout();
   Future<void>       changePassword({
     required String email,
