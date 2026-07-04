@@ -71,9 +71,18 @@ frames. iOS: `CFBundleIcons` alternate icons; Android: `activity-alias`.
 Switching via `flutter_dynamic_icon_plus`. iOS shows a mandatory system alert
 on switch — accepted.
 
+## Amendments (same day, during build)
+
+- Pose 2 ("Arms crossed", sim1pose2.svg) was delivered mid-build and is in
+  v1: `AvatarPose` enum, pose chips in the builder, pose persisted in the
+  config, splash uses the chosen pose. Icons stay pose-1-only.
+- The app-icon picker offers "Classic" (the shipped ticket icon, primary)
+  plus the four avatar liveries as alternates; `iconVariant` defaults to
+  `classic` so installing the update never silently changes the icon.
+
 ## Out of scope (v1)
 
-Decals, driver numbers, helmet designs, additional poses, backend sync,
+Decals, driver numbers, helmet designs, backend sync,
 tap-region-to-select on the preview, user-named preset library.
 
 ## Testing
