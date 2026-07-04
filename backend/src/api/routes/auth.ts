@@ -21,8 +21,21 @@ const loginBody = z.object({
   password: z.string().min(1)
 })
 
+function isJsonObject(s: string): boolean {
+  try {
+    const v = JSON.parse(s)
+    return typeof v === 'object' && v !== null && !Array.isArray(v)
+  } catch {
+    return false
+  }
+}
+
 const patchMeBody = z.object({
-  displayName: z.string().trim().min(1).max(40).optional()
+  displayName: z.string().trim().min(1).max(40).optional(),
+  // Opaque AvatarConfig JSON produced by the client. We only guard that it's
+  // a JSON object under a generous size cap (a fully-custom config is a few
+  // hundred bytes); the client owns its shape.
+  avatar: z.string().max(2000).refine(isJsonObject, 'avatar must be JSON').optional()
 })
 
 const changePasswordBody = z.object({
@@ -40,8 +53,14 @@ function parse<T>(schema: z.ZodType<T>, body: unknown): T {
   return r.data
 }
 
-function publicUser(u: { id: string; email: string; displayName: string; createdAt: Date }) {
-  return { id: u.id, email: u.email, displayName: u.displayName, createdAt: u.createdAt }
+function publicUser(u: { id: string; email: string; displayName: string; avatarConfig?: string | null; createdAt: Date }) {
+  return {
+    id: u.id,
+    email: u.email,
+    displayName: u.displayName,
+    avatar: u.avatarConfig ?? null,
+    createdAt: u.createdAt
+  }
 }
 
 async function issueSession(userId: string, userAgent: string | null) {
@@ -97,6 +116,9 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
     let user = u
     if (body.displayName !== undefined) {
       user = await usersRepo.updateDisplayName(u.id, body.displayName)
+    }
+    if (body.avatar !== undefined) {
+      user = await usersRepo.updateAvatarConfig(u.id, body.avatar)
     }
     return { user: publicUser(user) }
   })

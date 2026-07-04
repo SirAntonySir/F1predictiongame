@@ -125,6 +125,10 @@ export const user = pgTable('user', {
   email: text('email').notNull(),
   passwordHash: text('password_hash').notNull(),
   displayName: text('display_name').notNull(),
+  // Opaque AvatarConfig JSON (the client's AvatarConfig.toJson()); rendered
+  // client-side. Null = user hasn't customized → clients show the default
+  // livery. Never introspected by the backend beyond parse+size validation.
+  avatarConfig: text('avatar_config'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
 }, (t) => ({

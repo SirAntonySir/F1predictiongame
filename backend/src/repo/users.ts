@@ -14,6 +14,7 @@ function toUser(row: typeof user.$inferSelect): User {
     id: row.id,
     email: row.email,
     displayName: row.displayName,
+    avatarConfig: row.avatarConfig,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt
   }
@@ -48,6 +49,17 @@ export async function updateDisplayName(id: string, displayName: string): Promis
   const [row] = await db
     .update(user)
     .set({ displayName, updatedAt: sql`now()` })
+    .where(eq(user.id, id))
+    .returning()
+  if (!row) throw new Error('user not found: ' + id)
+  return toUser(row)
+}
+
+export async function updateAvatarConfig(id: string, avatarConfig: string): Promise<User> {
+  const db = getDb()
+  const [row] = await db
+    .update(user)
+    .set({ avatarConfig, updatedAt: sql`now()` })
     .where(eq(user.id, id))
     .returning()
   if (!row) throw new Error('user not found: ' + id)

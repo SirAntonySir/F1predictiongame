@@ -83,6 +83,7 @@ export type User = {
   id: string
   email: string
   displayName: string
+  avatarConfig: string | null
   createdAt: Date
   updatedAt: Date
 }

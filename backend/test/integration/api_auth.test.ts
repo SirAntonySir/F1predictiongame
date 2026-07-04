@@ -85,6 +85,8 @@ describe('GET /api/auth/me', () => {
     const res = await a.inject({ method: 'GET', url: '/api/auth/me', headers: { authorization: `Bearer ${token}` } })
     expect(res.statusCode).toBe(200)
     expect(res.json().user.email).toBe('me@x.com')
+    // New users have no avatar until they save one.
+    expect(res.json().user.avatar).toBeNull()
     expect(Array.isArray(res.json().leagues)).toBe(true)
   })
 
@@ -113,6 +115,49 @@ describe('PATCH /api/auth/me', () => {
     })
     expect(res.statusCode).toBe(200)
     expect(res.json().user.displayName).toBe('New')
+  })
+
+  it('sets the avatar config and returns it, and /me echoes it', async () => {
+    const a = await app()
+    const s = await signup(a, 'av@x.com')
+    const token = s.json().token
+    const avatar = JSON.stringify({ preset: 'bolt', pose: 'pose2' })
+    const res = await a.inject({
+      method: 'PATCH', url: '/api/auth/me',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { avatar }
+    })
+    expect(res.statusCode).toBe(200)
+    expect(res.json().user.avatar).toBe(avatar)
+    const me = await a.inject({ method: 'GET', url: '/api/auth/me', headers: { authorization: `Bearer ${token}` } })
+    expect(me.json().user.avatar).toBe(avatar)
+  })
+
+  it('rejects a non-JSON avatar with 422 VALIDATION', async () => {
+    const a = await app()
+    const s = await signup(a, 'av2@x.com')
+    const token = s.json().token
+    const res = await a.inject({
+      method: 'PATCH', url: '/api/auth/me',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { avatar: 'not json' }
+    })
+    expect(res.statusCode).toBe(422)
+    expect(res.json().error.code).toBe('VALIDATION')
+  })
+
+  it('rejects an oversize avatar with 422 VALIDATION', async () => {
+    const a = await app()
+    const s = await signup(a, 'av3@x.com')
+    const token = s.json().token
+    const big = JSON.stringify({ x: 'y'.repeat(2100) })
+    const res = await a.inject({
+      method: 'PATCH', url: '/api/auth/me',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { avatar: big }
+    })
+    expect(res.statusCode).toBe(422)
+    expect(res.json().error.code).toBe('VALIDATION')
   })
 })
 

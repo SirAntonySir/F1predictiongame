@@ -105,6 +105,7 @@ describe('GET /api/leagues/:id/players/:userId', () => {
     expect(r.statusCode).toBe(200)
     const j = r.json()
     expect(j.player.displayName).toBe('member')
+    expect(j.player.avatar).toBeNull()
     expect(j.player.isSelf).toBe(false)
     expect(j.season.year).toBe(2026)
     expect(j.standing.pointsTotal).toBe(17)
@@ -132,6 +133,24 @@ describe('GET /api/leagues/:id/players/:userId', () => {
     })
     expect(r.statusCode).toBe(200)
     expect(r.json().player.isSelf).toBe(true)
+  })
+
+  it('surfaces a member\'s saved avatar config', async () => {
+    await seed()
+    const app = await newApp()
+    const { leagueId, owner, member } = await leagueOf(app)
+    const avatar = JSON.stringify({ preset: 'verde', pose: 'pose1' })
+    await app.inject({
+      method: 'PATCH', url: '/api/auth/me',
+      headers: auth(member.token), payload: { avatar }
+    })
+    const r = await app.inject({
+      method: 'GET',
+      url: `/api/leagues/${leagueId}/players/${member.userId}`,
+      headers: auth(owner.token)
+    })
+    expect(r.statusCode).toBe(200)
+    expect(r.json().player.avatar).toBe(avatar)
   })
 
   it('403 when caller is not in the league', async () => {

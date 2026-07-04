@@ -56,6 +56,7 @@ export async function registerPlayerRoutes(app: FastifyInstance): Promise<void> 
       const [membership] = await db.select({
         userId: leagueMember.userId,
         displayName: userTable.displayName,
+        avatarConfig: userTable.avatarConfig,
         joinedAt: leagueMember.joinedAt
       })
         .from(leagueMember)
@@ -364,6 +365,7 @@ export async function registerPlayerRoutes(app: FastifyInstance): Promise<void> 
         player: {
           userId: targetId,
           displayName: membership.displayName,
+          avatar: membership.avatarConfig ?? null,
           joinedAt: membership.joinedAt,
           isSelf: targetId === caller.id
         },

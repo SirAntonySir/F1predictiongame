@@ -6,6 +6,7 @@ import type { Score, ScoreBreakdown, PreseasonScoreBreakdown } from '../domain/t
 export type LeaderboardRow = {
   userId: string
   displayName: string
+  avatarConfig: string | null
   inSeasonPoints: number
   preseasonPoints: number
   pointsTotal: number
@@ -138,6 +139,7 @@ export async function leagueLeaderboard(leagueId: string, seasonYear: number): P
     SELECT
       lm.user_id::text AS "userId",
       u.display_name   AS "displayName",
+      u.avatar_config  AS "avatarConfig",
       COALESCE(SUM(s.points_total) FILTER (WHERE s.kind = 'session'),   0)::int AS "inSeasonPoints",
       COALESCE(SUM(s.points_total) FILTER (WHERE s.kind = 'preseason'), 0)::int AS "preseasonPoints",
       COALESCE(SUM(s.points_total), 0)::int                                     AS "pointsTotal",
@@ -165,7 +167,7 @@ export async function leagueLeaderboard(leagueId: string, seasonYear: number): P
       WHERE s.kind = 'preseason' AND s.season_year = ${seasonYear}
     ) s ON s.user_id = lm.user_id
     WHERE lm.league_id = ${leagueId}
-    GROUP BY lm.user_id, u.display_name
+    GROUP BY lm.user_id, u.display_name, u.avatar_config
     ORDER BY "pointsTotal" DESC, "displayName" ASC
   `)
   return (rows as unknown as { rows: LeaderboardRow[] }).rows

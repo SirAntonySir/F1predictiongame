@@ -47,6 +47,10 @@ describe('GET /api/leagues/:id/leaderboard', () => {
     const code = lc.json().league.joinCode
     await m1.app.inject({ method: 'POST', url: '/api/leagues/join', headers: auth(m1.token), payload: { joinCode: code } })
 
+    // m1 has a saved avatar; owner has none (null → default livery).
+    const m1Avatar = JSON.stringify({ preset: 'papaya', pose: 'pose1' })
+    await m1.app.inject({ method: 'PATCH', url: '/api/auth/me', headers: auth(m1.token), payload: { avatar: m1Avatar } })
+
     await scores.upsertScore(owner.userId, s1.id, 10, bd(10))
     await scores.upsertScore(m1.userId,    s1.id, 25, bd(25))
     await scores.upsertScore(out.userId,   s1.id, 99, bd(99))
@@ -56,7 +60,9 @@ describe('GET /api/leagues/:id/leaderboard', () => {
     const rows = memberView.json().leaderboard
     expect(rows[0]!.userId).toBe(m1.userId)
     expect(rows[0]!.pointsTotal).toBe(25)
+    expect(rows[0]!.avatarConfig).toBe(m1Avatar)
     expect(rows[1]!.userId).toBe(owner.userId)
+    expect(rows[1]!.avatarConfig).toBeNull()
     expect(rows.length).toBe(2)  // 'out' not in league
 
     const outsiderView = await out.app.inject({ method: 'GET', url: `/api/leagues/${leagueId}/leaderboard`, headers: auth(out.token) })
