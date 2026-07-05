@@ -186,6 +186,7 @@ class _AfterBootState extends State<_AfterBoot> {
       deviceTz = (await FlutterTimezone.getLocalTimezone()).identifier;
     } catch (_) {}
     final transport = await FcmPushTransport.create();
+    debugPrint('[push] transport = ${transport == null ? 'NULL (Firebase init failed — plist missing from bundle?)' : 'ready'}');
     PushService? push;
     if (transport != null) {
       push = PushService(
@@ -203,8 +204,11 @@ class _AfterBootState extends State<_AfterBoot> {
       preds.refreshUpcoming();
       // ignore: discarded_futures
       notifications.refresh();
+      debugPrint('[push] logged in at boot → calling push.start (push=${push == null ? 'null' : 'set'})');
       // ignore: discarded_futures
       push?.start();
+    } else {
+      debugPrint('[push] NOT logged in at boot → start() deferred until login');
     }
     final league = LeagueController(api: widget.api);
     if (widget.auth.leagues.isNotEmpty) {

@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { getDb } from '../db/client.js'
 import { deviceToken, notificationLog, notificationPref } from '../db/schema.js'
 
@@ -113,6 +113,49 @@ export async function activeTokenUserIds(): Promise<string[]> {
     .from(deviceToken)
     .where(isNull(deviceToken.disabledAt))
   return rows.map((r) => r.userId)
+}
+
+/// Admin diagnostics: every registered device with its owner's opt-in state.
+/// Tokens are masked to their last 6 chars — enough to tell rows apart without
+/// leaking a sendable credential. `enabled` reflects the user's pref (default
+/// true when they've never touched settings). Newest-seen first.
+export type DeviceDiagnosticRow = {
+  userId: string
+  platform: DevicePlatform
+  tokenSuffix: string
+  enabled: boolean
+  timezone: string | null
+  createdAt: Date
+  lastSeenAt: Date
+  disabledAt: Date | null
+}
+
+export async function listDevices(): Promise<DeviceDiagnosticRow[]> {
+  const db = getDb()
+  const rows = await db
+    .select({
+      userId: deviceToken.userId,
+      platform: deviceToken.platform,
+      token: deviceToken.token,
+      timezone: deviceToken.timezone,
+      createdAt: deviceToken.createdAt,
+      lastSeenAt: deviceToken.lastSeenAt,
+      disabledAt: deviceToken.disabledAt,
+      enabled: notificationPref.enabled
+    })
+    .from(deviceToken)
+    .leftJoin(notificationPref, eq(notificationPref.userId, deviceToken.userId))
+    .orderBy(desc(deviceToken.lastSeenAt))
+  return rows.map((r) => ({
+    userId: r.userId,
+    platform: r.platform as DevicePlatform,
+    tokenSuffix: r.token.slice(-6),
+    enabled: r.enabled ?? true,
+    timezone: r.timezone,
+    createdAt: r.createdAt,
+    lastSeenAt: r.lastSeenAt,
+    disabledAt: r.disabledAt
+  }))
 }
 
 // ---- preferences -----------------------------------------------------------

@@ -11,6 +11,7 @@ import { Seasons } from './pages/Seasons'
 import { Users } from './pages/Users'
 import { Predictions } from './pages/Predictions'
 import { AvatarRegions } from './pages/AvatarRegions'
+import { Notifications } from './pages/Notifications'
 
 export const router = createBrowserRouter([
   {
@@ -27,7 +28,8 @@ export const router = createBrowserRouter([
       { path: 'seasons', element: <Seasons /> },
       { path: 'drivers', element: <Drivers /> },
       { path: 'constructors', element: <Constructors /> },
-      { path: 'avatar-regions', element: <AvatarRegions /> }
+      { path: 'avatar-regions', element: <AvatarRegions /> },
+      { path: 'notifications', element: <Notifications /> }
     ]
   }
 ])

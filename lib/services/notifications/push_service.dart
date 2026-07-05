@@ -42,19 +42,23 @@ class PushService {
     if (_started) return;
     _started = true;
     try {
+      debugPrint('[push] start: requesting permission…');
       _permissionGranted = await _transport.requestPermission();
       pushPermissionGranted.value = _permissionGranted;
+      debugPrint('[push] permission granted=$_permissionGranted');
       if (!_permissionGranted) return;
       final token = await _transport.getToken();
+      debugPrint('[push] getToken → ${token == null ? 'NULL (no APNs token yet?)' : '${token.substring(0, 12)}… (len ${token.length})'}');
       if (token != null) await _register(token);
       _sub = _transport.onTokenRefresh.listen((t) {
+        debugPrint('[push] onTokenRefresh → re-registering');
         // ignore: discarded_futures
         _register(t);
       });
     } catch (e, st) {
       // Firebase not configured, no Play Services, etc. — stay silent so boot
       // and login still succeed.
-      if (kDebugMode) debugPrint('PushService start failed (continuing): $e\n$st');
+      debugPrint('[push] start failed (continuing): $e\n$st');
     }
   }
 
@@ -66,8 +70,9 @@ class PushService {
         platform: _transport.platform,
         timezone: _timezoneProvider?.call(),
       );
+      debugPrint('[push] registerDevice OK (platform=${_transport.platform})');
     } catch (e) {
-      if (kDebugMode) debugPrint('registerDevice failed: $e');
+      debugPrint('[push] registerDevice FAILED: $e');
     }
   }
 

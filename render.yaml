@@ -27,3 +27,7 @@ services:
         value: https://api.jolpi.ca/ergast
       - key: WIKIPEDIA_BASE
         value: https://en.wikipedia.org
+      # Firebase service-account JSON (one line) for FCM sends. Secret — set the
+      # value in the Render dashboard, not here. Unset → dispatcher skips sending.
+      - key: FIREBASE_SERVICE_ACCOUNT
+        sync: false

@@ -4,6 +4,7 @@ import { config } from '../../config.js'
 import { ApiError } from '../errors.js'
 import { broadcastToAll } from '../../notifications/dispatcher.js'
 import { createSender, resolveMessaging } from '../../notifications/sender.js'
+import * as notifRepo from '../../repo/notifications.js'
 import { JolpicaClient } from '../../jolpica/client.js'
 import { WikipediaClient } from '../../wikipedia/client.js'
 import { OpenF1Client } from '../../openf1/client.js'
@@ -262,6 +263,13 @@ export async function registerAdminRoutes(app: FastifyInstance, deps: AdminDeps)
     }
     await seasonsRepo.upsertSeason({ year, isCurrent: true })
     return { ok: true, activated: year }
+  })
+
+  // Diagnostics: list every registered device (masked token) with its owner's
+  // opt-in state — so we can see whether a phone actually registered a token.
+  app.get('/admin/notifications/devices', async () => {
+    const devices = await notifRepo.listDevices()
+    return { devices, count: devices.length }
   })
 
   // Fire a one-off push to every opted-in device. Returns sent: 0 with a reason
