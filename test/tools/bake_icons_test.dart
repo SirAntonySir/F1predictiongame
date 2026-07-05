@@ -63,6 +63,11 @@ Future<void> _writeIcon(
     File(entry.key.replaceAll('{id}', id))
         .writeAsBytesSync(bytes!.buffer.asUint8List());
   }
+  // iPad alternate-icon files (App Store validation 90892): 76pt@2x = 152px
+  // under the plain id, 83.5pt@2x = 167px under the "-83.5" twin id that the
+  // CFBundleIcons~ipad section lists alongside it.
+  await _writePng(art, crop, bg, 'ios/Runner/$id@2x~ipad.png', 152);
+  await _writePng(art, crop, bg, 'ios/Runner/$id-83.5@2x~ipad.png', 167);
 }
 
 /// Primary launcher icon targets: every AppIcon.appiconset size (iOS) and the

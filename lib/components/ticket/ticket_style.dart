@@ -10,7 +10,11 @@ import 'ticket_stub.dart';
 enum TicketStyle {
   vintageStencil,
   posterSprint,
-  darkBoardingPass,
+  // Dark trio — replaced the old muddy `darkBoardingPass`. Each is a proper
+  // night-race skin with its own paper texture, accent bar, and ink.
+  nightCarbon,
+  pitWallTelemetry,
+  asphaltStencil,
   vintageMustardCityCup,
   vintageSageGrandPrix,
   vintageOliveStateCup,
@@ -25,6 +29,10 @@ enum TicketBackground {
   diagonalStripeBand,
   chevronBand,
   dotBand,
+  // Dark-trio textures.
+  carbonWeave,
+  telemetryGrid,
+  asphaltSpeckle,
 }
 
 /// Resolved tokens for one [TicketStyle]. The Rohling pulls fonts and colours
@@ -55,6 +63,26 @@ class TicketStyleTokens {
   /// instead).
   final TextStyle? scriptAccent;
 
+  /// Vertical [top, bottom] gradient for the paper fill. When set, overrides
+  /// the flat [paperColor] (which is still used as the ghosted-tear wash and
+  /// as a fallback). Lets the dark variants fade from a lit top to a darker
+  /// base instead of reading as a flat slab.
+  final List<Color>? paperGradient;
+
+  /// Colour of the "floodlit" radial glow bled from the top edge — the
+  /// stadium-lights wash on [nightCarbon]. Painted at low opacity inside the
+  /// ticket outline. Null = no glow.
+  final Color? topGlowColor;
+
+  /// Second colour for a striped accent bar. When set, the left accent bar is
+  /// drawn as alternating [accentBarColor]/[accentBarColor2] segments (pit
+  /// marker / hazard tape) instead of a solid strip.
+  final Color? accentBarColor2;
+
+  /// When true, the left accent bar gets a soft outward glow — the neon edge
+  /// on [nightCarbon].
+  final bool accentBarGlow;
+
   const TicketStyleTokens({
     required this.title,
     required this.subtitle,
@@ -70,12 +98,15 @@ class TicketStyleTokens {
     required this.innerFrame,
     this.defaultIllustrationAsset,
     this.scriptAccent,
+    this.paperGradient,
+    this.topGlowColor,
+    this.accentBarColor2,
+    this.accentBarGlow = false,
   });
 }
 
 const _cream = Color(0xFFF1DD95);
 const _ink = Color(0xFF1B1206);
-const _red = Color(0xFFE10600);
 
 // Vintage racing palette — each variant gets its own paper + ink pair so the
 // rotation through them feels like flipping through a real ticket book.
@@ -88,6 +119,26 @@ const _oliveCream = Color(0xFFF1E6C8);
 const _gold = Color(0xFFE8B940);
 const _rose = Color(0xFFE9B5B5);
 const _roseInk = Color(0xFF2B1212);
+
+// Dark trio — night-race skins that replaced the old brown boarding pass.
+const _carbonTop = Color(0xFF13161B);
+const _carbonBase = Color(0xFF0A0C0F);
+const _carbonInk = Color(0xFFF4F2EC);
+const _carbonDim = Color(0xFF8FA3AD);
+const _cyan = Color(0xFF37E7FF);
+
+const _navyTop = Color(0xFF0C1626);
+const _navyBase = Color(0xFF0A111D);
+const _amber = Color(0xFFFFCF6B);
+const _navyInk = Color(0xFF6E8CB0);
+const _timingRed = Color(0xFFFF5C3A);
+const _timingRedDeep = Color(0xFFB83217);
+
+const _asphaltTop = Color(0xFF242422);
+const _asphaltBase = Color(0xFF171715);
+const _asphaltInk = Color(0xFFEDEDEA);
+const _asphaltDim = Color(0xFF9A9992);
+const _vermilion = Color(0xFFFF4326);
 
 TicketStyleTokens tokensFor(TicketStyle s) {
   switch (s) {
@@ -126,20 +177,72 @@ TicketStyleTokens tokensFor(TicketStyle s) {
         defaultOrnament: TicketOrnament.none,
         innerFrame: false,
       );
-    case TicketStyle.darkBoardingPass:
+    // ── Dark Trio ────────────────────────────────────────────────────────
+    // Replaced the old muddy brown `darkBoardingPass`. Three night-race
+    // skins, each with its own paper texture, accent treatment, and ink.
+
+    case TicketStyle.nightCarbon:
+      // Floodlit night GP: carbon-weave black paper, a cyan stadium-light
+      // glow bleeding from the top edge, and a glowing neon accent bar.
       return TicketStyleTokens(
-        title: GoogleFonts.oswald(fontSize: 28, height: 0.9, letterSpacing: 1, fontWeight: FontWeight.w700, color: _cream),
-        subtitle: GoogleFonts.ibmPlexMono(fontSize: 9, letterSpacing: 3, fontWeight: FontWeight.w700, color: _cream),
-        meta: GoogleFonts.ibmPlexMono(fontSize: 9, letterSpacing: 2, fontWeight: FontWeight.w700, color: _cream),
-        dataValue: const TextStyle(fontFamily: 'Stampete', fontSize: 18, letterSpacing: 1, color: _cream),
-        dataLabel: GoogleFonts.ibmPlexMono(fontSize: 9, letterSpacing: 2, fontWeight: FontWeight.w700, color: _cream),
-        paperColor: _ink,
-        inkColor: _cream,
-        accentBarColor: _red,
-        background: TicketBackground.plain,
+        title: GoogleFonts.oswald(fontSize: 30, height: 0.88, letterSpacing: 1, fontWeight: FontWeight.w700, color: _carbonInk),
+        subtitle: GoogleFonts.ibmPlexMono(fontSize: 9, letterSpacing: 3, fontWeight: FontWeight.w700, color: _carbonDim),
+        meta: GoogleFonts.ibmPlexMono(fontSize: 9, letterSpacing: 2, fontWeight: FontWeight.w700, color: _carbonDim),
+        dataValue: const TextStyle(fontFamily: 'Stampete', fontSize: 18, letterSpacing: 1, color: _carbonInk),
+        dataLabel: GoogleFonts.ibmPlexMono(fontSize: 9, letterSpacing: 2, fontWeight: FontWeight.w700, color: _carbonDim),
+        paperColor: _carbonBase,
+        inkColor: _carbonInk,
+        accentBarColor: _cyan,
+        background: TicketBackground.carbonWeave,
         defaultStub: const TicketStub.serialCode(),
         defaultOrnament: TicketOrnament.none,
         innerFrame: true,
+        defaultIllustrationAsset: 'assets/ornament_car.svg',
+        paperGradient: const [_carbonTop, _carbonBase],
+        topGlowColor: _cyan,
+        accentBarGlow: true,
+      );
+
+    case TicketStyle.pitWallTelemetry:
+      // Pit-wall timing screen: deep navy paper under a faint data grid,
+      // amber readout numerals, and a red pit-marker striped bar.
+      return TicketStyleTokens(
+        title: GoogleFonts.oswald(fontSize: 30, height: 0.88, letterSpacing: 1.5, fontWeight: FontWeight.w600, color: _carbonInk),
+        subtitle: GoogleFonts.ibmPlexMono(fontSize: 9, letterSpacing: 3, fontWeight: FontWeight.w700, color: _navyInk),
+        meta: GoogleFonts.ibmPlexMono(fontSize: 9, letterSpacing: 2, fontWeight: FontWeight.w700, color: _navyInk),
+        dataValue: const TextStyle(fontFamily: 'Stampete', fontSize: 18, letterSpacing: 1, color: _amber),
+        dataLabel: GoogleFonts.ibmPlexMono(fontSize: 9, letterSpacing: 2, fontWeight: FontWeight.w700, color: _navyInk),
+        paperColor: _navyBase,
+        inkColor: _navyInk,
+        accentBarColor: _timingRed,
+        background: TicketBackground.telemetryGrid,
+        defaultStub: const TicketStub.serialCode(),
+        defaultOrnament: TicketOrnament.none,
+        innerFrame: false,
+        defaultIllustrationAsset: 'assets/ornament_car.svg',
+        paperGradient: const [_navyTop, _navyBase],
+        accentBarColor2: _timingRedDeep,
+      );
+
+    case TicketStyle.asphaltStencil:
+      // Trackside tarmac: speckled asphalt paper, a heavy Anton stencil
+      // headline, and a vermilion/black hazard-tape accent bar.
+      return TicketStyleTokens(
+        title: GoogleFonts.anton(fontSize: 33, height: 0.9, letterSpacing: 0.5, color: _asphaltInk),
+        subtitle: GoogleFonts.ibmPlexMono(fontSize: 9, letterSpacing: 3, fontWeight: FontWeight.w700, color: _asphaltDim),
+        meta: GoogleFonts.ibmPlexMono(fontSize: 9, letterSpacing: 2, fontWeight: FontWeight.w700, color: _asphaltDim),
+        dataValue: const TextStyle(fontFamily: 'Stampete', fontSize: 18, letterSpacing: 1, color: _asphaltInk),
+        dataLabel: GoogleFonts.ibmPlexMono(fontSize: 9, letterSpacing: 2, fontWeight: FontWeight.w700, color: _asphaltDim),
+        paperColor: _asphaltBase,
+        inkColor: _asphaltInk,
+        accentBarColor: _vermilion,
+        background: TicketBackground.asphaltSpeckle,
+        defaultStub: const TicketStub.serialCode(),
+        defaultOrnament: TicketOrnament.none,
+        innerFrame: false,
+        defaultIllustrationAsset: 'assets/ornament_car.svg',
+        paperGradient: const [_asphaltTop, _asphaltBase],
+        accentBarColor2: _asphaltBase,
       );
 
     // ── Vintage Racing Series ────────────────────────────────────────────

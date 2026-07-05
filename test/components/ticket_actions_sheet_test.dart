@@ -53,6 +53,34 @@ void main() {
   });
 
   testWidgets(
+      'single tap on a PickTicket opens the options sheet, not a zone action',
+      (tester) async {
+    var opened = 0;
+    var edited = 0;
+    await _pump(
+      tester,
+      PickTicket(
+        event: _event,
+        driverCodes: const ['VER', 'NOR'],
+        illustration: const SizedBox(),
+        onBodyTap: () => opened++,
+        onStubTap: () => edited++,
+      ),
+    );
+
+    await tester.tap(find.byType(PickTicket));
+    await tester.pumpAndSettle();
+
+    // A single tap opens the options sheet rather than firing the legacy
+    // per-zone tap (which used to navigate directly without the menu).
+    expect(find.text('Open race details'), findsOneWidget);
+    expect(find.text('Edit pick'), findsOneWidget);
+    expect(find.text('Share ticket'), findsOneWidget);
+    expect(opened, 0, reason: 'tap must not directly fire the body zone');
+    expect(edited, 0, reason: 'tap must not directly fire the stub zone');
+  });
+
+  testWidgets(
       'PickTicket sheet omits nav rows whose callback was not wired up',
       (tester) async {
     await _pump(

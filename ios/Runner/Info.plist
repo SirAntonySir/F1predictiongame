@@ -23,371 +23,20 @@
 				<key>UIPrerenderedIcon</key>
 				<false/>
 			</dict>
+			<key>pose1_atlantic_light</key>
+			<dict>
+				<key>CFBundleIconFiles</key>
+				<array>
+					<string>pose1_atlantic_light</string>
+				</array>
+				<key>UIPrerenderedIcon</key>
+				<false/>
+			</dict>
 			<key>pose1_azur</key>
 			<dict>
 				<key>CFBundleIconFiles</key>
 				<array>
 					<string>pose1_azur</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose1_bolt</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose1_bolt</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose1_frost</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose1_frost</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose1_ivory</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose1_ivory</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose1_midnight</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose1_midnight</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose1_papaya</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose1_papaya</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose1_rosso</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose1_rosso</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose1_silver</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose1_silver</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose1_titan</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose1_titan</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose1_undercut</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose1_undercut</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose1_verde</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose1_verde</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose2_atlantic</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose2_atlantic</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose2_azur</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose2_azur</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose2_bolt</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose2_bolt</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose2_frost</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose2_frost</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose2_ivory</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose2_ivory</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose2_midnight</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose2_midnight</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose2_papaya</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose2_papaya</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose2_rosso</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose2_rosso</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose2_silver</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose2_silver</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose2_titan</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose2_titan</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose2_undercut</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose2_undercut</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose2_verde</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose2_verde</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose3_undercut</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose3_undercut</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose3_rosso</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose3_rosso</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose3_papaya</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose3_papaya</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose3_silver</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose3_silver</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose3_bolt</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose3_bolt</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose3_verde</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose3_verde</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose3_azur</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose3_azur</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose3_atlantic</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose3_atlantic</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose3_frost</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose3_frost</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose3_ivory</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose3_ivory</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose3_titan</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose3_titan</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose3_midnight</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose3_midnight</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose1_undercut_light</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose1_undercut_light</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose1_rosso_light</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose1_rosso_light</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose1_papaya_light</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose1_papaya_light</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose1_silver_light</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose1_silver_light</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose1_bolt_light</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose1_bolt_light</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose1_verde_light</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose1_verde_light</string>
 				</array>
 				<key>UIPrerenderedIcon</key>
 				<false/>
@@ -401,11 +50,29 @@
 				<key>UIPrerenderedIcon</key>
 				<false/>
 			</dict>
-			<key>pose1_atlantic_light</key>
+			<key>pose1_bolt</key>
 			<dict>
 				<key>CFBundleIconFiles</key>
 				<array>
-					<string>pose1_atlantic_light</string>
+					<string>pose1_bolt</string>
+				</array>
+				<key>UIPrerenderedIcon</key>
+				<false/>
+			</dict>
+			<key>pose1_bolt_light</key>
+			<dict>
+				<key>CFBundleIconFiles</key>
+				<array>
+					<string>pose1_bolt_light</string>
+				</array>
+				<key>UIPrerenderedIcon</key>
+				<false/>
+			</dict>
+			<key>pose1_frost</key>
+			<dict>
+				<key>CFBundleIconFiles</key>
+				<array>
+					<string>pose1_frost</string>
 				</array>
 				<key>UIPrerenderedIcon</key>
 				<false/>
@@ -419,6 +86,15 @@
 				<key>UIPrerenderedIcon</key>
 				<false/>
 			</dict>
+			<key>pose1_ivory</key>
+			<dict>
+				<key>CFBundleIconFiles</key>
+				<array>
+					<string>pose1_ivory</string>
+				</array>
+				<key>UIPrerenderedIcon</key>
+				<false/>
+			</dict>
 			<key>pose1_ivory_light</key>
 			<dict>
 				<key>CFBundleIconFiles</key>
@@ -428,11 +104,11 @@
 				<key>UIPrerenderedIcon</key>
 				<false/>
 			</dict>
-			<key>pose1_titan_light</key>
+			<key>pose1_midnight</key>
 			<dict>
 				<key>CFBundleIconFiles</key>
 				<array>
-					<string>pose1_titan_light</string>
+					<string>pose1_midnight</string>
 				</array>
 				<key>UIPrerenderedIcon</key>
 				<false/>
@@ -446,218 +122,110 @@
 				<key>UIPrerenderedIcon</key>
 				<false/>
 			</dict>
-			<key>pose2_undercut_light</key>
+			<key>pose1_papaya</key>
 			<dict>
 				<key>CFBundleIconFiles</key>
 				<array>
-					<string>pose2_undercut_light</string>
+					<string>pose1_papaya</string>
 				</array>
 				<key>UIPrerenderedIcon</key>
 				<false/>
 			</dict>
-			<key>pose2_rosso_light</key>
+			<key>pose1_papaya_light</key>
 			<dict>
 				<key>CFBundleIconFiles</key>
 				<array>
-					<string>pose2_rosso_light</string>
+					<string>pose1_papaya_light</string>
 				</array>
 				<key>UIPrerenderedIcon</key>
 				<false/>
 			</dict>
-			<key>pose2_papaya_light</key>
+			<key>pose1_rosso</key>
 			<dict>
 				<key>CFBundleIconFiles</key>
 				<array>
-					<string>pose2_papaya_light</string>
+					<string>pose1_rosso</string>
 				</array>
 				<key>UIPrerenderedIcon</key>
 				<false/>
 			</dict>
-			<key>pose2_silver_light</key>
+			<key>pose1_rosso_light</key>
 			<dict>
 				<key>CFBundleIconFiles</key>
 				<array>
-					<string>pose2_silver_light</string>
+					<string>pose1_rosso_light</string>
 				</array>
 				<key>UIPrerenderedIcon</key>
 				<false/>
 			</dict>
-			<key>pose2_bolt_light</key>
+			<key>pose1_silver</key>
 			<dict>
 				<key>CFBundleIconFiles</key>
 				<array>
-					<string>pose2_bolt_light</string>
+					<string>pose1_silver</string>
 				</array>
 				<key>UIPrerenderedIcon</key>
 				<false/>
 			</dict>
-			<key>pose2_verde_light</key>
+			<key>pose1_silver_light</key>
 			<dict>
 				<key>CFBundleIconFiles</key>
 				<array>
-					<string>pose2_verde_light</string>
+					<string>pose1_silver_light</string>
 				</array>
 				<key>UIPrerenderedIcon</key>
 				<false/>
 			</dict>
-			<key>pose2_azur_light</key>
+			<key>pose1_titan</key>
 			<dict>
 				<key>CFBundleIconFiles</key>
 				<array>
-					<string>pose2_azur_light</string>
+					<string>pose1_titan</string>
 				</array>
 				<key>UIPrerenderedIcon</key>
 				<false/>
 			</dict>
-			<key>pose2_atlantic_light</key>
+			<key>pose1_titan_light</key>
 			<dict>
 				<key>CFBundleIconFiles</key>
 				<array>
-					<string>pose2_atlantic_light</string>
+					<string>pose1_titan_light</string>
 				</array>
 				<key>UIPrerenderedIcon</key>
 				<false/>
 			</dict>
-			<key>pose2_frost_light</key>
+			<key>pose1_undercut</key>
 			<dict>
 				<key>CFBundleIconFiles</key>
 				<array>
-					<string>pose2_frost_light</string>
+					<string>pose1_undercut</string>
 				</array>
 				<key>UIPrerenderedIcon</key>
 				<false/>
 			</dict>
-			<key>pose2_ivory_light</key>
+			<key>pose1_undercut_light</key>
 			<dict>
 				<key>CFBundleIconFiles</key>
 				<array>
-					<string>pose2_ivory_light</string>
+					<string>pose1_undercut_light</string>
 				</array>
 				<key>UIPrerenderedIcon</key>
 				<false/>
 			</dict>
-			<key>pose2_titan_light</key>
+			<key>pose1_verde</key>
 			<dict>
 				<key>CFBundleIconFiles</key>
 				<array>
-					<string>pose2_titan_light</string>
+					<string>pose1_verde</string>
 				</array>
 				<key>UIPrerenderedIcon</key>
 				<false/>
 			</dict>
-			<key>pose2_midnight_light</key>
+			<key>pose1_verde_light</key>
 			<dict>
 				<key>CFBundleIconFiles</key>
 				<array>
-					<string>pose2_midnight_light</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose3_undercut_light</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose3_undercut_light</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose3_rosso_light</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose3_rosso_light</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose3_papaya_light</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose3_papaya_light</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose3_silver_light</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose3_silver_light</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose3_bolt_light</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose3_bolt_light</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose3_verde_light</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose3_verde_light</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose3_azur_light</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose3_azur_light</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose3_atlantic_light</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose3_atlantic_light</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose3_frost_light</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose3_frost_light</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose3_ivory_light</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose3_ivory_light</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose3_titan_light</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose3_titan_light</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose3_midnight_light</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose3_midnight_light</string>
+					<string>pose1_verde_light</string>
 				</array>
 				<key>UIPrerenderedIcon</key>
 				<false/>
@@ -673,384 +241,7 @@
 				<key>CFBundleIconFiles</key>
 				<array>
 					<string>pose1_atlantic</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose1_azur</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose1_azur</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose1_bolt</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose1_bolt</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose1_frost</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose1_frost</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose1_ivory</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose1_ivory</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose1_midnight</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose1_midnight</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose1_papaya</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose1_papaya</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose1_rosso</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose1_rosso</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose1_silver</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose1_silver</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose1_titan</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose1_titan</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose1_undercut</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose1_undercut</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose1_verde</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose1_verde</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose2_atlantic</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose2_atlantic</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose2_azur</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose2_azur</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose2_bolt</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose2_bolt</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose2_frost</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose2_frost</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose2_ivory</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose2_ivory</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose2_midnight</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose2_midnight</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose2_papaya</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose2_papaya</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose2_rosso</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose2_rosso</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose2_silver</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose2_silver</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose2_titan</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose2_titan</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose2_undercut</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose2_undercut</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose2_verde</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose2_verde</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose3_undercut</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose3_undercut</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose3_rosso</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose3_rosso</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose3_papaya</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose3_papaya</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose3_silver</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose3_silver</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose3_bolt</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose3_bolt</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose3_verde</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose3_verde</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose3_azur</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose3_azur</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose3_atlantic</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose3_atlantic</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose3_frost</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose3_frost</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose3_ivory</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose3_ivory</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose3_titan</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose3_titan</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose3_midnight</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose3_midnight</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose1_undercut_light</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose1_undercut_light</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose1_rosso_light</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose1_rosso_light</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose1_papaya_light</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose1_papaya_light</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose1_silver_light</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose1_silver_light</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose1_bolt_light</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose1_bolt_light</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose1_verde_light</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose1_verde_light</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose1_azur_light</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose1_azur_light</string>
+					<string>pose1_atlantic-83.5</string>
 				</array>
 				<key>UIPrerenderedIcon</key>
 				<false/>
@@ -1060,6 +251,57 @@
 				<key>CFBundleIconFiles</key>
 				<array>
 					<string>pose1_atlantic_light</string>
+					<string>pose1_atlantic_light-83.5</string>
+				</array>
+				<key>UIPrerenderedIcon</key>
+				<false/>
+			</dict>
+			<key>pose1_azur</key>
+			<dict>
+				<key>CFBundleIconFiles</key>
+				<array>
+					<string>pose1_azur</string>
+					<string>pose1_azur-83.5</string>
+				</array>
+				<key>UIPrerenderedIcon</key>
+				<false/>
+			</dict>
+			<key>pose1_azur_light</key>
+			<dict>
+				<key>CFBundleIconFiles</key>
+				<array>
+					<string>pose1_azur_light</string>
+					<string>pose1_azur_light-83.5</string>
+				</array>
+				<key>UIPrerenderedIcon</key>
+				<false/>
+			</dict>
+			<key>pose1_bolt</key>
+			<dict>
+				<key>CFBundleIconFiles</key>
+				<array>
+					<string>pose1_bolt</string>
+					<string>pose1_bolt-83.5</string>
+				</array>
+				<key>UIPrerenderedIcon</key>
+				<false/>
+			</dict>
+			<key>pose1_bolt_light</key>
+			<dict>
+				<key>CFBundleIconFiles</key>
+				<array>
+					<string>pose1_bolt_light</string>
+					<string>pose1_bolt_light-83.5</string>
+				</array>
+				<key>UIPrerenderedIcon</key>
+				<false/>
+			</dict>
+			<key>pose1_frost</key>
+			<dict>
+				<key>CFBundleIconFiles</key>
+				<array>
+					<string>pose1_frost</string>
+					<string>pose1_frost-83.5</string>
 				</array>
 				<key>UIPrerenderedIcon</key>
 				<false/>
@@ -1069,6 +311,17 @@
 				<key>CFBundleIconFiles</key>
 				<array>
 					<string>pose1_frost_light</string>
+					<string>pose1_frost_light-83.5</string>
+				</array>
+				<key>UIPrerenderedIcon</key>
+				<false/>
+			</dict>
+			<key>pose1_ivory</key>
+			<dict>
+				<key>CFBundleIconFiles</key>
+				<array>
+					<string>pose1_ivory</string>
+					<string>pose1_ivory-83.5</string>
 				</array>
 				<key>UIPrerenderedIcon</key>
 				<false/>
@@ -1078,15 +331,17 @@
 				<key>CFBundleIconFiles</key>
 				<array>
 					<string>pose1_ivory_light</string>
+					<string>pose1_ivory_light-83.5</string>
 				</array>
 				<key>UIPrerenderedIcon</key>
 				<false/>
 			</dict>
-			<key>pose1_titan_light</key>
+			<key>pose1_midnight</key>
 			<dict>
 				<key>CFBundleIconFiles</key>
 				<array>
-					<string>pose1_titan_light</string>
+					<string>pose1_midnight</string>
+					<string>pose1_midnight-83.5</string>
 				</array>
 				<key>UIPrerenderedIcon</key>
 				<false/>
@@ -1096,222 +351,127 @@
 				<key>CFBundleIconFiles</key>
 				<array>
 					<string>pose1_midnight_light</string>
+					<string>pose1_midnight_light-83.5</string>
 				</array>
 				<key>UIPrerenderedIcon</key>
 				<false/>
 			</dict>
-			<key>pose2_undercut_light</key>
+			<key>pose1_papaya</key>
 			<dict>
 				<key>CFBundleIconFiles</key>
 				<array>
-					<string>pose2_undercut_light</string>
+					<string>pose1_papaya</string>
+					<string>pose1_papaya-83.5</string>
 				</array>
 				<key>UIPrerenderedIcon</key>
 				<false/>
 			</dict>
-			<key>pose2_rosso_light</key>
+			<key>pose1_papaya_light</key>
 			<dict>
 				<key>CFBundleIconFiles</key>
 				<array>
-					<string>pose2_rosso_light</string>
+					<string>pose1_papaya_light</string>
+					<string>pose1_papaya_light-83.5</string>
 				</array>
 				<key>UIPrerenderedIcon</key>
 				<false/>
 			</dict>
-			<key>pose2_papaya_light</key>
+			<key>pose1_rosso</key>
 			<dict>
 				<key>CFBundleIconFiles</key>
 				<array>
-					<string>pose2_papaya_light</string>
+					<string>pose1_rosso</string>
+					<string>pose1_rosso-83.5</string>
 				</array>
 				<key>UIPrerenderedIcon</key>
 				<false/>
 			</dict>
-			<key>pose2_silver_light</key>
+			<key>pose1_rosso_light</key>
 			<dict>
 				<key>CFBundleIconFiles</key>
 				<array>
-					<string>pose2_silver_light</string>
+					<string>pose1_rosso_light</string>
+					<string>pose1_rosso_light-83.5</string>
 				</array>
 				<key>UIPrerenderedIcon</key>
 				<false/>
 			</dict>
-			<key>pose2_bolt_light</key>
+			<key>pose1_silver</key>
 			<dict>
 				<key>CFBundleIconFiles</key>
 				<array>
-					<string>pose2_bolt_light</string>
+					<string>pose1_silver</string>
+					<string>pose1_silver-83.5</string>
 				</array>
 				<key>UIPrerenderedIcon</key>
 				<false/>
 			</dict>
-			<key>pose2_verde_light</key>
+			<key>pose1_silver_light</key>
 			<dict>
 				<key>CFBundleIconFiles</key>
 				<array>
-					<string>pose2_verde_light</string>
+					<string>pose1_silver_light</string>
+					<string>pose1_silver_light-83.5</string>
 				</array>
 				<key>UIPrerenderedIcon</key>
 				<false/>
 			</dict>
-			<key>pose2_azur_light</key>
+			<key>pose1_titan</key>
 			<dict>
 				<key>CFBundleIconFiles</key>
 				<array>
-					<string>pose2_azur_light</string>
+					<string>pose1_titan</string>
+					<string>pose1_titan-83.5</string>
 				</array>
 				<key>UIPrerenderedIcon</key>
 				<false/>
 			</dict>
-			<key>pose2_atlantic_light</key>
+			<key>pose1_titan_light</key>
 			<dict>
 				<key>CFBundleIconFiles</key>
 				<array>
-					<string>pose2_atlantic_light</string>
+					<string>pose1_titan_light</string>
+					<string>pose1_titan_light-83.5</string>
 				</array>
 				<key>UIPrerenderedIcon</key>
 				<false/>
 			</dict>
-			<key>pose2_frost_light</key>
+			<key>pose1_undercut</key>
 			<dict>
 				<key>CFBundleIconFiles</key>
 				<array>
-					<string>pose2_frost_light</string>
+					<string>pose1_undercut</string>
+					<string>pose1_undercut-83.5</string>
 				</array>
 				<key>UIPrerenderedIcon</key>
 				<false/>
 			</dict>
-			<key>pose2_ivory_light</key>
+			<key>pose1_undercut_light</key>
 			<dict>
 				<key>CFBundleIconFiles</key>
 				<array>
-					<string>pose2_ivory_light</string>
+					<string>pose1_undercut_light</string>
+					<string>pose1_undercut_light-83.5</string>
 				</array>
 				<key>UIPrerenderedIcon</key>
 				<false/>
 			</dict>
-			<key>pose2_titan_light</key>
+			<key>pose1_verde</key>
 			<dict>
 				<key>CFBundleIconFiles</key>
 				<array>
-					<string>pose2_titan_light</string>
+					<string>pose1_verde</string>
+					<string>pose1_verde-83.5</string>
 				</array>
 				<key>UIPrerenderedIcon</key>
 				<false/>
 			</dict>
-			<key>pose2_midnight_light</key>
+			<key>pose1_verde_light</key>
 			<dict>
 				<key>CFBundleIconFiles</key>
 				<array>
-					<string>pose2_midnight_light</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose3_undercut_light</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose3_undercut_light</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose3_rosso_light</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose3_rosso_light</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose3_papaya_light</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose3_papaya_light</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose3_silver_light</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose3_silver_light</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose3_bolt_light</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose3_bolt_light</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose3_verde_light</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose3_verde_light</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose3_azur_light</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose3_azur_light</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose3_atlantic_light</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose3_atlantic_light</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose3_frost_light</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose3_frost_light</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose3_ivory_light</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose3_ivory_light</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose3_titan_light</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose3_titan_light</string>
-				</array>
-				<key>UIPrerenderedIcon</key>
-				<false/>
-			</dict>
-			<key>pose3_midnight_light</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>pose3_midnight_light</string>
+					<string>pose1_verde_light</string>
+					<string>pose1_verde_light-83.5</string>
 				</array>
 				<key>UIPrerenderedIcon</key>
 				<false/>

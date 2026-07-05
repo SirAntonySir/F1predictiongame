@@ -85,9 +85,10 @@ class TicketRohling extends StatelessWidget {
   /// Explicit stub strip width. Overrides [widthFor]([stub]) — useful when the
   /// caller has a wider/narrower custom stub via [stubOverride].
   final double? stubWidthOverride;
+
+  /// Fires on a tap anywhere on the ticket. Ticket wrappers point this at their
+  /// options sheet so a single tap opens the menu.
   final VoidCallback? onTap;
-  final VoidCallback? onBodyTap;
-  final VoidCallback? onStubTap;
 
   /// Fires on a long-press anywhere on the ticket. Used by [PickTicket] and
   /// [SouvenirTicket] to invoke their default share-as-image action — set
@@ -133,8 +134,6 @@ class TicketRohling extends StatelessWidget {
     this.stubOverride,
     this.stubWidthOverride,
     this.onTap,
-    this.onBodyTap,
-    this.onStubTap,
     this.onLongPress,
     this.leftEdgeSerial,
     this.scriptAccent,
@@ -151,7 +150,6 @@ class TicketRohling extends StatelessWidget {
         (stub is StubNone && tear == TicketTear.ghosted
             ? kStubWidth
             : widthFor(stub));
-    final hasSplitTaps = onBodyTap != null || onStubTap != null;
 
     final isDark = tokens.paperColor.computeLuminance() < 0.3;
     // Resolve every watermark knob from the per-instance override → config
@@ -371,11 +369,8 @@ class TicketRohling extends StatelessWidget {
     // the body until it overflows. Body is the non-positioned child of an
     // inner Stack so it determines size; the stub fills the reserved right
     // strip via Positioned.
-    final bodyChild =
-        hasSplitTaps ? InkWell(onTap: onBodyTap, child: body) : body;
-    final stubChild = hasSplitTaps
-        ? InkWell(onTap: onStubTap, child: stubContent)
-        : stubContent;
+    final bodyChild = body;
+    final stubChild = stubContent;
 
     // Circuit watermark sits ABOVE the body padding but BELOW the stub —
     // bleeds full-width while the stub stays legible. Must be a direct child
@@ -477,7 +472,7 @@ class TicketRohling extends StatelessWidget {
     );
 
     Widget ticket = stack;
-    if (!hasSplitTaps && onTap != null) {
+    if (onTap != null) {
       ticket = InkWell(
         onTap: onTap,
         borderRadius: const BorderRadius.all(Radius.circular(12)),
@@ -485,10 +480,9 @@ class TicketRohling extends StatelessWidget {
       );
     }
     if (onLongPress != null) {
-      // GestureDetector sits OUTSIDE any InkWell so the long-press fires
-      // regardless of whether the ticket has split tap zones or a single
-      // outer onTap. behavior: opaque so dead-zone areas (the watermark
-      // bleed, ghosted stub region) still receive the gesture.
+      // GestureDetector sits OUTSIDE the InkWell so the long-press fires even
+      // over the tap InkWell. behavior: opaque so dead-zone areas (the
+      // watermark bleed, ghosted stub region) still receive the gesture.
       ticket = GestureDetector(
         behavior: HitTestBehavior.opaque,
         onLongPress: onLongPress,
@@ -511,9 +505,18 @@ class _TicketPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final fill = Paint()
-      ..color = tokens.paperColor
-      ..style = PaintingStyle.fill;
+    final fill = Paint()..style = PaintingStyle.fill;
+    if (tokens.paperGradient != null) {
+      // Vertical top→bottom fade (lit top edge to darker base). The flat
+      // paperColor still backs the ghosted-tear wash below.
+      fill.shader = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: tokens.paperGradient!,
+      ).createShader(Offset.zero & size);
+    } else {
+      fill.color = tokens.paperColor;
+    }
     final stroke = Paint()
       ..color = tokens.inkColor
       ..style = PaintingStyle.stroke
@@ -542,6 +545,26 @@ class _TicketPainter extends CustomPainter {
       _paintBackground(canvas, size);
       canvas.restore();
     }
+
+    // Floodlit top glow — a radial stadium-light wash bled from the top edge,
+    // clipped to the ticket outline so it never crosses into the notches.
+    if (tokens.topGlowColor != null) {
+      canvas.save();
+      canvas.clipPath(outline);
+      final glowRect = Rect.fromLTWH(0, 0, size.width, size.height * 0.6);
+      final glow = Paint()
+        ..shader = RadialGradient(
+          center: const Alignment(-0.15, -1.0),
+          radius: 1.2,
+          colors: [
+            tokens.topGlowColor!.withOpacity(0.16),
+            tokens.topGlowColor!.withOpacity(0.0),
+          ],
+        ).createShader(glowRect);
+      canvas.drawRect(glowRect, glow);
+      canvas.restore();
+    }
+
     canvas.drawPath(outline, stroke);
 
     if (tokens.innerFrame) {
@@ -557,12 +580,36 @@ class _TicketPainter extends CustomPainter {
     }
 
     if (tokens.accentBarColor != null) {
-      final bar = Paint()
-        ..color = tokens.accentBarColor!
-        ..style = PaintingStyle.fill;
       canvas.save();
       canvas.clipPath(outline);
-      canvas.drawRect(Rect.fromLTWH(0, 0, 6, size.height), bar);
+      const barW = 6.0;
+      // Neon glow: a blurred wider band behind the bar so the edge reads as
+      // lit rather than painted (nightCarbon's cyan edge).
+      if (tokens.accentBarGlow) {
+        final glow = Paint()
+          ..color = tokens.accentBarColor!.withOpacity(0.55)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
+        canvas.drawRect(Rect.fromLTWH(0, 0, barW + 4, size.height), glow);
+      }
+      if (tokens.accentBarColor2 != null) {
+        // Striped pit-marker / hazard-tape bar: alternating segments down
+        // the strip.
+        const seg = 9.0;
+        var y = 0.0;
+        var flip = false;
+        while (y < size.height) {
+          canvas.drawRect(
+            Rect.fromLTWH(0, y, barW, seg),
+            Paint()
+              ..color = flip ? tokens.accentBarColor2! : tokens.accentBarColor!,
+          );
+          y += seg;
+          flip = !flip;
+        }
+      } else {
+        canvas.drawRect(Rect.fromLTWH(0, 0, barW, size.height),
+            Paint()..color = tokens.accentBarColor!);
+      }
       canvas.restore();
     }
 
@@ -651,6 +698,56 @@ class _TicketPainter extends CustomPainter {
         for (double x = 8; x < size.width - stubWidth - 4; x += 7) {
           canvas.drawCircle(Offset(x, inset), 1.3, p);
           canvas.drawCircle(Offset(x, size.height - inset), 1.3, p);
+        }
+        return;
+      case TicketBackground.carbonWeave:
+        // Fine 45° cross-hatch → woven carbon-fibre texture. Two faint line
+        // sets, one each diagonal, clipped to the body so the stub stays bare.
+        canvas.save();
+        canvas.clipRect(Rect.fromLTWH(0, 0, size.width - stubWidth, size.height));
+        final weave = Paint()
+          ..color = tokens.inkColor.withOpacity(0.05)
+          ..strokeWidth = 1;
+        for (double d = -size.height; d < size.width; d += 6) {
+          canvas.drawLine(
+              Offset(d, 0), Offset(d + size.height, size.height), weave);
+        }
+        for (double d = 0; d < size.width + size.height; d += 6) {
+          canvas.drawLine(
+              Offset(d, 0), Offset(d - size.height, size.height), weave);
+        }
+        canvas.restore();
+        return;
+      case TicketBackground.telemetryGrid:
+        // Square timing-screen grid.
+        canvas.save();
+        canvas.clipRect(Rect.fromLTWH(0, 0, size.width - stubWidth, size.height));
+        final grid = Paint()
+          ..color = tokens.inkColor.withOpacity(0.14)
+          ..strokeWidth = 1;
+        for (double x = 0; x < size.width - stubWidth; x += 20) {
+          canvas.drawLine(Offset(x, 0), Offset(x, size.height), grid);
+        }
+        for (double y = 0; y < size.height; y += 20) {
+          canvas.drawLine(Offset(0, y), Offset(size.width - stubWidth, y), grid);
+        }
+        canvas.restore();
+        return;
+      case TicketBackground.asphaltSpeckle:
+        // Scattered tarmac grit — a deterministic LCG so the speckle is
+        // stable across repaints (no Random, which would shimmer).
+        final w = (size.width - stubWidth).floor();
+        final h = size.height.floor();
+        if (w <= 0 || h <= 0) return;
+        final light = Paint()..color = tokens.inkColor.withOpacity(0.06);
+        final dark = Paint()..color = const Color(0x59000000);
+        var seed = 20250705;
+        int next() => seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+        for (int i = 0; i < 240; i++) {
+          final x = next() % w;
+          final y = next() % h;
+          canvas.drawCircle(Offset(x.toDouble(), y.toDouble()), 0.8,
+              i.isEven ? light : dark);
         }
         return;
     }

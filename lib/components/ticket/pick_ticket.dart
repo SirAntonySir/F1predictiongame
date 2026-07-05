@@ -149,9 +149,10 @@ class PickTicket extends StatelessWidget {
       stub: scored
           ? TicketStub.serialCode('PICK · ${event.round}')
           : tokensFor(style).defaultStub,
-      onTap: onTap,
-      onBodyTap: onBodyTap,
-      onStubTap: onStubTap,
+      // A single tap opens the options sheet (consistent with the souvenir
+      // tickets). The per-region navigation lives as rows inside that sheet —
+      // the old split body/stub tap zones are gone.
+      onTap: () => _showActions(context),
       onLongPress: onLongPress ?? () => _showActions(context),
       leftEdgeSerial: sessionLabel,
     );

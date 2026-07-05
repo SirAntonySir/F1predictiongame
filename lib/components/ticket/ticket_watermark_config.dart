@@ -78,10 +78,12 @@ const TicketWatermarkConfig kSecondaryWatermark = TicketWatermarkConfig(
 /// the home pick card, souvenir, dev preview, and shared PNGs.
 const List<TicketStyle> kTicketStyleRotation = <TicketStyle>[
   TicketStyle.posterSprint,
-  TicketStyle.darkBoardingPass,
+  TicketStyle.nightCarbon,
   TicketStyle.vintageStencil,
   TicketStyle.vintageMustardCityCup,
+  TicketStyle.pitWallTelemetry,
   TicketStyle.vintageSageGrandPrix,
   TicketStyle.vintageOliveStateCup,
+  TicketStyle.asphaltStencil,
   TicketStyle.vintageRoseChampionship,
 ];
