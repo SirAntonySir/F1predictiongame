@@ -13,9 +13,19 @@ import * as picksRepo from '../../repo/predictionPicks.js'
 
 export type LiveDeps = { openf1?: Pick<OpenF1Client, 'getSessions' | 'getDrivers' | 'getPosition'> }
 
+/// How long a fetched running order is served to other callers. The order is
+/// identical for every user/league, and each client polls every ~20s — so N
+/// clients cost ~1 upstream OpenF1 round-trip per window instead of N.
+export const LIVE_ORDER_TTL_MS = 10_000
+
 export async function registerLiveRoutes(app: FastifyInstance, deps?: LiveDeps): Promise<void> {
   registerAuthHook(app)
   const openf1 = deps?.openf1 ?? new OpenF1Client(config.openf1Base)
+
+  // Per-session cache of the parsed running order. Tiny: at most one session
+  // is live at a time, entries expire by TTL, and per-user projections are
+  // still computed per request (they're cheap DB reads + math).
+  const orderCache = new Map<number, { at: number; order: ReturnType<typeof parseLivePositions> }>()
 
   app.get<{ Params: { id: string }; Querystring: { leagueId?: string } }>(
     '/api/sessions/:id/live',
@@ -37,8 +47,15 @@ export async function registerLiveRoutes(app: FastifyInstance, deps?: LiveDeps):
         return { sessionId: id, state: 'unavailable', asOf, order: [], myProjected: null, leagueProjected: [] }
       }
 
-      const [rawPos, rawDrv] = await Promise.all([openf1.getPosition(key), openf1.getDrivers(key)])
-      const order = parseLivePositions(rawPos, parseDrivers(rawDrv))
+      const cached = orderCache.get(id)
+      let order: ReturnType<typeof parseLivePositions>
+      if (cached != null && Date.now() - cached.at < LIVE_ORDER_TTL_MS) {
+        order = cached.order
+      } else {
+        const [rawPos, rawDrv] = await Promise.all([openf1.getPosition(key), openf1.getDrivers(key)])
+        order = parseLivePositions(rawPos, parseDrivers(rawDrv))
+        orderCache.set(id, { at: Date.now(), order })
+      }
       const pastEnd = Date.now() >= s.scheduledEnd.getTime()
       const state = order.length === 0 ? (pastEnd ? 'provisional' : 'pre') : (pastEnd ? 'provisional' : 'live')
 

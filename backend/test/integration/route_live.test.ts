@@ -103,4 +103,26 @@ describe('GET /api/sessions/:id/live', () => {
     expect(res.statusCode).toBe(200)
     expect(res.json().state).toBe('final')
   })
+
+  it('serves the running order from cache within the TTL (one upstream fetch for N polls)', async () => {
+    let positionCalls = 0
+    const counting = fakeOpenF1()
+    const orig = counting.getPosition
+    counting.getPosition = async () => { positionCalls++; return orig() }
+    const cachedApp = await buildApp({ scheduler: null, openf1: counting as any })
+
+    const ses = await seedSession('scheduled', 777)
+    const { token } = await signupAndToken(cachedApp)
+
+    // Two different users polling back-to-back — the shared order must come
+    // from cache on the second request.
+    const { token: token2 } = await signupAndToken(cachedApp)
+    const r1 = await cachedApp.inject({ method: 'GET', url: `/api/sessions/${ses.id}/live`, headers: auth(token) })
+    const r2 = await cachedApp.inject({ method: 'GET', url: `/api/sessions/${ses.id}/live`, headers: auth(token2) })
+    expect(r1.statusCode).toBe(200)
+    expect(r2.statusCode).toBe(200)
+    expect(positionCalls).toBe(1)
+    // Both still get the full order — the cache shares data, not staleness bugs.
+    expect(r2.json().order.length).toBe(2)
+  })
 })

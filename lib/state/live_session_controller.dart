@@ -18,11 +18,20 @@ class LiveSessionController extends ChangeNotifier with WidgetsBindingObserver {
   final ApiClient api;
   final Duration pollInterval;
 
+  /// Fired once when a polled session's snapshot flips to `finalised` — the
+  /// backend has scored it. Wired at boot to a home-cache refresh so the
+  /// leaderboard/souvenir update by themselves instead of waiting for the
+  /// next mount / pull-to-refresh.
+  VoidCallback? onSessionFinalised;
+
   int? _liveSessionId;
   String? _leagueId;
   LiveSnapshot? _snapshot;
   Timer? _timer;
   bool _autoPoll = true;
+  // Session id whose finalisation has already been announced — guards
+  // [onSessionFinalised] against firing again on a manual refreshOnce().
+  int? _finalisedNotifiedFor;
 
   int? get liveSessionId => _liveSessionId;
   LiveSnapshot? get snapshot => _snapshot;
@@ -62,9 +71,14 @@ class LiveSessionController extends ChangeNotifier with WidgetsBindingObserver {
       _snapshot = snap;
       notifyListeners();
       if (snap.state == LiveState.finalised) {
-        // Session got scored — stop; the next home refresh drops it from "live".
+        // Session got scored — stop polling and announce it once, so the
+        // home cache can refresh itself with the final scores immediately.
         _timer?.cancel();
         _timer = null;
+        if (_finalisedNotifiedFor != id) {
+          _finalisedNotifiedFor = id;
+          onSessionFinalised?.call();
+        }
       }
     } catch (_) {
       // Best-effort; keep the previous snapshot, try again next tick.

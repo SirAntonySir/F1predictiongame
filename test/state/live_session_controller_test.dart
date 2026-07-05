@@ -66,6 +66,37 @@ void main() {
     c.dispose();
   });
 
+  test('onSessionFinalised fires exactly once when the snapshot finalises',
+      () async {
+    final api = _FakeApi();
+    final c = LiveSessionController(api: api);
+    var fired = 0;
+    c.onSessionFinalised = () => fired++;
+    c.update([
+      ev(_s(10, SessionType.race, now.subtract(const Duration(hours: 1)),
+          now.add(const Duration(hours: 1)), SessionStatus.scheduled))
+    ], now, leagueId: null, autoPoll: false);
+
+    // Still live → no announcement.
+    await c.refreshOnce();
+    expect(fired, 0);
+
+    // Backend scores the session → announce once…
+    api.reply = const LiveSnapshot(
+        sessionId: 10,
+        state: LiveState.finalised,
+        order: [],
+        myPointsTotal: 8,
+        league: []);
+    await c.refreshOnce();
+    expect(fired, 1);
+
+    // …and never again for the same session (manual re-poll).
+    await c.refreshOnce();
+    expect(fired, 1);
+    c.dispose();
+  });
+
   test('update() with no live session clears state', () async {
     final api = _FakeApi();
     final c = LiveSessionController(api: api);

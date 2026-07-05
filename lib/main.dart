@@ -257,6 +257,15 @@ class _AfterBootState extends State<_AfterBoot> {
       predictions: preds,
       live: live,
     );
+    // When a live session finalises (backend scored it), refresh home data
+    // right away — leaderboard, souvenir and scores update without waiting
+    // for the user to pull-to-refresh or re-enter the screen. The refresh
+    // also re-runs live.update(), which drops the finished session from
+    // "live" and swaps the hero back to the next event.
+    live.onSessionFinalised = () {
+      // ignore: discarded_futures
+      homeCache.refresh();
+    };
     // Auto-clear on logout so the next user doesn't briefly see the
     // previous user's leaderboard. Also wire to the existing auth listener
     // below for login-side prefetch.
