@@ -27,9 +27,9 @@ const double leagueRowPointsGap = 8;
 class LeagueRow extends StatelessWidget {
   final int rank;
   final String name;
-  /// Opaque AvatarConfig JSON for the member's head-crop thumbnail (null →
-  /// default livery). Kept for a future helmet-only marker; avatars are off in
-  /// the leaderboard for now ([showAvatar] defaults false).
+  /// Opaque AvatarConfig JSON for the member's helmet icon (null → default
+  /// livery). Rendered when [showAvatar] is on — the standings tables show
+  /// each player's helmet in their livery next to the name.
   final String? avatarConfig;
   final bool showAvatar;
   final String? subtitle;
@@ -90,10 +90,7 @@ class LeagueRow extends StatelessWidget {
             ),
             const SizedBox(width: Spacing.sm),
             if (showAvatar) ...[
-              AvatarThumbnail(
-                  configJson: avatarConfig,
-                  size: leagueRowAvatarCol,
-                  background: false),
+              HelmetIcon(configJson: avatarConfig, size: leagueRowAvatarCol),
               const SizedBox(width: Spacing.sm),
             ],
             Expanded(
@@ -197,10 +194,12 @@ class LeagueRowYouBadge extends StatelessWidget {
 }
 
 /// Column header strip for the league leaderboard. Same column widths as
-/// [LeagueRow] so labels sit centered over their data.
+/// [LeagueRow] so labels sit centered over their data. [showAvatar] must
+/// match the rows so PLAYER stays aligned over the names.
 class LeagueRowHeader extends StatelessWidget {
   final LeagueRowFocus focus;
-  const LeagueRowHeader({super.key, required this.focus});
+  final bool showAvatar;
+  const LeagueRowHeader({super.key, required this.focus, this.showAvatar = false});
 
   @override
   Widget build(BuildContext context) {
@@ -215,6 +214,8 @@ class LeagueRowHeader extends StatelessWidget {
         children: [
           SizedBox(width: leagueRowPosCol, child: Text('P', style: muted)),
           const SizedBox(width: Spacing.sm),
+          if (showAvatar)
+            const SizedBox(width: leagueRowAvatarCol + Spacing.sm),
           Expanded(child: Text('PLAYER', style: muted)),
           const SizedBox(width: leagueRowTrendCol),
           const SizedBox(width: Spacing.sm),

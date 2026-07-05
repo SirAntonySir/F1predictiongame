@@ -57,6 +57,65 @@ void main() {
     expect(result, const Color(0xFF123456));
   });
 
+  testWidgets('typing a hex code selects that color and Apply returns it',
+      (tester) async {
+    Color? result;
+    await tester.pumpWidget(_harness(
+      initial: const Color(0xFFFFFFFF),
+      onResult: (c) => result = c,
+    ));
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField), '00D2BE');
+    await tester.pump();
+    await tester.tap(find.text('Apply'));
+    await tester.pumpAndSettle();
+    expect(result, const Color(0xFF00D2BE));
+  });
+
+  testWidgets('hex shorthand expands and invalid input keeps the last color',
+      (tester) async {
+    Color? result;
+    await tester.pumpWidget(_harness(
+      initial: const Color(0xFFE10600),
+      onResult: (c) => result = c,
+    ));
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+
+    // The field opens showing the initial color.
+    final field = find.byType(TextField);
+    expect(tester.widget<TextField>(field).controller!.text, '#E10600');
+
+    // '#abc' commits as #AABBCC; non-hex characters are filtered out, so
+    // the committed color survives the garbage input.
+    await tester.enterText(field, '#abc');
+    await tester.pump();
+    await tester.enterText(field, 'zz!?');
+    await tester.pump();
+    await tester.tap(find.text('Apply'));
+    await tester.pumpAndSettle();
+    expect(result, const Color(0xFFAABBCC));
+  });
+
+  testWidgets('hex field tracks colors picked via chips', (tester) async {
+    await tester.pumpWidget(_harness(
+      initial: const Color(0xFFFFFFFF),
+      matchColors: const [(label: 'Chest', color: Color(0xFF123456))],
+      onResult: (_) {},
+    ));
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('CHEST'));
+    await tester.pump();
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).controller!.text,
+      '#123456',
+    );
+  });
+
   testWidgets('dragging the shade square does not dismiss the sheet',
       (tester) async {
     Color? result;

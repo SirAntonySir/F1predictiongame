@@ -54,5 +54,21 @@ void main() {
         expect(img.width, 32);
       });
     });
+
+    testWidgets('helmetIcon renders the standalone helmet and caches by config',
+        (tester) async {
+      await tester.runAsync(() async {
+        const cfg = AvatarConfig(presetId: 'rosso');
+        final a = await AvatarRenderer.instance.helmetIcon(cfg, 28);
+        expect(a.width, 28);
+        expect(a.height, 28);
+        final b = await AvatarRenderer.instance.helmetIcon(cfg, 28);
+        expect(identical(a, b), isTrue);
+        // A different livery is its own cache entry.
+        const other = AvatarConfig(presetId: 'bolt');
+        final c = await AvatarRenderer.instance.helmetIcon(other, 28);
+        expect(identical(a, c), isFalse);
+      });
+    });
   });
 }

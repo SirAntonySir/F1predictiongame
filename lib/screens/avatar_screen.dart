@@ -7,6 +7,7 @@ import '../components/branded_sheet.dart';
 import '../components/branded_toast.dart';
 import '../components/color_picker_sheet.dart';
 import '../components/painted_splash.dart';
+import '../components/save_pill.dart';
 import '../state/app_state.dart';
 import '../state/avatar_controller.dart';
 import '../theme/app_theme.dart';
@@ -46,6 +47,12 @@ class _AvatarScreenState extends State<AvatarScreen> {
   bool get _dirty => _draft.toJson() != _controller!.config.toJson();
 
   void _edit(AvatarConfig next) => setState(() => _draft = next);
+
+  /// The color shown for a region: the user's raw pick when overridden — so
+  /// the picker round-trips exactly (#000000 stays #000000) — otherwise the
+  /// effective op's swatch.
+  Color _regionColor(AvatarConfig config, AvatarRegion region) =>
+      config.overrides[region] ?? region.swatchFor(config.ops);
 
   Future<void> _save() async {
     await _controller!.save(_draft);
@@ -90,7 +97,7 @@ class _AvatarScreenState extends State<AvatarScreen> {
                 ),
                 Text('AVATAR', style: AppText.display(24)),
                 const Spacer(),
-                _SavePill(enabled: _dirty, onTap: _save),
+                SavePill(enabled: _dirty, onTap: _save),
               ]),
               const SizedBox(height: Spacing.sm),
               // Preview replays the sketch-draw animation when the preset or
@@ -134,8 +141,8 @@ class _AvatarScreenState extends State<AvatarScreen> {
                       padding: const EdgeInsets.only(right: Spacing.xs),
                       child: _PresetChip(
                         preset: preset,
-                        selected: preset.id == config.presetId &&
-                            !config.isCustom,
+                        selected:
+                            preset.id == config.presetId && !config.isCustom,
                         onTap: () => _edit(config.copyWith(
                             presetId: preset.id, overrides: const {})),
                       ),
@@ -147,18 +154,15 @@ class _AvatarScreenState extends State<AvatarScreen> {
                 Expanded(child: Text('COLORS', style: AppText.label(11))),
                 if (config.isCustom)
                   GestureDetector(
-                    onTap: () =>
-                        _edit(config.copyWith(overrides: const {})),
+                    onTap: () => _edit(config.copyWith(overrides: const {})),
                     child: Text('RESET',
-                        style:
-                            AppText.label(11, color: BrandColors.accent)),
+                        style: AppText.label(11, color: BrandColors.accent)),
                   ),
               ]),
               const SizedBox(height: Spacing.sm),
               Container(
                 decoration: BoxDecoration(
-                  border:
-                      Border.all(color: t.strokeColor, width: Strokes.card),
+                  border: Border.all(color: t.strokeColor, width: Strokes.card),
                   borderRadius: Radii.rLg,
                 ),
                 child: Column(children: [
@@ -170,13 +174,13 @@ class _AvatarScreenState extends State<AvatarScreen> {
                           color: t.strokeColor.withValues(alpha: 0.4)),
                     _RegionRow(
                       region: region,
-                      color: region.swatchFor(config.ops),
+                      color: _regionColor(config, region),
                       edited: config.overrides.containsKey(region),
                       onTap: () async {
                         final picked = await showColorPickerSheet(
                           context,
                           title: region.label,
-                          initial: region.swatchFor(config.ops),
+                          initial: _regionColor(config, region),
                           // Every other region's current color, so the user
                           // can tap to match liveries across regions.
                           matchColors: [
@@ -184,13 +188,15 @@ class _AvatarScreenState extends State<AvatarScreen> {
                               if (other != region)
                                 (
                                   label: other.label,
-                                  color: other.swatchFor(config.ops)
+                                  color: _regionColor(config, other)
                                 ),
                           ],
                         );
                         if (picked != null) {
-                          _edit(config.copyWith(
-                              overrides: {...config.overrides, region: picked}));
+                          _edit(config.copyWith(overrides: {
+                            ...config.overrides,
+                            region: picked
+                          }));
                         }
                       },
                     ),
@@ -201,36 +207,6 @@ class _AvatarScreenState extends State<AvatarScreen> {
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _SavePill extends StatelessWidget {
-  final bool enabled;
-  final VoidCallback onTap;
-  const _SavePill({required this.enabled, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final t = Theme.of(context);
-    return GestureDetector(
-      onTap: enabled ? onTap : null,
-      child: Container(
-        padding: const EdgeInsets.symmetric(
-            horizontal: Spacing.lg, vertical: Spacing.xs),
-        decoration: BoxDecoration(
-          color: enabled ? BrandColors.accent : null,
-          border: enabled
-              ? null
-              : Border.all(color: t.strokeColor, width: Strokes.subtle),
-          borderRadius: Radii.rSm,
-        ),
-        child: Text('SAVE',
-            style: AppText.label(12,
-                color: enabled
-                    ? Colors.white
-                    : t.colorScheme.onSurface.withValues(alpha: 0.35))),
       ),
     );
   }
@@ -293,8 +269,7 @@ class _PresetChip extends StatelessWidget {
             decoration: BoxDecoration(
               color: preset.swatch,
               shape: BoxShape.circle,
-              border:
-                  Border.all(color: t.strokeColor, width: Strokes.subtle),
+              border: Border.all(color: t.strokeColor, width: Strokes.subtle),
             ),
           ),
           const SizedBox(height: Spacing.xxs),
@@ -338,8 +313,7 @@ class _RegionRow extends StatelessWidget {
               padding: const EdgeInsets.only(right: Spacing.sm),
               child: Text('EDITED',
                   style: AppText.label(9,
-                      color: t.colorScheme.onSurface
-                          .withValues(alpha: 0.4))),
+                      color: t.colorScheme.onSurface.withValues(alpha: 0.4))),
             ),
           Container(
             width: 24,
@@ -355,4 +329,3 @@ class _RegionRow extends StatelessWidget {
     );
   }
 }
-

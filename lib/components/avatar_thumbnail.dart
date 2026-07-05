@@ -111,6 +111,61 @@ class _AvatarBustState extends State<AvatarBust> {
   }
 }
 
+/// The player's helmet in their livery — the standings-table row icon.
+/// A null/blank config renders the default (Undercut) helmet, so every row
+/// shows one. Transparent background; raster cached by [AvatarRenderer].
+class HelmetIcon extends StatefulWidget {
+  final String? configJson;
+  final double size;
+  const HelmetIcon({super.key, required this.configJson, this.size = 28});
+
+  @override
+  State<HelmetIcon> createState() => _HelmetIconState();
+}
+
+class _HelmetIconState extends State<HelmetIcon> {
+  ui.Image? _image;
+  int _sizePx = 0;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _resolve();
+  }
+
+  @override
+  void didUpdateWidget(HelmetIcon old) {
+    super.didUpdateWidget(old);
+    if (old.configJson != widget.configJson || old.size != widget.size) {
+      _image = null;
+      _sizePx = 0;
+      _resolve();
+    }
+  }
+
+  void _resolve() {
+    final dpr = MediaQuery.maybeOf(context)?.devicePixelRatio ?? 1.0;
+    final sizePx = (widget.size * dpr).round().clamp(1, 512);
+    if (sizePx == _sizePx && _image != null) return;
+    _sizePx = sizePx;
+    final config = AvatarConfig.fromJson(widget.configJson);
+    AvatarRenderer.instance.helmetIcon(config, sizePx).then((img) {
+      if (mounted && _sizePx == sizePx) setState(() => _image = img);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: widget.size,
+      height: widget.size,
+      child: _image == null
+          ? null
+          : RawImage(image: _image, fit: BoxFit.contain),
+    );
+  }
+}
+
 /// Circular head-crop of a user's avatar, rendered from their [AvatarConfig]
 /// JSON. A null/blank config renders the default livery (matching
 /// `AvatarConfig.fromJson(null)`), so every row shows an avatar. The rendered

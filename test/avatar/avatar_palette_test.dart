@@ -50,6 +50,31 @@ void main() {
       expect(regionForColor(blue, belowHelmet: true), AvatarRegion.boots);
     });
 
+    testWidgets(
+        'positionalRules: false keeps low teal as helmet (standalone helmet asset)',
+        (tester) async {
+      // A teal fill near the BOTTOM of the artwork: with positional rules it
+      // reclassifies as legs; without (the helmet-icon path) it stays helmet.
+      const svg = '<svg xmlns="http://www.w3.org/2000/svg" '
+          'viewBox="0 0 100 100">'
+          '<path fill="#13cadc" d="M 0 0 L 100 0 L 100 10 L 0 10 Z"/>'
+          '<path fill="#13cadc" d="M 0 90 L 100 90 L 100 100 L 0 100 Z"/>'
+          '</svg>';
+      final art = SplashArt.parse(svg);
+      final ops = {
+        AvatarRegion.helmet: const HueOp(0.0, 1.0), // red
+        AvatarRegion.legs: const HueOp(0.33, 1.0), // green
+      };
+      final withRules = recolorArt(art, ops);
+      final without = recolorArt(art, ops, positionalRules: false);
+      double hueOf(Color c) => HSVColor.fromColor(c).hue / 360;
+      // Bottom fill: legs-green with rules, helmet-red without.
+      expect(hueOf(withRules.fills[1].color), closeTo(0.33, 0.05));
+      expect(hueOf(without.fills[1].color), closeTo(0.0, 0.05));
+      // Top fill is helmet either way.
+      expect(hueOf(without.fills[0].color), closeTo(0.0, 0.05));
+    });
+
     testWidgets('pose3 thigh streaks recolor with the legs op, not helmet',
         (tester) async {
       final text = await tester.runAsync(
@@ -127,6 +152,11 @@ void main() {
       // a dark ladder rather than flat #000 (compare teamskin 0.03/0.38).
       final black = opForPickedColor(const Color(0xFF141414));
       expect(HSVColor.fromColor(black.swatch).value, lessThan(0.28));
+
+      // A true-black pick compresses hardest: 0.15 ladder, mid-tone ≈ #212121.
+      final trueBlack = opForPickedColor(const Color(0xFF000000));
+      expect(
+          HSVColor.fromColor(trueBlack.swatch).value, closeTo(0.1275, 0.01));
     });
 
     test('round-trip: swatch of the derived op is close to the pick', () {
@@ -172,10 +202,30 @@ void main() {
     test('rosso turns the teal helmet red and whitens the accents', () {
       final ops = presetById('rosso').ops;
       final helmet = ops[AvatarRegion.helmet]!.apply(_hsv(0.5, 0.9, 0.8));
-      expect(helmet.hue, closeTo(0.995 * 360, 0.01));
+      expect(helmet.hue, closeTo(0.9815 * 360, 0.01)); // hand-tuned rosso red
       final accents = ops[AvatarRegion.accents]!.apply(_hsv(0.2, 0.9, 0.8));
-      expect(accents.saturation, closeTo(0.03, 1e-9));
+      expect(accents.saturation, closeTo(0.0, 1e-9)); // pure white ladder
       expect(accents.value, greaterThan(0.8));
+    });
+
+    test('neutral ladders are exactly opForPickedColor of their target', () {
+      // The livery neutrals live in the picker's color space; if the derivation
+      // drifts, "black" suits creep back toward grey. Guard the identity.
+      avatarNeutralTargets.forEach((op, target) {
+        final derived = opForPickedColor(target) as NeutralOp;
+        expect(op.sFixed, closeTo(derived.sFixed, 1e-3), reason: '$target s');
+        expect(op.vA, closeTo(derived.vA, 1e-3), reason: '$target vA');
+        expect(op.vB, closeTo(derived.vB, 1e-3), reason: '$target vB');
+      });
+    });
+
+    test('every livery renders its "black" regions properly dark', () {
+      // Regression for the greyish-black bug: a mid-tone black region must
+      // land near #212121 (v≈0.13), not the old mid-grey (v≈0.35). Midnight
+      // is all-black, so its chest op is the shared black ladder.
+      final black = presetById('midnight').ops[AvatarRegion.chest]!;
+      final blackMid = black.apply(_hsv(0.0, 0.0, 0.85)).value;
+      expect(blackMid, closeTo(0.1275, 0.005));
     });
   });
 
@@ -193,7 +243,9 @@ void main() {
       final src = art(const Color(0xFF20B2AA), const Color(0xFF201C1D));
       final out = recolorArt(src, presetById('rosso').ops);
       final fillHue = HSVColor.fromColor(out.fills.single.color).hue;
-      expect(fillHue, closeTo(0.995 * 360, 0.5));
+      // Tolerance covers 8-bit round-trip drift (the tuned op darkens, which
+      // amplifies hue quantization); the point is it lands in the red band.
+      expect(fillHue, closeTo(0.9815 * 360, 2.0));
       expect(out.strokes.single.color, src.strokes.single.color);
       // Geometry is shared, not copied.
       expect(identical(out.fills.single.path, src.fills.single.path), isTrue);

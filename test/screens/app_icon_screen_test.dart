@@ -29,21 +29,20 @@ void main() {
     await tester.pumpWidget(_app(c));
     await tester.pump();
 
-    // Only poses with baked icon assets get a gallery section — pose 3 ships
-    // for the splash/builder but has no bundled launcher icons.
+    // Helmet-only set: a single baked group (pose1 ids), so no pose section
+    // headers at all, and each livery appears exactly once.
     final baked =
         AvatarPose.values.where((p) => p.hasBakedIcons).toList();
+    expect(baked, hasLength(1));
     for (final pose in AvatarPose.values) {
-      expect(find.text(pose.label.toUpperCase()),
-          pose.hasBakedIcons ? findsOneWidget : findsNothing);
+      expect(find.text(pose.label.toUpperCase()), findsNothing);
     }
     for (final preset in avatarPresets) {
-      expect(find.text(preset.name.toUpperCase()),
-          findsNWidgets(baked.length));
+      expect(find.text(preset.name.toUpperCase()), findsOneWidget);
     }
   });
 
-  testWidgets('tapping a tile persists the variant immediately',
+  testWidgets('tile picks stay draft until SAVE persists them',
       (tester) async {
     final c = await _controller();
     _tallViewport(tester);
@@ -51,16 +50,42 @@ void main() {
     await tester.pump();
 
     expect(c.config.iconVariant, AvatarConfig.defaultIcon);
-    // ROSSO appears once per pose — pose1 first, pose3 last. The plugin
-    // channel is absent in tests; the tap must still persist the choice
-    // (and surface a toast) rather than throw.
-    await tester.tap(find.text('ROSSO').last);
-    await tester.pump(const Duration(seconds: 4));
-    expect(c.config.iconVariant, 'pose3_rosso');
+    expect(find.text('SAVE'), findsOneWidget);
+    // Helmet-only set: each livery appears once. Tapping only stages the
+    // choice — the controller still holds the saved default.
+    await tester.tap(find.text('ROSSO'));
+    await tester.pump();
+    expect(c.config.iconVariant, AvatarConfig.defaultIcon);
 
-    await tester.tap(find.text('ROSSO').first);
+    await tester.tap(find.text('BOLT'));
+    await tester.pump();
+    expect(c.config.iconVariant, AvatarConfig.defaultIcon);
+
+    // The plugin channel is absent in tests; SAVE must still persist the
+    // choice (and surface a toast) rather than throw.
+    await tester.tap(find.text('SAVE'));
     await tester.pump(const Duration(seconds: 4));
-    expect(c.config.iconVariant, 'pose1_rosso');
+    expect(c.config.iconVariant, 'pose1_bolt');
+  });
+
+  testWidgets('SAVE is inert while nothing is staged', (tester) async {
+    final c = await _controller();
+    _tallViewport(tester);
+    await tester.pumpWidget(_app(c));
+    await tester.pump();
+
+    await tester.tap(find.text('SAVE'));
+    await tester.pump(const Duration(seconds: 4));
+    expect(c.config.iconVariant, AvatarConfig.defaultIcon);
+
+    // Re-picking the already-saved tile keeps SAVE disabled too.
+    final saved = avatarPresets
+        .firstWhere((p) => AvatarConfig.defaultIcon == 'pose1_${p.id}');
+    await tester.tap(find.text(saved.name.toUpperCase()));
+    await tester.pump();
+    await tester.tap(find.text('SAVE'));
+    await tester.pump(const Duration(seconds: 4));
+    expect(c.config.iconVariant, AvatarConfig.defaultIcon);
   });
 
   testWidgets('every icon tile has an errorBuilder placeholder', (tester) async {
@@ -89,12 +114,16 @@ void main() {
     await tester.tap(find.text('LIGHT'));
     await tester.pump();
     await tester.tap(find.text('ROSSO').first);
+    await tester.pump();
+    await tester.tap(find.text('SAVE'));
     await tester.pump(const Duration(seconds: 4));
     expect(c.config.iconVariant, 'pose1_rosso_light');
 
     await tester.tap(find.text('DARK'));
     await tester.pump();
     await tester.tap(find.text('ROSSO').first);
+    await tester.pump();
+    await tester.tap(find.text('SAVE'));
     await tester.pump(const Duration(seconds: 4));
     expect(c.config.iconVariant, 'pose1_rosso');
   });

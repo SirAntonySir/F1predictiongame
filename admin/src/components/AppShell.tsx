@@ -10,7 +10,8 @@ const NAV: { to: string; label: string }[] = [
   { to: '/predictions', label: 'Predictions' },
   { to: '/seasons', label: 'Seasons' },
   { to: '/drivers', label: 'Drivers' },
-  { to: '/constructors', label: 'Constructors' }
+  { to: '/constructors', label: 'Constructors' },
+  { to: '/avatar-regions', label: 'Avatar regions' }
 ]
 
 export function AppShell() {

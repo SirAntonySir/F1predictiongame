@@ -32,6 +32,9 @@ class BrandedField extends StatefulWidget {
   /// underlying input by key while the BrandedField wrapper itself can
   /// stay un-keyed.
   final Key? fieldKey;
+  /// Forwarded to the inner [TextField], for callers that need to react to
+  /// focus changes (e.g. re-canonicalizing input on blur).
+  final FocusNode? focusNode;
 
   const BrandedField({
     super.key,
@@ -45,6 +48,7 @@ class BrandedField extends StatefulWidget {
     this.readOnly = false,
     this.validator,
     this.fieldKey,
+    this.focusNode,
   });
 
   @override
@@ -94,6 +98,7 @@ class _BrandedFieldState extends State<BrandedField> {
     final Widget input = TextField(
       key: widget.fieldKey,
       controller: widget.controller,
+      focusNode: widget.focusNode,
       obscureText: widget.obscure && !_reveal,
       keyboardType: widget.keyboardType,
       inputFormatters: widget.inputFormatters,

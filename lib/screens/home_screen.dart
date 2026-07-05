@@ -9,6 +9,7 @@ import '../api/models/prediction_view.dart';
 import '../api/models/live_snapshot.dart';
 import '../api/models/session.dart';
 import '../components/app_card.dart';
+import '../components/avatar_thumbnail.dart';
 import '../components/circuit_svg.dart';
 import '../components/countdown.dart';
 import '../components/league_row.dart' show LeagueRowYouBadge;
@@ -903,6 +904,10 @@ class _HomeScreenState extends State<HomeScreen> {
                                   ? BrandColors.accent
                                   : t.colorScheme.onSurface)),
                     ),
+                    const SizedBox(width: Spacing.sm),
+                    // Player's helmet in their livery — matches the standings
+                    // tables (slightly smaller for the compact preview rows).
+                    HelmetIcon(configJson: r.avatarConfig, size: 22),
                     const SizedBox(width: Spacing.sm),
                     Expanded(
                       child: Row(

@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../theme/app_theme.dart';
 import '../theme/tokens.dart';
 import '../theme/typography.dart';
+import 'branded_field.dart';
 import 'branded_sheet.dart';
 
 /// A color already in use by another region, offered as a "match" chip.
@@ -63,6 +65,53 @@ class _ColorPickerSheet extends StatefulWidget {
 
 class _ColorPickerSheetState extends State<_ColorPickerSheet> {
   late HSVColor _hsv = HSVColor.fromColor(widget.initial);
+  late final TextEditingController _hexCtrl =
+      TextEditingController(text: _hexOf(widget.initial));
+  final FocusNode _hexFocus = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    _hexCtrl.addListener(_onHexTyped);
+    // Re-canonicalize on blur ('abc' → '#AABBCC', invalid → current color).
+    _hexFocus.addListener(() {
+      if (!_hexFocus.hasFocus) _hexCtrl.text = _hexOf(_hsv.toColor());
+    });
+  }
+
+  @override
+  void dispose() {
+    _hexCtrl.dispose();
+    _hexFocus.dispose();
+    super.dispose();
+  }
+
+  static String _hexOf(Color c) =>
+      '#${(c.toARGB32() & 0xFFFFFF).toRadixString(16).padLeft(6, '0').toUpperCase()}';
+
+  /// `#rgb` / `#rrggbb`, `#` optional → opaque [Color], or null.
+  static Color? _parseHex(String input) {
+    final m = RegExp(r'^#?([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$')
+        .firstMatch(input.trim());
+    if (m == null) return null;
+    var raw = m.group(1)!;
+    if (raw.length == 3) raw = raw.split('').map((ch) => '$ch$ch').join();
+    return Color(0xFF000000 | int.parse(raw, radix: 16));
+  }
+
+  /// Graphical controls route through here so the hex field tracks them.
+  void _setHsv(HSVColor next) {
+    setState(() => _hsv = next);
+    _hexCtrl.text = _hexOf(next.toColor());
+  }
+
+  /// Commits as soon as the text parses; the no-op guard also swallows the
+  /// echo when [_setHsv] rewrites the field programmatically.
+  void _onHexTyped() {
+    final c = _parseHex(_hexCtrl.text);
+    if (c == null || c.toARGB32() == _hsv.toColor().toARGB32()) return;
+    setState(() => _hsv = HSVColor.fromColor(c));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -74,13 +123,13 @@ class _ColorPickerSheetState extends State<_ColorPickerSheet> {
         children: [
           _ShadeSquare(
             hsv: _hsv,
-            onChanged: (s, v) => setState(
-                () => _hsv = _hsv.withSaturation(s).withValue(v)),
+            onChanged: (s, v) =>
+                _setHsv(_hsv.withSaturation(s).withValue(v)),
           ),
           const SizedBox(height: Spacing.md),
           _HueBar(
             hue: _hsv.hue,
-            onChanged: (h) => setState(() => _hsv = _hsv.withHue(h)),
+            onChanged: (h) => _setHsv(_hsv.withHue(h)),
           ),
           const SizedBox(height: Spacing.md),
           Row(
@@ -90,9 +139,19 @@ class _ColorPickerSheetState extends State<_ColorPickerSheet> {
                 _SwatchDot(
                   color: c,
                   selected: c.toARGB32() == _hsv.toColor().toARGB32(),
-                  onTap: () =>
-                      setState(() => _hsv = HSVColor.fromColor(c)),
+                  onTap: () => _setHsv(HSVColor.fromColor(c)),
                 ),
+            ],
+          ),
+          const SizedBox(height: Spacing.md),
+          BrandedField(
+            label: 'HEX',
+            controller: _hexCtrl,
+            focusNode: _hexFocus,
+            hint: '#RRGGBB',
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(RegExp(r'[#0-9a-fA-F]')),
+              LengthLimitingTextInputFormatter(7),
             ],
           ),
           if (widget.matchColors.isNotEmpty) ...[
@@ -117,8 +176,7 @@ class _ColorPickerSheetState extends State<_ColorPickerSheet> {
                     color: m.color,
                     selected:
                         m.color.toARGB32() == _hsv.toColor().toARGB32(),
-                    onTap: () =>
-                        setState(() => _hsv = HSVColor.fromColor(m.color)),
+                    onTap: () => _setHsv(HSVColor.fromColor(m.color)),
                   ),
               ],
             ),

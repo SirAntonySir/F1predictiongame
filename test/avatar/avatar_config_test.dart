@@ -37,17 +37,20 @@ void main() {
     });
 
     test('validIconVariant: pose-qualified, legacy, garbage', () {
-      expect(AvatarConfig.validIconVariant('pose2_rosso'), 'pose2_rosso');
+      expect(AvatarConfig.validIconVariant('pose2_rosso'), 'pose1_undercut');
       expect(AvatarConfig.validIconVariant('rosso'), 'pose1_rosso'); // legacy
       // The retired 'classic' ticket icon migrates to the default.
       expect(AvatarConfig.validIconVariant('classic'), 'pose1_undercut');
       expect(AvatarConfig.validIconVariant('pose9_rosso'), 'pose1_undercut');
       expect(AvatarConfig.validIconVariant('pose1_nope'), 'pose1_undercut');
       expect(AvatarConfig.validIconVariant(null), 'pose1_undercut');
-      // Pose 3 and the light-background twins are baked and valid.
-      expect(AvatarConfig.validIconVariant('pose3_rosso'), 'pose3_rosso');
+      // Helmet-only icon set: pose1_* ids (dark + light) are the baked
+      // variants; saved pose2/pose3 selections migrate to the default.
+      expect(AvatarConfig.validIconVariant('pose1_rosso_light'),
+          'pose1_rosso_light');
+      expect(AvatarConfig.validIconVariant('pose3_rosso'), 'pose1_undercut');
       expect(AvatarConfig.validIconVariant('pose2_rosso_light'),
-          'pose2_rosso_light');
+          'pose1_undercut');
       expect(AvatarConfig.validIconVariant('pose1_nope_light'),
           'pose1_undercut');
       // Two variants (dark + light) per baked pose x livery.
@@ -55,8 +58,8 @@ void main() {
           AvatarPose.values.where((p) => p.hasBakedIcons).length *
               avatarPresets.length *
               2);
-      expect(AvatarConfig.iconVariants, contains('pose3_undercut'));
-      expect(AvatarConfig.iconVariants, contains('pose3_undercut_light'));
+      expect(AvatarConfig.iconVariants, contains('pose1_undercut'));
+      expect(AvatarConfig.iconVariants, isNot(contains('pose3_undercut')));
     });
 
     test('ops layer overrides on top of the preset', () {
@@ -81,14 +84,14 @@ void main() {
 
       await c.setPreset('silver');
       await c.setRegionColor(AvatarRegion.boots, const Color(0xFFAA0000));
-      await c.setIconVariant('pose2_papaya');
+      await c.setIconVariant('pose1_papaya');
       await c.setPose(AvatarPose.pose2);
 
       final again = await AvatarController.load();
       expect(again.config.presetId, 'silver');
       expect(again.config.overrides[AvatarRegion.boots],
           const Color(0xFFAA0000));
-      expect(again.config.iconVariant, 'pose2_papaya');
+      expect(again.config.iconVariant, 'pose1_papaya');
       expect(again.config.pose, AvatarPose.pose2);
     });
 

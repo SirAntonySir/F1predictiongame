@@ -16,9 +16,13 @@ import '../components/painted_splash.dart';
 /// The available artwork poses. All poses share the same rainbow region
 /// encoding, so one config recolors any of them.
 enum AvatarPose {
+  // Only pose1 carries baked icons — and since the helmet-only icon set they
+  // are HELMET art reusing the pose1_* variant ids (see bake_icons_test.dart).
+  // pose2/pose3 ids remain registered natively but are hidden from the icon
+  // gallery; saved selections of them migrate to the default icon.
   pose1('Victory', 'assets/avatar/pose1.svg', hasBakedIcons: true),
-  pose2('Arms crossed', 'assets/avatar/pose2.svg', hasBakedIcons: true),
-  pose3('Kneeling', 'assets/avatar/pose3.svg', hasBakedIcons: true);
+  pose2('Arms crossed', 'assets/avatar/pose2.svg'),
+  pose3('Kneeling', 'assets/avatar/pose3.svg');
 
   final String label;
   final String asset;
@@ -154,10 +158,10 @@ RegionOp opForPickedColor(Color picked) {
   final c = HSVColor.fromColor(picked);
   if (c.saturation < _minSaturation) {
     // Anchor the ladder so a nominal mid-tone (v≈0.85) lands on the picked
-    // brightness; the spread shrinks toward black so dark suits keep only
-    // subtle highlights (teamskin: white 0.55/0.45, silver 0.42/0.50,
-    // black 0.03/0.38).
-    final spread = 0.25 + 0.2 * c.value;
+    // brightness; the spread shrinks toward black so dark suits go properly
+    // dark while keeping subtle highlights (picked #000 → 0.15 ladder,
+    // mid-tone ≈ #212121; white keeps the teamskin-like 0.45 spread).
+    final spread = 0.15 + 0.3 * c.value;
     final base = (c.value - spread * 0.85).clamp(0.0, 1.0);
     return NeutralOp(c.saturation, base, spread);
   }
@@ -179,169 +183,167 @@ class AvatarPreset {
   Color get swatch => ops[AvatarRegion.chest]!.swatch;
 }
 
-// Palette constants ported from teamskin.py (hue fractions verbatim), plus
-// hues derived from the curated team colors in theme/team_colors.dart for
-// the liveries teamskin.py never defined.
-// Colorways track the eleven 2026 grid suits, but display names are
-// fictional — shipping real team names is a trademark problem (see handoff
-// legal notes); the colorways speak for themselves.
+// Sole surviving hue constant — every livery except ivory is now hand-tuned
+// with raw ops pasted from the admin tuner, so the old teamskin-derived hue
+// palette is gone. Colorways track the 2026 grid suits; display names are
+// fictional (shipping real team names is a trademark problem).
 const _red = 0.995;
-const _papaya = 0.058;
-const _petronas = 0.49;
-const _brandRed = 0.0044; // BrandColors.accent #E10600
-const _navy = 0.62; // deep racing navy (also royal blue at full value)
-const _yellow = 0.145;
-const _astonGreen = 0.44; // #229971
-const _lime = 0.177; // #CEDC00
-const _alpineBlue = 0.547; // #0093CC
-const _pink = 0.884; // #FD4BC7
-const _skyBlue = 0.563; // #64C4FF
-const _neonGreen = 0.333; // #52E252
-const _audiRed = 0.965; // #F50537
+
+// Neutral ladders, one shared definition per shade. Each is exactly
+// opForPickedColor(target) under the current (darker) color space, so the
+// liveries sit in the same space as a hand-picked color — the old teamskin
+// ramps floored too high and rendered "black" suits as mid-grey. Targets:
+// black #000000, white #FFFFFF, silver #D8D8D8, titanium #AEAEAE,
+// anthracite #6B6B6B. (v' = base + spread·masterV; see avatarNeutralTargets.)
+const _black = NeutralOp(0.0, 0.0, 0.15); // mid-tone ≈ #212121
+const _white = NeutralOp(0.0, 0.6175, 0.45); // mid-tone ≈ #FFFFFF
+const _silver = NeutralOp(0.0, 0.5036, 0.4041); // mid-tone ≈ #D8D8D8
+const _titanium = NeutralOp(0.0, 0.3809, 0.3547); // mid-tone ≈ #AEAEAE
+const _anthracite = NeutralOp(0.0, 0.1851, 0.2759); // mid-tone ≈ #6B6B6B
+
+/// The pure target color each neutral ladder is derived from — the reference
+/// for regression-checking that the constants stay `opForPickedColor(target)`.
+const avatarNeutralTargets = <NeutralOp, Color>{
+  _black: Color(0xFF000000),
+  _white: Color(0xFFFFFFFF),
+  _silver: Color(0xFFD8D8D8),
+  _titanium: Color(0xFFAEAEAE),
+  _anthracite: Color(0xFF6B6B6B),
+};
 
 const avatarPresets = <AvatarPreset>[
   AvatarPreset('undercut', 'Undercut', {
-    AvatarRegion.helmet: HueOp(_brandRed, 1.0),
-    AvatarRegion.helmetStripe: NeutralOp(0.03, 0.55, 0.45),
-    AvatarRegion.chest: NeutralOp(0.06, 0.03, 0.38),
-    AvatarRegion.sleeves: NeutralOp(0.06, 0.03, 0.38),
-    AvatarRegion.accents: HueOp(_brandRed, 1.0),
-    AvatarRegion.gloves: NeutralOp(0.06, 0.03, 0.38),
-    AvatarRegion.legs: NeutralOp(0.06, 0.03, 0.38),
-    AvatarRegion.stripes: HueOp(_brandRed, 1.0),
-    AvatarRegion.boots: NeutralOp(0.06, 0.02, 0.35),
+    AvatarRegion.helmet: NeutralOp(0.0, 0.0, 0.1888),
+    AvatarRegion.helmetStripe: HueOp(0.0043, 0.9985, 1.0012),
+    AvatarRegion.chest: NeutralOp(0.0, 0.0, 0.15),
+    AvatarRegion.sleeves: NeutralOp(0.0, 0.0, 0.15),
+    AvatarRegion.accents: HueOp(0.0044, 1.0),
+    AvatarRegion.gloves: NeutralOp(0.0, 0.0, 0.1888),
+    AvatarRegion.legs: NeutralOp(0.0, 0.0, 0.15),
+    AvatarRegion.stripes: HueOp(0.0044, 1.0),
+    AvatarRegion.boots: NeutralOp(0.0, 0.0, 0.1888),
   }),
   AvatarPreset('rosso', 'Rosso', {
-    // Red suit, white collar and side stripes, red boots.
-    AvatarRegion.chest: HueOp(_red, 1.0),
-    AvatarRegion.sleeves: HueOp(_red, 1.0),
-    AvatarRegion.legs: HueOp(_red, 1.0),
-    AvatarRegion.gloves: HueOp(_red, 1.0),
-    AvatarRegion.helmet: HueOp(_red, 1.0),
-    AvatarRegion.accents: NeutralOp(0.03, 0.55, 0.45),
-    AvatarRegion.stripes: NeutralOp(0.03, 0.55, 0.45),
-    AvatarRegion.helmetStripe: NeutralOp(0.03, 0.55, 0.45),
-    AvatarRegion.boots: HueOp(_red, 1.0, 0.85),
+    AvatarRegion.helmet: HueOp(0.9815, 1.0651, 0.7797),
+    AvatarRegion.helmetStripe: NeutralOp(0.0084, 0.5708, 0.4312),
+    AvatarRegion.chest: HueOp(0.9785, 1.078, 0.7751),
+    AvatarRegion.sleeves: HueOp(0.9785, 1.078, 0.7751),
+    AvatarRegion.accents: NeutralOp(0.0, 0.6175, 0.45),
+    AvatarRegion.gloves: NeutralOp(0.0, 0.0, 0.17),
+    AvatarRegion.legs: HueOp(0.9785, 1.078, 0.7751),
+    AvatarRegion.stripes: HueOp(0.9785, 1.078, 0.7751),
+    AvatarRegion.boots: NeutralOp(0.0, 0.0, 0.17),
   }),
   AvatarPreset('papaya', 'Papaya', {
-    // Papaya suit head to toe, anthracite collar and side stripes.
-    AvatarRegion.chest: HueOp(_papaya, 1.0),
-    AvatarRegion.sleeves: HueOp(_papaya, 1.0),
-    AvatarRegion.helmet: HueOp(_papaya, 1.0),
-    AvatarRegion.legs: HueOp(_papaya, 1.0),
-    AvatarRegion.gloves: NeutralOp(0.07, 0.03, 0.38),
-    AvatarRegion.boots: NeutralOp(0.07, 0.02, 0.35),
-    AvatarRegion.accents: NeutralOp(0.07, 0.06, 0.42),
-    AvatarRegion.stripes: NeutralOp(0.07, 0.06, 0.42),
-    AvatarRegion.helmetStripe: NeutralOp(0.08, 0.05, 0.40),
+    AvatarRegion.helmet: HueOp(0.0833, 1.1068, 1.1765),
+    AvatarRegion.helmetStripe: NeutralOp(0.0, 0.0, 0.15),
+    AvatarRegion.chest: HueOp(0.0833, 1.1068, 1.1765),
+    AvatarRegion.sleeves: HueOp(0.0833, 1.1068, 1.1765),
+    AvatarRegion.accents: NeutralOp(0.0, 0.0, 0.1888),
+    AvatarRegion.gloves: HueOp(0.0833, 1.1068, 1.1765),
+    AvatarRegion.legs: NeutralOp(0.0, 0.0, 0.1888),
+    AvatarRegion.stripes: HueOp(0.0833, 1.1068, 1.1765),
+    AvatarRegion.boots: HueOp(0.0833, 1.1068, 1.1765),
   }),
   AvatarPreset('silver', 'Silver', {
-    // Black suit with silver sleeves, teal piping, bright blue boots.
-    AvatarRegion.chest: NeutralOp(0.06, 0.03, 0.38),
-    AvatarRegion.sleeves: NeutralOp(0.05, 0.42, 0.50),
-    AvatarRegion.helmet: NeutralOp(0.05, 0.42, 0.50),
-    AvatarRegion.legs: NeutralOp(0.06, 0.03, 0.38),
-    AvatarRegion.gloves: NeutralOp(0.06, 0.03, 0.38),
-    AvatarRegion.boots: HueOp(_skyBlue, 1.0),
-    AvatarRegion.accents: HueOp(_petronas, 0.95),
-    AvatarRegion.stripes: HueOp(_petronas, 0.95),
-    AvatarRegion.helmetStripe: HueOp(_petronas, 0.95),
+    AvatarRegion.helmet: HueOp(0.5097, 1.1111, 0.3183),
+    AvatarRegion.helmetStripe: HueOp(0.4856, 1.0939, 0.5952),
+    AvatarRegion.chest: NeutralOp(0.0, 0.0, 0.15),
+    AvatarRegion.sleeves: NeutralOp(0.0, 0.0, 0.1888),
+    AvatarRegion.accents: HueOp(0.4921, 1.0995, 0.8812),
+    AvatarRegion.gloves: NeutralOp(0.0, 0.0, 0.15),
+    AvatarRegion.legs: NeutralOp(0.0, 0.0, 0.15),
+    AvatarRegion.stripes: HueOp(0.49, 0.95),
+    AvatarRegion.boots: NeutralOp(0.0, 0.0, 0.1888),
   }),
   AvatarPreset('bolt', 'Bolt', {
-    // Navy suit, red collar & belt, yellow side stripes, silver helmet stripe.
-    AvatarRegion.chest: HueOp(_navy, 0.95, 0.5),
-    AvatarRegion.sleeves: HueOp(_navy, 0.95, 0.5),
-    AvatarRegion.legs: HueOp(_navy, 0.95, 0.5),
-    AvatarRegion.gloves: HueOp(_navy, 0.95, 0.5),
-    AvatarRegion.helmet: HueOp(_navy, 0.95, 0.5),
-    AvatarRegion.boots: HueOp(_navy, 0.9, 0.4),
-    AvatarRegion.accents: HueOp(_red, 1.0),
-    AvatarRegion.stripes: HueOp(_yellow, 1.0),
-    AvatarRegion.helmetStripe: NeutralOp(0.04, 0.35, 0.45),
+    AvatarRegion.helmet: HueOp(0.6181, 0.7768, 0.5213),
+    AvatarRegion.helmetStripe: NeutralOp(0.0052, 0.4334, 0.3759),
+    AvatarRegion.chest: HueOp(0.6201, 1.1111, 0.3137),
+    AvatarRegion.sleeves: HueOp(0.6201, 1.1111, 0.3137),
+    AvatarRegion.accents: HueOp(0.9579, 0.9477, 0.9412),
+    AvatarRegion.gloves: HueOp(0.6201, 1.1111, 0.3137),
+    AvatarRegion.legs: HueOp(0.6201, 1.1111, 0.3137),
+    AvatarRegion.stripes: HueOp(0.1305, 1.085, 1.1765),
+    AvatarRegion.boots: HueOp(0.6201, 1.1111, 0.3137),
   }),
   AvatarPreset('verde', 'Verde', {
-    // Racing green suit, lime piping, black side stripes and boots.
-    AvatarRegion.chest: HueOp(_astonGreen, 1.0, 0.85),
-    AvatarRegion.sleeves: HueOp(_astonGreen, 1.0, 0.85),
-    AvatarRegion.legs: HueOp(_astonGreen, 1.0, 0.85),
-    AvatarRegion.gloves: HueOp(_astonGreen, 1.0, 0.85),
-    AvatarRegion.helmet: HueOp(_astonGreen, 1.0, 0.85),
-    AvatarRegion.accents: HueOp(_lime, 1.0),
-    AvatarRegion.stripes: NeutralOp(0.06, 0.03, 0.38),
-    AvatarRegion.helmetStripe: HueOp(_lime, 1.0),
-    AvatarRegion.boots: NeutralOp(0.08, 0.02, 0.40),
+    AvatarRegion.helmet: HueOp(0.4815, 1.1111, 0.2491),
+    AvatarRegion.helmetStripe: HueOp(0.1787, 1.1111, 1.0196),
+    AvatarRegion.chest: HueOp(0.4815, 1.1111, 0.2491),
+    AvatarRegion.sleeves: HueOp(0.4815, 1.1111, 0.2491),
+    AvatarRegion.accents: HueOp(0.4813, 1.0988, 0.4152),
+    AvatarRegion.gloves: HueOp(0.4813, 1.0988, 0.4152),
+    AvatarRegion.legs: HueOp(0.4815, 1.1111, 0.2491),
+    AvatarRegion.stripes: HueOp(0.4815, 1.1111, 0.2491),
+    AvatarRegion.boots: HueOp(0.1787, 1.0936, 1.1719),
   }),
   AvatarPreset('azur', 'Azur', {
-    // Pink top over navy sleeves and legs, bright blue boots.
-    AvatarRegion.chest: HueOp(_pink, 1.0),
-    AvatarRegion.sleeves: HueOp(_navy, 0.95, 0.5),
-    AvatarRegion.legs: HueOp(_navy, 0.95, 0.5),
-    AvatarRegion.gloves: HueOp(_navy, 0.95, 0.5),
-    AvatarRegion.helmet: HueOp(_pink, 1.0),
-    AvatarRegion.accents: HueOp(_pink, 1.0),
-    AvatarRegion.stripes: HueOp(_pink, 1.0),
-    AvatarRegion.helmetStripe: HueOp(_navy, 0.95, 0.5),
-    AvatarRegion.boots: HueOp(_alpineBlue, 1.0),
+    AvatarRegion.helmet: HueOp(0.8842, 0.7773, 1.1672),
+    AvatarRegion.helmetStripe: HueOp(0.5764, 1.1045, 0.7797),
+    AvatarRegion.chest: HueOp(0.8842, 0.7773, 1.1672),
+    AvatarRegion.sleeves: HueOp(0.5764, 1.1045, 0.7797),
+    AvatarRegion.accents: HueOp(0.8842, 0.7773, 1.1672),
+    AvatarRegion.gloves: HueOp(0.5764, 1.1045, 0.7797),
+    AvatarRegion.legs: HueOp(0.62, 0.95, 0.5),
+    AvatarRegion.stripes: HueOp(0.8842, 0.7773, 1.1672),
+    AvatarRegion.boots: HueOp(0.5764, 1.1045, 0.7797),
   }),
   AvatarPreset('atlantic', 'Atlantic', {
-    // White suit with royal-blue side stripes, navy cuffs.
-    AvatarRegion.chest: NeutralOp(0.03, 0.55, 0.45),
-    AvatarRegion.sleeves: NeutralOp(0.03, 0.55, 0.45),
-    AvatarRegion.helmet: NeutralOp(0.03, 0.55, 0.45),
-    AvatarRegion.legs: NeutralOp(0.03, 0.55, 0.45),
-    AvatarRegion.gloves: HueOp(_navy, 0.95, 0.5),
-    AvatarRegion.boots: NeutralOp(0.03, 0.45, 0.45),
-    AvatarRegion.accents: HueOp(_navy, 1.0),
-    AvatarRegion.stripes: HueOp(_navy, 1.0),
-    AvatarRegion.helmetStripe: HueOp(_navy, 1.0),
+    AvatarRegion.helmet: NeutralOp(0.0325, 0.5912, 0.4394),
+    AvatarRegion.helmetStripe: HueOp(0.5988, 0.9859, 0.9827),
+    AvatarRegion.chest: NeutralOp(0.0325, 0.5912, 0.4394),
+    AvatarRegion.sleeves: NeutralOp(0.0325, 0.5912, 0.4394),
+    AvatarRegion.accents: HueOp(0.5988, 0.9859, 0.9827),
+    AvatarRegion.gloves: HueOp(0.5988, 0.9859, 0.9827),
+    AvatarRegion.legs: NeutralOp(0.0325, 0.5912, 0.4394),
+    AvatarRegion.stripes: HueOp(0.5988, 0.9859, 0.9827),
+    AvatarRegion.boots: NeutralOp(0.0325, 0.5912, 0.4394),
   }),
   AvatarPreset('frost', 'Frost', {
-    // White suit, royal-blue sleeves, neon-green piping.
-    AvatarRegion.chest: NeutralOp(0.03, 0.55, 0.45),
-    AvatarRegion.sleeves: HueOp(_navy, 1.0),
-    AvatarRegion.legs: NeutralOp(0.03, 0.55, 0.45),
-    AvatarRegion.helmet: NeutralOp(0.03, 0.55, 0.45),
-    AvatarRegion.gloves: HueOp(_navy, 0.95, 0.5),
-    AvatarRegion.accents: HueOp(_neonGreen, 1.0),
-    AvatarRegion.stripes: HueOp(_navy, 1.0),
-    AvatarRegion.helmetStripe: HueOp(_neonGreen, 1.0),
-    AvatarRegion.boots: NeutralOp(0.03, 0.45, 0.45),
+    AvatarRegion.helmet: HueOp(0.6192, 1.1054, 0.895),
+    AvatarRegion.helmetStripe: HueOp(0.333, 1.0),
+    AvatarRegion.chest: NeutralOp(0.0, 0.6175, 0.45),
+    AvatarRegion.sleeves: HueOp(0.62, 1.0),
+    AvatarRegion.accents: HueOp(0.333, 1.0),
+    AvatarRegion.gloves: HueOp(0.62, 0.95, 0.5),
+    AvatarRegion.legs: NeutralOp(0.0, 0.6175, 0.45),
+    AvatarRegion.stripes: HueOp(0.62, 1.0),
+    AvatarRegion.boots: NeutralOp(0.0, 0.5036, 0.4041),
   }),
   AvatarPreset('ivory', 'Ivory', {
     // White sleeves over a black chest and legs, red details.
-    AvatarRegion.chest: NeutralOp(0.06, 0.03, 0.38),
-    AvatarRegion.sleeves: NeutralOp(0.03, 0.55, 0.45),
-    AvatarRegion.helmet: NeutralOp(0.03, 0.55, 0.45),
-    AvatarRegion.legs: NeutralOp(0.06, 0.03, 0.38),
-    AvatarRegion.gloves: NeutralOp(0.06, 0.03, 0.38),
-    AvatarRegion.boots: NeutralOp(0.06, 0.02, 0.35),
+    AvatarRegion.chest: _black,
+    AvatarRegion.sleeves: _white,
+    AvatarRegion.helmet: _white,
+    AvatarRegion.legs: _black,
+    AvatarRegion.gloves: _black,
+    AvatarRegion.boots: _black,
     AvatarRegion.accents: HueOp(_red, 1.0),
-    AvatarRegion.stripes: NeutralOp(0.03, 0.55, 0.45),
+    AvatarRegion.stripes: _white,
     AvatarRegion.helmetStripe: HueOp(_red, 1.0),
   }),
   AvatarPreset('titan', 'Titan', {
-    // Black top over titanium legs, red helmet and details.
-    AvatarRegion.chest: NeutralOp(0.06, 0.03, 0.38),
-    AvatarRegion.sleeves: NeutralOp(0.06, 0.03, 0.38),
-    AvatarRegion.helmet: HueOp(_audiRed, 1.0),
-    AvatarRegion.legs: NeutralOp(0.05, 0.30, 0.45),
-    AvatarRegion.gloves: NeutralOp(0.06, 0.03, 0.38),
-    AvatarRegion.boots: NeutralOp(0.05, 0.10, 0.40),
-    AvatarRegion.accents: HueOp(_audiRed, 1.0),
-    AvatarRegion.stripes: NeutralOp(0.05, 0.42, 0.50),
-    AvatarRegion.helmetStripe: NeutralOp(0.05, 0.42, 0.50),
+    AvatarRegion.helmet: HueOp(0.0289, 1.1068, 1.1765),
+    AvatarRegion.helmetStripe: NeutralOp(0.0, 0.5036, 0.4041),
+    AvatarRegion.chest: NeutralOp(0.0645, 0.0536, 0.2229),
+    AvatarRegion.sleeves: NeutralOp(0.0645, 0.0536, 0.2229),
+    AvatarRegion.accents: HueOp(0.0289, 1.1068, 1.1765),
+    AvatarRegion.gloves: NeutralOp(0.0, 0.0, 0.15),
+    AvatarRegion.legs: NeutralOp(0.0645, 0.0536, 0.2229),
+    AvatarRegion.stripes: NeutralOp(0.0, 0.5036, 0.4041),
+    AvatarRegion.boots: NeutralOp(0.0645, 0.0536, 0.2229),
   }),
   AvatarPreset('midnight', 'Midnight', {
-    // Black suit with white shoulder and side details.
-    AvatarRegion.chest: NeutralOp(0.03, 0.03, 0.38),
-    AvatarRegion.sleeves: NeutralOp(0.00, 0.00, 0.38),
-    AvatarRegion.legs: NeutralOp(0.00, 0.00, 0.38),
-    AvatarRegion.gloves: NeutralOp(0.00, 0.00, 0.38),
-    AvatarRegion.helmet: NeutralOp(0.00, 0.00, 0.38),
-    AvatarRegion.boots: NeutralOp(0.00, 0.00, 0.38),
-    AvatarRegion.accents: NeutralOp(0.00, 0.00, 0.38),
-    AvatarRegion.stripes: NeutralOp(0.00, 0.00, 0.38),
-    AvatarRegion.helmetStripe: NeutralOp(0.00, 0.00, 0.38),
+    AvatarRegion.helmet: NeutralOp(0.0327, 0.5883, 0.4382),
+    AvatarRegion.helmetStripe: NeutralOp(0.0, 0.0, 0.15),
+    AvatarRegion.chest: NeutralOp(0.0, 0.0, 0.15),
+    AvatarRegion.sleeves: NeutralOp(0.0, 0.0, 0.15),
+    AvatarRegion.accents: NeutralOp(0.0, 0.0, 0.15),
+    AvatarRegion.gloves: NeutralOp(0.0327, 0.5883, 0.4382),
+    AvatarRegion.legs: NeutralOp(0.0, 0.0, 0.15),
+    AvatarRegion.stripes: NeutralOp(0.0327, 0.5883, 0.4382),
+    AvatarRegion.boots: NeutralOp(0.0, 0.0, 0.15),
   }),
 ];
 
@@ -352,9 +354,16 @@ AvatarPreset presetById(String? id) => avatarPresets
 /// only colors change. Classification runs once per (distinct color, side of
 /// the helmet floor) — a teal color reads as helmet up top but leg shading
 /// low on the figure (see [kHelmetMaxYFrac]).
-SplashArt recolorArt(SplashArt art, Map<AvatarRegion, RegionOp> ops) {
+///
+/// [positionalRules] applies that figure-shaped heuristic. Disable it for
+/// non-figure masters — on the standalone helmet asset the "below the helmet
+/// floor" test would reclassify the entire lower shell as legs.
+SplashArt recolorArt(SplashArt art, Map<AvatarRegion, RegionOp> ops,
+    {bool positionalRules = true}) {
   final bounds = art.contentBounds;
-  final helmetFloorY = bounds.top + bounds.height * kHelmetMaxYFrac;
+  final helmetFloorY = positionalRules
+      ? bounds.top + bounds.height * kHelmetMaxYFrac
+      : double.infinity;
   // Key = color, with the low bit reused to distinguish above/below the floor.
   final cache = <int, Color>{};
   Color map(Color color, double centerY) {

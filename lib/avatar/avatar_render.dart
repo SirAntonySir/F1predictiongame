@@ -28,15 +28,56 @@ class AvatarRenderer {
   final _images = <String, ui.Image>{};
   final _imageFutures = <String, Future<ui.Image>>{};
 
-  Future<SplashArt> _artForPose(AvatarPose pose) {
-    final cached = _artByPose[pose.asset];
+  /// The standalone helmet master — same rainbow trace format as the poses.
+  /// Recolored per config for the standings-table player icons (and baked as
+  /// the launcher icon at dev time).
+  static const helmetAsset = 'assets/avatar/helmet.svg';
+
+  Future<SplashArt> _artForAsset(String asset) {
+    final cached = _artByPose[asset];
     if (cached != null) return Future.value(cached);
-    return _artFutures.putIfAbsent(pose.asset, () async {
-      final svg = await rootBundle.loadString(pose.asset);
+    return _artFutures.putIfAbsent(asset, () async {
+      final svg = await rootBundle.loadString(asset);
       final art = SplashArt.parse(svg);
-      _artByPose[pose.asset] = art;
-      _artFutures.remove(pose.asset);
+      _artByPose[asset] = art;
+      _artFutures.remove(asset);
       return art;
+    });
+  }
+
+  Future<SplashArt> _artForPose(AvatarPose pose) => _artForAsset(pose.asset);
+
+  /// The user's helmet in their livery, as a square icon raster. Transparent
+  /// background; cached like the pose thumbnails.
+  Future<ui.Image> helmetIcon(AvatarConfig config, int sizePx) {
+    final key = 'helmet|${config.toJson()}|$sizePx';
+    final cached = _images[key];
+    if (cached != null) return Future.value(cached);
+    return _imageFutures.putIfAbsent(key, () async {
+      final master = await _artForAsset(helmetAsset);
+      final cropRect = _cropByPose.putIfAbsent('$helmetAsset|icon', () {
+        // Square around the helmet with a whisper of margin.
+        final b = master.contentBounds;
+        final side = (b.width > b.height ? b.width : b.height) * 1.04;
+        return Rect.fromCenter(center: b.center, width: side, height: side);
+      });
+      // No positional rules: the figure-shaped legs/helmet heuristic would
+      // reclassify the standalone helmet's lower shell as legs.
+      final recolored =
+          recolorArt(master, config.ops, positionalRules: false);
+      final rec = ui.PictureRecorder();
+      final canvas = Canvas(rec);
+      canvas.scale(sizePx / cropRect.width);
+      canvas.translate(-cropRect.left, -cropRect.top);
+      paintSplashArt(canvas, recolored);
+      final img = await rec.endRecording().toImage(sizePx, sizePx);
+      _imageFutures.remove(key);
+      _images[key] = img;
+      if (_images.length > _maxImages) {
+        final oldest = _images.keys.first;
+        _images.remove(oldest)?.dispose();
+      }
+      return img;
     });
   }
 

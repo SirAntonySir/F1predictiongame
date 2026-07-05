@@ -34,9 +34,8 @@ void main() {
         () => rootBundle.loadString('assets/avatar/pose1.svg'));
     final art = SplashArt.parse(text!);
     // Dimensions come from the SVG's own viewBox, not hardcoded values.
-    expect(art.width, 1461);
-    expect(art.height, 2153);
-    // 994 stroke paths in the trace group; 450 fill paths.
+    expect(art.width, 1452);
+    expect(art.height, 2164);
     expect(art.strokes.length, greaterThan(900));
     expect(art.fills.length, greaterThan(400));
     // Stroke width picked up from the trace group's stroke-width="2.00".

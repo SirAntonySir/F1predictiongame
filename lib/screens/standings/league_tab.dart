@@ -191,6 +191,7 @@ class _LeagueTabState extends State<LeagueTab> {
                     focus: _metric == _Metric.inSeason
                         ? LeagueRowFocus.inSeason
                         : LeagueRowFocus.total,
+                    showAvatar: true,
                   ),
                   // Single outer border around the leaderboard. LeagueRow's
                   // own per-row border has been swapped for a thin internal
@@ -224,6 +225,7 @@ class _LeagueTabState extends State<LeagueTab> {
                               rank: ranked[i].rank,
                               name: r.displayName,
                               avatarConfig: r.avatarConfig,
+                              showAvatar: true,
                               inSeasonPoints: r.inSeasonPoints,
                               preseasonPoints: r.preseasonPoints,
                               pointsTotal: r.pointsTotal,

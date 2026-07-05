@@ -99,6 +99,30 @@ void main() {
     expect(c.config.overrides, isEmpty);
   });
 
+  testWidgets('picked color round-trips exactly through the picker',
+      (tester) async {
+    final c = await _controller();
+    _tallViewport(tester);
+    await tester.pumpWidget(_app(c));
+    await tester.pump(const Duration(seconds: 4));
+
+    await tester.tap(find.text('Helmet'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), '000000');
+    await tester.pump();
+    await tester.tap(find.text('Apply'));
+    await tester.pumpAndSettle();
+
+    // Reopening starts from the raw pick, not the derived op's swatch —
+    // black must not come back as the mid-tone gray.
+    await tester.tap(find.text('Helmet'));
+    await tester.pumpAndSettle();
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).controller!.text,
+      '#000000',
+    );
+  });
+
   testWidgets('cancelling the picker leaves the draft untouched',
       (tester) async {
     final c = await _controller();

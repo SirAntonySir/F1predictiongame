@@ -303,7 +303,8 @@ class SplashArt {
   /// Pose 1 (Victory)'s figure aspect ratio — the framing reference every
   /// pose is normalized to. Guarded by a test against the shipped asset;
   /// update if pose1.svg is ever regenerated with different framing.
-  static const referenceFigureAspect = 1443 / 2125;
+  /// Current value: the 2026-07-05 re-trace (figure 1369.6 × 2014.1).
+  static const referenceFigureAspect = 1369.6 / 2014.1;
 
   /// The rect the renderer fits on screen: this pose's figure height in a
   /// pose-1-shaped frame, centered on the figure. Height is the scale

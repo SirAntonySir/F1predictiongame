@@ -11,34 +11,27 @@ import 'package:predictiongame/components/painted_splash.dart';
 ///
 ///   flutter test test/tools/bake_icons_test.dart --dart-define=BAKE=true
 ///
-/// For every pose × livery it renders the upper-body crop on the dark
-/// (#2E2C31, variant id `poseN_livery`) and light (ticket cream #EFEAE0,
-/// variant id `poseN_livery_light`) backgrounds and writes every platform
-/// copy in place:
+/// The icon art is the standalone HELMET master (assets/avatar/helmet.svg) —
+/// helmets read far better at launcher size than the full-figure poses, so
+/// the gallery offers one helmet per livery (× dark/light background). The
+/// 24 variants reuse the already-registered `pose1_*` ids, so no native
+/// re-registration is needed; pose 2/3 ids stay registered but unbaked and
+/// hidden from the gallery (AvatarPose.hasBakedIcons).
+///
+/// Per variant id, every platform copy is written in place:
 ///
 ///   assets/avatar/icons/{id}.png            120px  (gallery preview)
 ///   ios/Runner/{id}@2x.png                  120px  (+ @3x 180px)
 ///   android .../mipmap-*/ic_launcher_{id}.png  48/72/96/144/192px
 ///
-/// New variants still need native registration (Info.plist, project.pbxproj,
-/// AndroidManifest activity-alias) — the bake only writes pixels.
+/// plus the PRIMARY app icon (all AppIcon.appiconset sizes + ic_launcher)
+/// from the Undercut helmet.
 const _bake = bool.fromEnvironment('BAKE');
 
 const _darkBg = Color(0xFF2E2C31);
 
 /// Ticket paper cream (ticket_capture.dart `_paper`) — the light-mode set.
 const _lightBg = Color(0xFFEFEAE0);
-
-/// Upper-body crop square per pose, in that pose's SVG coordinates.
-/// Pose 1 is the original bake square (AvatarConfig doc comment) — the
-/// primary app icon was baked with it, so it must not drift. Pose 2/3 were
-/// derived from the same figure-relative proportions, then tuned by eye on
-/// the rendered result.
-const _crops = {
-  AvatarPose.pose1: Rect.fromLTWH(130.4, -85.2, 1199.4, 1199.4),
-  AvatarPose.pose2: Rect.fromLTWH(-191.5, -101.2, 1271.0, 1271.0),
-  AvatarPose.pose3: Rect.fromLTWH(360.0, 290.0, 982.0, 982.0),
-};
 
 const _sizes = {
   'assets/avatar/icons/{id}.png': 120,
@@ -72,24 +65,82 @@ Future<void> _writeIcon(
   }
 }
 
+/// Primary launcher icon targets: every AppIcon.appiconset size (iOS) and the
+/// ic_launcher mipmaps (Android). Baked from the standalone helmet master in
+/// the Undercut livery — the brand icon.
+const _primarySizes = {
+  'ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-1024x1024@1x.png': 1024,
+  'ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-20x20@1x.png': 20,
+  'ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-20x20@2x.png': 40,
+  'ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-20x20@3x.png': 60,
+  'ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-29x29@1x.png': 29,
+  'ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-29x29@2x.png': 58,
+  'ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-29x29@3x.png': 87,
+  'ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-40x40@1x.png': 40,
+  'ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-40x40@2x.png': 80,
+  'ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-40x40@3x.png': 120,
+  'ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-60x60@2x.png': 120,
+  'ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-60x60@3x.png': 180,
+  'ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-76x76@1x.png': 76,
+  'ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-76x76@2x.png': 152,
+  'ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-83.5x83.5@2x.png': 167,
+  'android/app/src/main/res/mipmap-mdpi/ic_launcher.png': 48,
+  'android/app/src/main/res/mipmap-hdpi/ic_launcher.png': 72,
+  'android/app/src/main/res/mipmap-xhdpi/ic_launcher.png': 96,
+  'android/app/src/main/res/mipmap-xxhdpi/ic_launcher.png': 144,
+  'android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png': 192,
+};
+
+Future<void> _writePng(
+    SplashArt art, Rect crop, Color bg, String path, int size) async {
+  final rec = ui.PictureRecorder();
+  final canvas = Canvas(rec);
+  canvas.drawRect(
+      Rect.fromLTWH(0, 0, size.toDouble(), size.toDouble()),
+      Paint()..color = bg);
+  canvas
+    ..clipRect(Rect.fromLTWH(0, 0, size.toDouble(), size.toDouble()))
+    ..scale(size / crop.width)
+    ..translate(-crop.left, -crop.top);
+  debugPaintSplashArt(canvas, art, 1.0, 1.0);
+  final img = await rec.endRecording().toImage(size, size);
+  final bytes = await img.toByteData(format: ui.ImageByteFormat.png);
+  File(path).writeAsBytesSync(bytes!.buffer.asUint8List());
+}
+
 void main() {
-  testWidgets('bake launcher icons for every pose × livery × background',
+  testWidgets('bake helmet launcher icons (livery × background) + primary',
       (tester) async {
-    for (final pose in AvatarPose.values) {
-      final text =
-          await tester.runAsync(() => rootBundle.loadString(pose.asset));
-      final master = SplashArt.parse(text!);
-      final crop = _crops[pose]!;
-      await tester.runAsync(() async {
-        for (final preset in avatarPresets) {
-          final art = recolorArt(master, preset.ops);
-          final id = '${pose.name}_${preset.id}';
-          await _writeIcon(art, crop, _darkBg, id);
-          await _writeIcon(art, crop, _lightBg, '${id}_light');
-        }
-      });
-      // ignore: avoid_print
-      print('baked ${pose.name}: crop=$crop');
-    }
+    final text = await tester
+        .runAsync(() => rootBundle.loadString('assets/avatar/helmet.svg'));
+    final helmet = SplashArt.parse(text!);
+    final b = helmet.contentBounds;
+    // Padding factor: the square crop is the helmet's long side × this, so the
+    // helmet fills 1/factor of the frame (1.35 ≈ 74%, leaving a margin around
+    // the shell rather than bleeding to the icon edge).
+    final side = (b.width > b.height ? b.width : b.height) * 1.35;
+    final crop = Rect.fromCenter(center: b.center, width: side, height: side);
+
+    await tester.runAsync(() async {
+      // Gallery variants: one helmet per livery, dark + light. Reuses the
+      // pose1_* ids so the existing native registrations keep working.
+      for (final preset in avatarPresets) {
+        final art =
+            recolorArt(helmet, preset.ops, positionalRules: false);
+        final id = 'pose1_${preset.id}';
+        await _writeIcon(art, crop, _darkBg, id);
+        await _writeIcon(art, crop, _lightBg, '${id}_light');
+      }
+      // Primary app icon: the Undercut helmet. Shares the pose1_undercut art
+      // above, so "reset to default" previews exactly what the primary shows
+      // — AvatarConfig.defaultIcon relies on that identity.
+      final art =
+          recolorArt(helmet, presetById('undercut').ops, positionalRules: false);
+      for (final entry in _primarySizes.entries) {
+        await _writePng(art, crop, _darkBg, entry.key, entry.value);
+      }
+    });
+    // ignore: avoid_print
+    print('baked ${avatarPresets.length}×2 helmet variants + primary: crop=$crop');
   }, skip: !_bake);
 }
