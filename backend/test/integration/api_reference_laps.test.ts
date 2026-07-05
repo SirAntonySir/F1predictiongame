@@ -114,7 +114,7 @@ async function seedSprintWeekend() {
   })
   await mk('fp1', 0, 'finished')
   const sq = await mk('sprint_quali', 5, 'finished') // Fri
-  await mk('sprint', 25, 'finished') // Sat AM
+  const sprint = await mk('sprint', 25, 'finished') // Sat AM
   const quali = await mk('qualifying', 29, 'finished') // Sat PM
   const race = await mk('race', 52, 'scheduled') // Sun
 
@@ -137,7 +137,11 @@ async function seedSprintWeekend() {
       q1: '1:28.900', q2: '1:28.500', q3: '1:28.100'
     }
   ])
-  return { raceId: race.id!, qualiId: quali.id!, sqId: sq.id! }
+  // Sprint race best lap — the reference when predicting Qualifying.
+  await bestLaps.replaceForSession(sprint.id!, [
+    { driverCode: 'VER', lapMs: 90800, s1Ms: 30000, s2Ms: 30300, s3Ms: 30500, lapNumber: 12 }
+  ])
+  return { raceId: race.id!, qualiId: quali.id!, sqId: sq.id!, sprintId: sprint.id! }
 }
 
 describe('GET /api/sessions/:id/reference-laps — sprint weekend', () => {
@@ -154,6 +158,22 @@ describe('GET /api/sessions/:id/reference-laps — sprint weekend', () => {
     expect(body.references.every((r) => r.type === 'qualifying')).toBe(true)
     // Q1 lap is the qualifying's 1:28.900 (88900 ms), not SQ's 1:29.900.
     expect(body.references[0]!.laps.find((l) => l.driverCode === 'VER')!.lapMs).toBe(88900)
+  })
+
+  it('references the Saturday Sprint, not the Friday Sprint Quali, when predicting qualifying', async () => {
+    const { qualiId } = await seedSprintWeekend()
+    const app = await buildApp({ scheduler: null })
+    const res = await app.inject({ method: 'GET', url: `/api/sessions/${qualiId}/reference-laps` })
+    expect(res.statusCode).toBe(200)
+    const body = res.json() as {
+      references: { label: string; type: string; laps: { driverCode: string; lapMs: number }[] }[]
+    }
+    // Most recent finished session before Qualifying is the Sprint (a race, not
+    // a knockout) → no SQ expansion. Sprint is the last (most recent) column.
+    expect(body.references.map((r) => r.label)).toEqual(['FP1', 'SQ', 'SPR'])
+    expect(body.references.map((r) => r.label)).not.toContain('SQ1')
+    const spr = body.references.find((r) => r.label === 'SPR')!
+    expect(spr.laps.find((l) => l.driverCode === 'VER')!.lapMs).toBe(90800)
   })
 })
 

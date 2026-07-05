@@ -64,15 +64,20 @@ function parseLapMs(s: string | null): number | null {
 const TIER_RANK: Record<Tier, number> = { sessionBest: 2, personalBest: 1, neutral: 0 }
 const topTier = (a: Tier, b: Tier): Tier => (TIER_RANK[a] >= TIER_RANK[b] ? a : b)
 
-/// Pick the reference sessions for a predict session: all sessions of the same
-/// event that are finished, exclude the predict session itself, take the most
-/// recent three by scheduled start.
+/// Pick the reference sessions for a predict session: the finished sessions of
+/// the same event that ran *before* it, most recent three by scheduled start.
+/// Restricting to earlier sessions keeps "last available data" honest when the
+/// prev/next nav opens an already-finished session read-only (so a later
+/// session doesn't leak in as a reference).
 async function pickReferenceSessions(predictSessionId: number) {
   const predict = await sessionsRepo.getById(predictSessionId)
   if (!predict) throw new ApiError('NOT_FOUND', `Session ${predictSessionId} not found`)
   const all = await sessionsRepo.listForEvent(predict.eventId)
   const refs = all
-    .filter((s) => s.id !== predict.id && s.status === 'finished')
+    .filter((s) =>
+      s.id !== predict.id &&
+      s.status === 'finished' &&
+      s.scheduledStart.getTime() < predict.scheduledStart.getTime())
     .sort((a, b) => a.scheduledStart.getTime() - b.scheduledStart.getTime())
   const last3 = refs.slice(-3)
   return { predict, refs: last3 }
@@ -89,20 +94,26 @@ export async function registerReferenceLapsRoutes(app: FastifyInstance): Promise
         return { predictSessionId: predict.id, predictSessionType: predict.type, references: [] }
       }
 
-      // Qualifying breakdown: when a (sprint-)quali is among the references it
-      // carries more predictive signal as three knockout segments than as one
-      // best-of-session column, so we expand it into Q1/Q2/Q3 (or SQ1/SQ2/SQ3)
-      // and drop the other references — keeps the predict-screen header at
-      // ≤3 columns. Lap-time strings live in session_result.q1/q2/q3; we don't
-      // have per-knockout sectors so the expanded entries are lap-only.
-      // Most recent knockout session. On a sprint weekend BOTH the Friday
-      // Sprint Quali and the Saturday Qualifying are knockout sessions; the
-      // race must reference the later Qualifying (the grid-setting session /
-      // last available data), not the earlier Sprint Quali. `refs` is sorted
-      // oldest→newest, so scan from the end.
-      const knockoutRef = [...refs]
-        .reverse()
-        .find((r) => KNOCKOUT_LABEL_PREFIX[r.type] != null)
+      // Qualifying breakdown: a knockout (sprint-)quali carries more predictive
+      // signal as three segments (Q1/Q2/Q3 or SQ1/SQ2/SQ3) than as one
+      // best-of-session column, so we expand it and drop the other references —
+      // keeps the predict-screen header at ≤3 columns. Lap-time strings live in
+      // session_result.q1/q2/q3; no per-knockout sectors, so lap-only.
+      //
+      // Only expand when the quali IS the most recent reference — i.e. the last
+      // available data (`refs` is sorted oldest→newest). A sprint weekend has
+      // two knockout sessions, so this is what keeps each prediction on the
+      // right one:
+      //   - Race    → most recent is Saturday Qualifying → expand Q.
+      //   - Quali   → most recent is the Saturday Sprint (a race, not a
+      //               knockout) → NOT expanded; show the Sprint + earlier refs
+      //               instead of reaching back to the stale Friday Sprint Quali.
+      //   - Sprint  → most recent is the Friday Sprint Quali → expand SQ.
+      const mostRecentRef = refs[refs.length - 1]
+      const knockoutRef =
+        mostRecentRef != null && KNOCKOUT_LABEL_PREFIX[mostRecentRef.type] != null
+          ? mostRecentRef
+          : null
       if (knockoutRef != null) {
         const prefix = KNOCKOUT_LABEL_PREFIX[knockoutRef.type]!
         // Prefer knockout-tagged best-lap rows when ingestion has populated
