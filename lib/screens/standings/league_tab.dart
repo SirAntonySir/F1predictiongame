@@ -4,11 +4,13 @@ import 'package:go_router/go_router.dart';
 import 'package:skeletonizer/skeletonizer.dart';
 import '../../api/models/leaderboard_row.dart';
 import '../../avatar/avatar_palette.dart';
+import '../../avatar/avatar_render.dart';
 import '../../components/app_card.dart';
 import '../../components/avatar_thumbnail.dart';
 import '../../components/cached_view.dart';
 import '../../components/league_row.dart';
 import '../../components/racing_stripes.dart';
+import '../../domain/leaderboard_rank.dart';
 import '../../domain/leaderboard_trend.dart';
 import '../../state/app_state.dart';
 import '../../state/async_cache.dart';
@@ -121,8 +123,11 @@ class _LeagueTabState extends State<LeagueTab> {
         final extractor = _metric.extractor;
         // Hide players who haven't scored in the current metric yet — empty
         // rows in the podium / table just add noise and break the visual rank.
-        final sorted = [...rows.where((r) => extractor(r) > 0)]
-          ..sort((a, b) => extractor(b).compareTo(extractor(a)));
+        // rankLeaderboard sorts deterministically (metric, then total, then
+        // name) and assigns shared ranks to players level on the metric.
+        final ranked = rankLeaderboard(
+            rows.where((r) => extractor(r) > 0).toList(), extractor);
+        final sorted = [for (final e in ranked) e.row];
         if (sorted.isEmpty) {
           // ScrollView (not a Center) so pull-to-refresh works while empty —
           // that's exactly the state you'd pull to refresh out of.
@@ -172,7 +177,7 @@ class _LeagueTabState extends State<LeagueTab> {
               padding: const EdgeInsets.fromLTRB(
                   Spacing.lg, Spacing.xs, Spacing.lg, 0),
               child: _Podium(
-                rows: sorted.take(3).toList(),
+                entries: ranked.take(3).toList(),
                 points: extractor,
                 metricLabel: _metric.label,
               ),
@@ -216,7 +221,7 @@ class _LeagueTabState extends State<LeagueTab> {
                                 ? null
                                 : () => context.push('/league/$leagueId/player/${r.userId}'),
                             child: LeagueRow(
-                              rank: i + 1,
+                              rank: ranked[i].rank,
                               name: r.displayName,
                               avatarConfig: r.avatarConfig,
                               inSeasonPoints: r.inSeasonPoints,
@@ -321,22 +326,28 @@ class _MetricToggle extends StatelessWidget {
 /// brand-red fill, racing-stripe overlay, and a checkered finish strip across
 /// the bottom of the card.
 class _Podium extends StatelessWidget {
-  final List<LeaderboardRow> rows;
+  final List<RankedRow> entries;
   final int Function(LeaderboardRow) points;
   final String metricLabel;
   const _Podium({
-    required this.rows,
+    required this.entries,
     required this.points,
     required this.metricLabel,
   });
 
   @override
   Widget build(BuildContext context) {
-    if (rows.length < 3) return const SizedBox.shrink();
+    if (entries.length < 3) return const SizedBox.shrink();
     final t = Theme.of(context);
-    final first = rows[0];
-    final second = rows[1];
-    final third = rows[2];
+    final first = entries[0];
+    final second = entries[1];
+    final third = entries[2];
+    // Tapping a step opens that player's profile — same target as the table
+    // rows below. Null (placeholder / no league) leaves the steps inert.
+    final leagueId = AppState.of(context).league.league?.id;
+    VoidCallback? tap(RankedRow e) => leagueId == null
+        ? null
+        : () => context.push('/league/$leagueId/player/${e.row.userId}');
     return AppCard(
       background: t.mutedSurface,
       padding: EdgeInsets.zero,
@@ -360,26 +371,29 @@ class _Podium extends StatelessWidget {
                 children: [
                   Expanded(
                     child: _PodiumStep(
-                      row: second,
+                      entry: second,
                       pos: 2,
                       height: 104,
                       points: points,
+                      onTap: tap(second),
                     ),
                   ),
                   Expanded(
                     child: _PodiumStep(
-                      row: first,
+                      entry: first,
                       pos: 1,
                       height: 138,
                       points: points,
+                      onTap: tap(first),
                     ),
                   ),
                   Expanded(
                     child: _PodiumStep(
-                      row: third,
+                      entry: third,
                       pos: 3,
                       height: 82,
                       points: points,
+                      onTap: tap(third),
                     ),
                   ),
                 ],
@@ -398,20 +412,26 @@ class _Podium extends StatelessWidget {
 }
 
 class _PodiumStep extends StatelessWidget {
-  final LeaderboardRow row;
+  final RankedRow entry;
   final int pos;
   final double height;
   final int Function(LeaderboardRow) points;
+  final VoidCallback? onTap;
 
   const _PodiumStep({
-    required this.row,
+    required this.entry,
     required this.pos,
     required this.height,
     required this.points,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
+    final row = entry.row;
+    // pos = physical step placement (drives colour/height); rank = competition
+    // rank (drives the label), so two players level on points both read "P1".
+    final rank = entry.rank;
     final isLeader = pos == 1;
     final stepColor = switch (pos) {
       1 => BrandColors.accent,
@@ -419,10 +439,13 @@ class _PodiumStep extends StatelessWidget {
       _ => const Color(0xFFC08350),
     };
     final onColor = isLeader ? Colors.white : Colors.black;
-    final posLabel = pos.toString().padLeft(2, '0');
+    final posLabel = rank.toString().padLeft(2, '0');
     // Borders share edges between neighbours: 2nd drops its right, 3rd drops
     // its left, so every seam stays a uniform 2px line.
-    return Container(
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Container(
       height: height,
       decoration: BoxDecoration(
         color: stepColor,
@@ -461,11 +484,14 @@ class _PodiumStep extends StatelessWidget {
               // Driver bust, centered in the step behind the name/points.
               // Forced to the crossed-arms pose and mirrored left-to-right so
               // all three podium figures read as one matched, podium-facing set.
+              // P1 uses a taller crop so its bust is less cut off at the bottom
+              // — you see more of the figure on the winner's step.
               Positioned.fill(
                 child: AvatarBust(
                   configJson: row.avatarConfig,
                   forcePose: AvatarPose.pose2,
                   mirror: true,
+                  crop: isLeader ? AvatarCrop.bustTall : AvatarCrop.bust,
                 ),
               ),
               Padding(
@@ -477,8 +503,10 @@ class _PodiumStep extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 6, vertical: 2),
                       color: isLeader ? Colors.white : Colors.black,
+                      // Shared competition rank — two players level on points
+                      // both read "P1" (the tiebreaker only picks the step).
                       child: Text(
-                        'P$pos',
+                        'P$rank',
                         style: AppText.label(
                           9,
                           color: isLeader ? Colors.black : Colors.white,
@@ -526,7 +554,8 @@ class _PodiumStep extends StatelessWidget {
             ],
           ),
         ),
-      );
+      ),
+    );
   }
 }
 

@@ -41,16 +41,26 @@ class AvatarRenderer {
   }
 
   /// Crop rect (SVG coords) for a pose + style. The tight [head] shot is
-  /// anchored on the helmet; the [bust] spans the figure's full width so the
-  /// raised arm is never clipped. Both derive from the master art, whose
-  /// geometry is shared with the recolored art.
+  /// anchored on the helmet; [bust] spans the figure's full width (raised arm
+  /// never clipped); [bustTall] keeps that width but extends further down the
+  /// body. All derive from the master art, whose geometry is shared with the
+  /// recolored art.
   Rect _cropForPose(AvatarPose pose, SplashArt master, AvatarCrop crop) {
-    return _cropByPose.putIfAbsent('${pose.asset}|${crop.name}',
-        () => crop == AvatarCrop.bust ? bustCropOf(master) : headCropOf(master));
+    return _cropByPose.putIfAbsent('${pose.asset}|${crop.name}', () {
+      switch (crop) {
+        case AvatarCrop.head:
+          return headCropOf(master);
+        case AvatarCrop.bust:
+          return bustCropOf(master);
+        case AvatarCrop.bustTall:
+          return bustCropOf(master, heightFactor: 1.35);
+      }
+    });
   }
 
-  /// Cropped avatar [ui.Image] for [config] at [sizePx]. Transparent
-  /// background (the widget supplies any disc/gradient behind it).
+  /// Cropped avatar [ui.Image] for [config] at [sizePx] (image width; height
+  /// follows the crop's aspect, so taller crops yield taller images).
+  /// Transparent background (the widget supplies any disc/gradient behind it).
   Future<ui.Image> headThumbnail(AvatarConfig config, int sizePx,
       {AvatarCrop crop = AvatarCrop.head}) {
     final key = '${config.pose.name}|${crop.name}|${config.toJson()}|$sizePx';
@@ -61,12 +71,14 @@ class AvatarRenderer {
       final cropRect = _cropForPose(config.pose, master, crop);
       final recolored = recolorArt(master, config.ops);
 
+      final scale = sizePx / cropRect.width;
+      final heightPx = (cropRect.height * scale).round();
       final rec = ui.PictureRecorder();
       final canvas = Canvas(rec);
-      canvas.scale(sizePx / cropRect.width);
+      canvas.scale(scale);
       canvas.translate(-cropRect.left, -cropRect.top);
       paintSplashArt(canvas, recolored);
-      final img = await rec.endRecording().toImage(sizePx, sizePx);
+      final img = await rec.endRecording().toImage(sizePx, heightPx);
 
       _imageFutures.remove(key);
       _images[key] = img;
@@ -79,8 +91,8 @@ class AvatarRenderer {
   }
 }
 
-/// The two crop framings [AvatarRenderer] can produce.
-enum AvatarCrop { head, bust }
+/// The crop framings [AvatarRenderer] can produce.
+enum AvatarCrop { head, bust, bustTall }
 
 /// Tunables for the tight head crop, derived from the helmet shell. Public so
 /// a test can assert the framing stays sane if a pose SVG is regenerated.
@@ -124,13 +136,15 @@ Rect helmetCropOf(SplashArt master,
 /// Back-compat alias used by tests: the default (head) framing.
 Rect headCropOf(SplashArt master) => helmetCropOf(master);
 
-/// Head + shoulders + torso + arms crop (app-icon framing). A square as wide
-/// as the figure's content bounds, top-anchored — so the raised arm, which
-/// defines that width, is always included — showing the top portion of the
-/// figure down to torso height.
-Rect bustCropOf(SplashArt master) {
+/// Head + shoulders + torso + arms crop (app-icon framing). As wide as the
+/// figure's content bounds, top-anchored — so the raised arm, which defines
+/// that width, is always included. Height defaults to a square ([heightFactor]
+/// = 1.0); a larger factor extends the crop further down the body (less of the
+/// figure cut off) while keeping the same top and width.
+Rect bustCropOf(SplashArt master, {double heightFactor = 1.0}) {
   final b = master.contentBounds;
   final side = b.width;
   final top = b.top - b.height * 0.02; // slight headroom
-  return Rect.fromLTWH(b.center.dx - side / 2, top, side, side);
+  return Rect.fromLTWH(
+      b.center.dx - side / 2, top, side, side * heightFactor);
 }

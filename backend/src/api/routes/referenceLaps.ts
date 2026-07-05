@@ -73,6 +73,7 @@ async function pickReferenceSessions(predictSessionId: number) {
   const predict = await sessionsRepo.getById(predictSessionId)
   if (!predict) throw new ApiError('NOT_FOUND', `Session ${predictSessionId} not found`)
   const all = await sessionsRepo.listForEvent(predict.eventId)
+  const isSprintWeekend = all.some((s) => s.type === 'sprint' || s.type === 'sprint_quali')
   const refs = all
     .filter((s) =>
       s.id !== predict.id &&
@@ -80,7 +81,7 @@ async function pickReferenceSessions(predictSessionId: number) {
       s.scheduledStart.getTime() < predict.scheduledStart.getTime())
     .sort((a, b) => a.scheduledStart.getTime() - b.scheduledStart.getTime())
   const last3 = refs.slice(-3)
-  return { predict, refs: last3 }
+  return { predict, refs: last3, isSprintWeekend }
 }
 
 export async function registerReferenceLapsRoutes(app: FastifyInstance): Promise<void> {
@@ -89,29 +90,27 @@ export async function registerReferenceLapsRoutes(app: FastifyInstance): Promise
     async (req) => {
       const id = Number(req.params.id)
       if (!Number.isFinite(id)) throw new ApiError('BAD_REQUEST', 'id must be a number')
-      const { predict, refs } = await pickReferenceSessions(id)
+      const { predict, refs, isSprintWeekend } = await pickReferenceSessions(id)
       if (refs.length === 0) {
         return { predictSessionId: predict.id, predictSessionType: predict.type, references: [] }
       }
 
-      // Qualifying breakdown: a knockout (sprint-)quali carries more predictive
-      // signal as three segments (Q1/Q2/Q3 or SQ1/SQ2/SQ3) than as one
-      // best-of-session column, so we expand it and drop the other references —
-      // keeps the predict-screen header at ≤3 columns. Lap-time strings live in
-      // session_result.q1/q2/q3; no per-knockout sectors, so lap-only.
+      // Qualifying breakdown (NORMAL weekends only): a quali carries more
+      // predictive signal as three segments (Q1/Q2/Q3) than as one best-of-
+      // session column, so we expand it and drop the other references. Lap-time
+      // strings live in session_result.q1/q2/q3; no per-knockout sectors, so
+      // lap-only.
       //
-      // Only expand when the quali IS the most recent reference — i.e. the last
-      // available data (`refs` is sorted oldest→newest). A sprint weekend has
-      // two knockout sessions, so this is what keeps each prediction on the
-      // right one:
-      //   - Race    → most recent is Saturday Qualifying → expand Q.
-      //   - Quali   → most recent is the Saturday Sprint (a race, not a
-      //               knockout) → NOT expanded; show the Sprint + earlier refs
-      //               instead of reaching back to the stale Friday Sprint Quali.
-      //   - Sprint  → most recent is the Friday Sprint Quali → expand SQ.
+      // On a SPRINT weekend we don't expand — there are three relevant sessions
+      // (Sprint Quali, Sprint, Qualifying) and the user wants to see all of
+      // them, each as a single session-best column (below), rather than one
+      // quali's segments. Only expand when the quali is the most recent
+      // reference (the last available data) AND it's a normal weekend.
       const mostRecentRef = refs[refs.length - 1]
       const knockoutRef =
-        mostRecentRef != null && KNOCKOUT_LABEL_PREFIX[mostRecentRef.type] != null
+        !isSprintWeekend &&
+        mostRecentRef != null &&
+        KNOCKOUT_LABEL_PREFIX[mostRecentRef.type] != null
           ? mostRecentRef
           : null
       if (knockoutRef != null) {
@@ -201,7 +200,18 @@ export async function registerReferenceLapsRoutes(app: FastifyInstance): Promise
       }
 
       const sessionIds = refs.map((r) => r.id)
-      const allLaps = await bestLapsRepo.listForSessions(sessionIds)
+      const rawLaps = await bestLapsRepo.listForSessions(sessionIds)
+      // One best lap per (session, driver): a quali session stores a row per
+      // knockout (Q1/Q2/Q3), so collapse to each driver's fastest — the column
+      // then reads as that session's best, not just the driver's Q1 lap. FP and
+      // sprint sessions already have a single row per driver (no-op there).
+      const bestByKey = new Map<string, (typeof rawLaps)[number]>()
+      for (const l of rawLaps) {
+        const key = `${l.sessionId}|${l.driverCode}`
+        const cur = bestByKey.get(key)
+        if (cur == null || l.lapMs < cur.lapMs) bestByKey.set(key, l)
+      }
+      const allLaps = [...bestByKey.values()]
 
       // Driver → constructor lookup, built from session_result rows of the
       // reference sessions. Lets the frontend show team color for drivers who

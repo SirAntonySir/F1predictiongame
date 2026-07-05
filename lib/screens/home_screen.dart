@@ -14,6 +14,7 @@ import '../components/countdown.dart';
 import '../components/league_row.dart' show LeagueRowYouBadge;
 import '../components/error_view.dart';
 import '../components/trend_badge.dart';
+import '../domain/leaderboard_rank.dart';
 import '../domain/leaderboard_trend.dart';
 import '../domain/live_session.dart';
 import '../components/racing_stripes.dart';
@@ -834,8 +835,11 @@ class _HomeScreenState extends State<HomeScreen> {
   }) {
     // Hide players who haven't scored in the current metric yet — a row of
     // zeros adds noise to the home preview without conveying any standing.
-    final preview = [...rows.where((r) => points(r) > 0)]
-      ..sort((a, b) => points(b).compareTo(points(a)));
+    // rankLeaderboard matches the standings tab: deterministic order (metric,
+    // then total, then name) with shared ranks for players level on points.
+    final ranked =
+        rankLeaderboard(rows.where((r) => points(r) > 0).toList(), points);
+    final preview = [for (final e in ranked) e.row];
     // Trend across the FULL filtered preview, not just the visible 4 — the
     // arrow on row 4 should reflect what happened across the whole league.
     final trendByUser = computeLeaderboardTrend(
@@ -856,7 +860,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       );
     }
-    final top = preview.take(4).toList();
+    final top = ranked.take(4).toList();
     final leagueId = AppState.of(context).league.league?.id;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
@@ -871,7 +875,7 @@ class _HomeScreenState extends State<HomeScreen> {
         clipBehavior: Clip.antiAlias,
         child: Column(
           children: List.generate(top.length, (i) {
-            final r = top[i];
+            final r = top[i].row;
             final isMe = r.userId == meId;
             return InkWell(
               onTap: leagueId == null
@@ -893,7 +897,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   children: [
                     SizedBox(
                       width: 22,
-                      child: Text('${i + 1}',
+                      child: Text('${top[i].rank}',
                           style: AppText.display(13,
                               color: isMe
                                   ? BrandColors.accent

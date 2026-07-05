@@ -2,18 +2,33 @@ import 'package:flutter/material.dart';
 
 import '../theme/app_theme.dart';
 import '../theme/tokens.dart';
+import '../theme/typography.dart';
 import 'branded_sheet.dart';
 
+/// A color already in use by another region, offered as a "match" chip.
+typedef MatchColor = ({String label, Color color});
+
 /// House-style HSV color picker in a bottom sheet: shade square, hue bar,
-/// quick swatches. Pops with the chosen [Color], or null on cancel.
+/// quick swatches, plus optional [matchColors] chips (colors already applied
+/// to other regions, for matching). Pops with the chosen [Color], or null on
+/// cancel.
+///
+/// Drag-to-dismiss is disabled: the shade square and hue bar own their drag
+/// gestures, so a draggable sheet would slide away mid-pick.
 Future<Color?> showColorPickerSheet(
   BuildContext context, {
   required String title,
   required Color initial,
+  List<MatchColor> matchColors = const [],
 }) {
   return showBrandedSheet<Color>(
     context,
-    builder: (ctx) => _ColorPickerSheet(title: title, initial: initial),
+    enableDrag: false,
+    builder: (ctx) => _ColorPickerSheet(
+      title: title,
+      initial: initial,
+      matchColors: matchColors,
+    ),
   );
 }
 
@@ -35,7 +50,12 @@ const _quickSwatches = <Color>[
 class _ColorPickerSheet extends StatefulWidget {
   final String title;
   final Color initial;
-  const _ColorPickerSheet({required this.title, required this.initial});
+  final List<MatchColor> matchColors;
+  const _ColorPickerSheet({
+    required this.title,
+    required this.initial,
+    this.matchColors = const [],
+  });
 
   @override
   State<_ColorPickerSheet> createState() => _ColorPickerSheetState();
@@ -75,6 +95,34 @@ class _ColorPickerSheetState extends State<_ColorPickerSheet> {
                 ),
             ],
           ),
+          if (widget.matchColors.isNotEmpty) ...[
+            const SizedBox(height: Spacing.lg),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text('MATCH ANOTHER REGION',
+                  style: AppText.label(10,
+                      color: Theme.of(context)
+                          .colorScheme
+                          .onSurface
+                          .withValues(alpha: 0.5))),
+            ),
+            const SizedBox(height: Spacing.sm),
+            Wrap(
+              spacing: Spacing.xs,
+              runSpacing: Spacing.xs,
+              children: [
+                for (final m in widget.matchColors)
+                  _MatchChip(
+                    label: m.label,
+                    color: m.color,
+                    selected:
+                        m.color.toARGB32() == _hsv.toColor().toARGB32(),
+                    onTap: () =>
+                        setState(() => _hsv = HSVColor.fromColor(m.color)),
+                  ),
+              ],
+            ),
+          ],
         ],
       ),
       primaryLabel: 'Apply',
@@ -106,6 +154,56 @@ class _SwatchDot extends StatelessWidget {
             color: selected ? t.colorScheme.onSurface : t.strokeColor,
             width: selected ? 2 : Strokes.subtle,
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A pill showing another region's current color + name. Tapping loads that
+/// color into the picker so the user can match regions.
+class _MatchChip extends StatelessWidget {
+  final String label;
+  final Color color;
+  final bool selected;
+  final VoidCallback onTap;
+  const _MatchChip({
+    required this.label,
+    required this.color,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Theme.of(context);
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+        decoration: BoxDecoration(
+          border: Border.all(
+            color: selected ? t.colorScheme.onSurface : t.strokeColor,
+            width: selected ? 1.5 : Strokes.subtle,
+          ),
+          borderRadius: const BorderRadius.all(Radius.circular(999)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 14,
+              height: 14,
+              decoration: BoxDecoration(
+                color: color,
+                shape: BoxShape.circle,
+                border: Border.all(color: t.strokeColor, width: Strokes.subtle),
+              ),
+            ),
+            const SizedBox(width: 6),
+            Text(label.toUpperCase(),
+                style: AppText.label(9, color: t.colorScheme.onSurface)),
+          ],
         ),
       ),
     );

@@ -11,11 +11,17 @@ import 'big_pill.dart';
 Future<T?> showBrandedSheet<T>(
   BuildContext context, {
   required WidgetBuilder builder,
+  /// Drag-to-dismiss. Disable for sheets whose body needs its own drag
+  /// gestures (e.g. the color picker's shade square), otherwise the sheet's
+  /// dismiss recognizer wins the gesture arena and the sheet slides away
+  /// mid-drag. Barrier-tap and the Cancel action still dismiss.
+  bool enableDrag = true,
 }) {
   return showModalBottomSheet<T>(
     context: context,
     backgroundColor: Theme.of(context).colorScheme.surface,
     isScrollControlled: true,
+    enableDrag: enableDrag,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
     ),

@@ -18,7 +18,12 @@ class AvatarBust extends StatefulWidget {
   /// Fade the figure out toward the bottom (so overlaid stats stay readable).
   final bool bottomFade;
 
-  /// Logical raster size; the image is cached by (pose, config, sizePx).
+  /// Framing: [AvatarCrop.bust] (head→mid-torso square) or [AvatarCrop.bustTall]
+  /// (extends further down the body, so less of the figure is cut off — used
+  /// for the P1 podium step).
+  final AvatarCrop crop;
+
+  /// Logical raster width; the image is cached by (pose, config, crop, sizePx).
   final double resolution;
 
   /// When set, render this pose instead of the one saved in [configJson]
@@ -33,6 +38,7 @@ class AvatarBust extends StatefulWidget {
     super.key,
     required this.configJson,
     this.bottomFade = true,
+    this.crop = AvatarCrop.bust,
     this.resolution = 300,
     this.forcePose,
     this.mirror = false,
@@ -57,7 +63,8 @@ class _AvatarBustState extends State<AvatarBust> {
     super.didUpdateWidget(old);
     if (old.configJson != widget.configJson ||
         old.resolution != widget.resolution ||
-        old.forcePose != widget.forcePose) {
+        old.forcePose != widget.forcePose ||
+        old.crop != widget.crop) {
       _image = null;
       _sizePx = 0;
       _resolve();
@@ -74,7 +81,7 @@ class _AvatarBustState extends State<AvatarBust> {
       config = config.copyWith(pose: widget.forcePose);
     }
     AvatarRenderer.instance
-        .headThumbnail(config, sizePx, crop: AvatarCrop.bust)
+        .headThumbnail(config, sizePx, crop: widget.crop)
         .then((img) {
       if (mounted && _sizePx == sizePx) setState(() => _image = img);
     });

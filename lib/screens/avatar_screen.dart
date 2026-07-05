@@ -177,6 +177,16 @@ class _AvatarScreenState extends State<AvatarScreen> {
                           context,
                           title: region.label,
                           initial: region.swatchFor(config.ops),
+                          // Every other region's current color, so the user
+                          // can tap to match liveries across regions.
+                          matchColors: [
+                            for (final other in AvatarRegion.values)
+                              if (other != region)
+                                (
+                                  label: other.label,
+                                  color: other.swatchFor(config.ops)
+                                ),
+                          ],
                         );
                         if (picked != null) {
                           _edit(config.copyWith(

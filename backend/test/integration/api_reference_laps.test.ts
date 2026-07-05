@@ -112,7 +112,7 @@ async function seedSprintWeekend() {
     scheduledStart: new Date(t0 + offH * h), scheduledEnd: new Date(t0 + offH * h + h),
     status: status as never, openf1SessionKey: null
   })
-  await mk('fp1', 0, 'finished')
+  const fp1 = await mk('fp1', 0, 'finished')
   const sq = await mk('sprint_quali', 5, 'finished') // Fri
   const sprint = await mk('sprint', 25, 'finished') // Sat AM
   const quali = await mk('qualifying', 29, 'finished') // Sat PM
@@ -137,15 +137,35 @@ async function seedSprintWeekend() {
       q1: '1:28.900', q2: '1:28.500', q3: '1:28.100'
     }
   ])
-  // Sprint race best lap — the reference when predicting Qualifying.
+  // Per-session best laps. Quali sessions store one row per knockout — the
+  // sprint-weekend view collapses each to the driver's fastest (SQ→89100 for
+  // VER, Q→88100), so a column reads as that session's best, not its Q1.
+  await bestLaps.replaceForSession(fp1.id!, [
+    { driverCode: 'VER', lapMs: 90000, s1Ms: 30000, s2Ms: 30000, s3Ms: 30000, lapNumber: 6 }
+  ])
+  await bestLaps.replaceForSession(sq.id!, [
+    { driverCode: 'VER', knockout: 1, lapMs: 89900, s1Ms: 30000, s2Ms: 30000, s3Ms: 29900, lapNumber: 3 },
+    { driverCode: 'VER', knockout: 2, lapMs: 89500, s1Ms: 29900, s2Ms: 29900, s3Ms: 29700, lapNumber: 8 },
+    { driverCode: 'VER', knockout: 3, lapMs: 89100, s1Ms: 29800, s2Ms: 29800, s3Ms: 29500, lapNumber: 14 }
+  ])
   await bestLaps.replaceForSession(sprint.id!, [
     { driverCode: 'VER', lapMs: 90800, s1Ms: 30000, s2Ms: 30300, s3Ms: 30500, lapNumber: 12 }
+  ])
+  await bestLaps.replaceForSession(quali.id!, [
+    { driverCode: 'VER', knockout: 1, lapMs: 88900, s1Ms: 29600, s2Ms: 29700, s3Ms: 29600, lapNumber: 4 },
+    { driverCode: 'VER', knockout: 2, lapMs: 88500, s1Ms: 29500, s2Ms: 29600, s3Ms: 29400, lapNumber: 9 },
+    { driverCode: 'VER', knockout: 3, lapMs: 88100, s1Ms: 29400, s2Ms: 29500, s3Ms: 29200, lapNumber: 15 }
   ])
   return { raceId: race.id!, qualiId: quali.id!, sqId: sq.id!, sprintId: sprint.id! }
 }
 
-describe('GET /api/sessions/:id/reference-laps — sprint weekend', () => {
-  it('references the Saturday Qualifying, not the Friday Sprint Quali, when predicting the race', async () => {
+describe('GET /api/sessions/:id/reference-laps — sprint weekend (session-best columns)', () => {
+  const verLap = (
+    refs: { label: string; laps: { driverCode: string; lapMs: number }[] }[],
+    label: string
+  ) => refs.find((r) => r.label === label)!.laps.find((l) => l.driverCode === 'VER')!.lapMs
+
+  it('predicting the race shows Sprint Quali + Sprint + Qualifying, each a session best', async () => {
     const { raceId } = await seedSprintWeekend()
     const app = await buildApp({ scheduler: null })
     const res = await app.inject({ method: 'GET', url: `/api/sessions/${raceId}/reference-laps` })
@@ -153,27 +173,29 @@ describe('GET /api/sessions/:id/reference-laps — sprint weekend', () => {
     const body = res.json() as {
       references: { label: string; type: string; laps: { driverCode: string; lapMs: number }[] }[]
     }
-    // The most recent knockout is Q (Sat), not SQ (Fri) — labels + times prove it.
-    expect(body.references.map((r) => r.label)).toEqual(['Q1', 'Q2', 'Q3'])
-    expect(body.references.every((r) => r.type === 'qualifying')).toBe(true)
-    // Q1 lap is the qualifying's 1:28.900 (88900 ms), not SQ's 1:29.900.
-    expect(body.references[0]!.laps.find((l) => l.driverCode === 'VER')!.lapMs).toBe(88900)
+    // No segment expansion on a sprint weekend — three single columns instead.
+    expect(body.references.map((r) => r.label)).toEqual(['SQ', 'SPR', 'Q'])
+    // Q column is the best of Q1/Q2/Q3 (88100), not just Q1 (88900); SQ is the
+    // best of SQ1/SQ2/SQ3 (89100); SPR is the sprint's lap.
+    expect(verLap(body.references, 'Q')).toBe(88100)
+    expect(verLap(body.references, 'SQ')).toBe(89100)
+    expect(verLap(body.references, 'SPR')).toBe(90800)
   })
 
-  it('references the Saturday Sprint, not the Friday Sprint Quali, when predicting qualifying', async () => {
+  it('predicting qualifying shows FP1 + Sprint Quali (session best) + Sprint', async () => {
     const { qualiId } = await seedSprintWeekend()
     const app = await buildApp({ scheduler: null })
     const res = await app.inject({ method: 'GET', url: `/api/sessions/${qualiId}/reference-laps` })
     expect(res.statusCode).toBe(200)
     const body = res.json() as {
-      references: { label: string; type: string; laps: { driverCode: string; lapMs: number }[] }[]
+      references: { label: string; laps: { driverCode: string; lapMs: number }[] }[]
     }
-    // Most recent finished session before Qualifying is the Sprint (a race, not
-    // a knockout) → no SQ expansion. Sprint is the last (most recent) column.
     expect(body.references.map((r) => r.label)).toEqual(['FP1', 'SQ', 'SPR'])
     expect(body.references.map((r) => r.label)).not.toContain('SQ1')
-    const spr = body.references.find((r) => r.label === 'SPR')!
-    expect(spr.laps.find((l) => l.driverCode === 'VER')!.lapMs).toBe(90800)
+    // SQ column is the best of SQ1/SQ2/SQ3 (89100), not just SQ1 (89900).
+    expect(verLap(body.references, 'SQ')).toBe(89100)
+    expect(verLap(body.references, 'SPR')).toBe(90800)
+    expect(verLap(body.references, 'FP1')).toBe(90000)
   })
 })
 
