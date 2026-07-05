@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Results podium — modal mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=IBM+Plex+Mono:wght@500;700&family=Special+Elite&display=swap" rel="stylesheet" />
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh;
+    background: #060607;
+    display: flex; align-items: flex-end; justify-content: center;
+    font-family: 'IBM Plex Mono', monospace;
+    padding: 40px 0 0;
+  }
+  /* phone frame */
+  .phone { width: 390px; min-height: 100vh; background:
+      radial-gradient(120% 50% at 50% 0%, #17181c, #08090b 60%);
+    position: relative; overflow: hidden; }
+  .dim { position:absolute; inset:0; background: rgba(0,0,0,.55); }
+
+  /* ---- Sheet -------------------------------------------------------- */
+  .sheet {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    background: linear-gradient(#16171b, #101114);
+    border-top-left-radius: 20px; border-top-right-radius: 20px;
+    border-top: 1px solid #2a2c31;
+    padding: 10px 0 26px;
+    box-shadow: 0 -20px 60px rgba(0,0,0,.6);
+  }
+  .handle { width: 42px; height: 4px; border-radius: 2px; background: #3a3d43; margin: 4px auto 12px; }
+  .close {
+    position: absolute; top: 12px; right: 14px; z-index: 6;
+    width: 30px; height: 30px; border-radius: 50%;
+    background: rgba(255,255,255,.06); border: 1px solid #2a2c31;
+    color: #b9b8bf; font-size: 16px; line-height: 28px; text-align: center;
+    cursor: pointer;
+  }
+
+  .head { text-align: center; padding: 0 20px 4px; }
+  .eyebrow { font-size: 10px; letter-spacing: 3px; color: #ff5c3a; font-weight: 700; }
+  .title { font-family: 'Oswald'; font-weight: 700; font-size: 22px; letter-spacing: .5px; color: #f4f2ec; margin: 3px 0 0; }
+  .subttl { font-size: 11px; letter-spacing: 1px; color: #85848c; margin-top: 2px; }
+
+  /* ---- Stage -------------------------------------------------------- */
+  .stage {
+    position: relative; height: 300px; margin: 6px 8px 0;
+    display: flex; align-items: flex-end; justify-content: center;
+  }
+  /* spotlight behind winner */
+  .stage::before {
+    content:''; position:absolute; left:50%; top:8%; width: 230px; height: 230px;
+    transform: translateX(-50%);
+    background: radial-gradient(circle, rgba(255,207,107,.18), transparent 65%);
+    pointer-events:none;
+  }
+
+  .fig { position: absolute; bottom: 0; display: flex; flex-direction: column; align-items: center; }
+  .fig .bust { position: relative; }
+
+  /* avatar bust (stylised placeholder for AvatarBust) */
+  .avatar { position: relative; }
+  .avatar .shoulders {
+    width: var(--w); height: calc(var(--w) * .62);
+    background: linear-gradient(160deg, var(--c1), var(--c2));
+    border-radius: 40% 40% 22px 22px / 60% 60% 22px 22px;
+    -webkit-mask: linear-gradient(#000 55%, transparent);
+            mask: linear-gradient(#000 55%, transparent);
+  }
+  .avatar .helmet {
+    position: absolute; left: 50%; top: calc(var(--w) * -0.36); transform: translateX(-50%);
+    width: calc(var(--w) * .52); height: calc(var(--w) * .56);
+    background: linear-gradient(150deg, var(--c1), var(--c2));
+    border-radius: 48% 48% 44% 44% / 54% 54% 46% 46%;
+    box-shadow: inset 0 -6px 10px rgba(0,0,0,.35);
+  }
+  .avatar .visor {
+    position: absolute; left: 50%; top: calc(var(--w) * -0.14); transform: translateX(-50%);
+    width: calc(var(--w) * .42); height: calc(var(--w) * .16);
+    background: #0c0d10; border-radius: 8px;
+    box-shadow: inset 0 1px 2px rgba(120,200,255,.25);
+  }
+  .avatar.mirror { transform: scaleX(-1); }
+
+  /* ranked placement */
+  .fig.second { left: 12px;  z-index: 1; --w: 132px; opacity:.96; }
+  .fig.third  { right: 12px; z-index: 1; --w: 132px; opacity:.96; }
+  .fig.first  { z-index: 3; --w: 176px; }
+  .fig.second .bust, .fig.third .bust { filter: brightness(.82) saturate(.9); }
+
+  /* labels under each figure — sit inside the bottom gradient scrim */
+  .scrim {
+    position: absolute; left: 0; right: 0; bottom: 0; height: 118px;
+    background: linear-gradient(transparent, #101114 62%);
+    pointer-events: none;
+  }
+  .label { text-align: center; margin-top: 6px; position: relative; z-index: 4; }
+  .medal {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 22px; height: 22px; border-radius: 50%; font-family:'Oswald'; font-weight:700;
+    font-size: 13px; color: #14151a; margin-bottom: 4px;
+  }
+  .first  .medal { background: linear-gradient(#ffe08a, #f2b33a); box-shadow: 0 0 14px rgba(255,207,107,.5); }
+  .second .medal { background: linear-gradient(#e8eef4, #b7c2cc); }
+  .third  .medal { background: linear-gradient(#f0b184, #d07a44); }
+  .name { font-family:'Oswald'; font-weight:600; letter-spacing:.5px; color:#f4f2ec; }
+  .first .name { font-size: 17px; }
+  .second .name, .third .name { font-size: 13px; color:#cfcdd4; }
+  .pts { font-family:'Special Elite'; color: var(--accent); margin-top: 1px; }
+  .first .pts { font-size: 20px; --accent:#ffcf6b; }
+  .second .pts { font-size: 15px; --accent:#c9d2da; }
+  .third .pts { font-size: 15px; --accent:#e0955a; }
+
+  .cta { margin: 8px 20px 0; }
+  .cta button {
+    width: 100%; padding: 14px; border: none; border-radius: 14px;
+    background: #ff3b30; color: #fff; font-family:'Oswald'; font-weight:700;
+    letter-spacing: 1px; font-size: 15px;
+  }
+</style>
+</head>
+<body>
+  <div class="phone">
+    <div class="dim"></div>
+    <div class="sheet">
+      <div class="handle"></div>
+      <div class="close">✕</div>
+      <div class="head">
+        <div class="eyebrow">RESULTS ARE IN</div>
+        <div class="title">BRITISH GRAND PRIX</div>
+        <div class="subttl">Race · Round 09 — league podium</div>
+      </div>
+
+      <div class="stage">
+        <div class="scrim"></div>
+
+        <!-- 2nd — pose2, left, behind, smaller -->
+        <div class="fig second">
+          <div class="bust">
+            <div class="avatar">
+              <div class="shoulders" style="--c1:#37e7ff;--c2:#1f8fb0"></div>
+              <div class="helmet"  style="--c1:#37e7ff;--c2:#1f8fb0"></div>
+              <div class="visor"></div>
+            </div>
+          </div>
+          <div class="label">
+            <div class="medal">2</div>
+            <div class="name">LUKAS</div>
+            <div class="pts">+16</div>
+          </div>
+        </div>
+
+        <!-- 3rd — pose2 MIRRORED, right, behind, smaller -->
+        <div class="fig third">
+          <div class="bust">
+            <div class="avatar mirror">
+              <div class="shoulders" style="--c1:#ff8700;--c2:#b85e00"></div>
+              <div class="helmet"  style="--c1:#ff8700;--c2:#b85e00"></div>
+              <div class="visor"></div>
+            </div>
+          </div>
+          <div class="label">
+            <div class="medal">3</div>
+            <div class="name">SIMON</div>
+            <div class="pts">+12</div>
+          </div>
+        </div>
+
+        <!-- 1st — pose1, front-center, largest -->
+        <div class="fig first">
+          <div class="bust">
+            <div class="avatar">
+              <div class="shoulders" style="--c1:#e10600;--c2:#8a0400"></div>
+              <div class="helmet"  style="--c1:#e10600;--c2:#8a0400"></div>
+              <div class="visor"></div>
+            </div>
+          </div>
+          <div class="label">
+            <div class="medal">1</div>
+            <div class="name">ANTON</div>
+            <div class="pts">+24</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="cta"><button>NICE</button></div>
+    </div>
+  </div>
+</body>
+</html>
