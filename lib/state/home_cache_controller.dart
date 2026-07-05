@@ -5,9 +5,12 @@ import '../domain/prediction.dart';
 import '../api/models/leaderboard_row.dart';
 import '../api/models/session.dart';
 import '../api/models/session_result.dart';
+import '../api/models/session_leaderboard_row.dart';
+import '../components/podium/podium_data.dart';
 import 'auth_controller.dart';
 import 'live_session_controller.dart';
 import 'predictions_controller.dart';
+import 'seen_results_store.dart';
 
 /// Snapshot of everything the home screen renders. Held by [HomeCacheController]
 /// so a screen rebuild (tab switch, hot reload, navigate-and-back) starts from
@@ -101,12 +104,19 @@ class HomeCacheController extends ChangeNotifier {
     required this.auth,
     required this.predictions,
     this.live,
-  });
+    SeenResultsStore? seenResults,
+  }) : seenResults = seenResults ?? SeenResultsStore();
 
   final ApiClient api;
   final AuthController auth;
   final PredictionsController predictions;
   final LiveSessionController? live;
+  final SeenResultsStore seenResults;
+
+  /// One-shot channel for a freshly-detected results podium. The home screen
+  /// listens to this and presents the modal once, then clears it back to null.
+  /// Kept off [HomeData] so a stale-while-revalidate rebuild can't re-arm it.
+  final ValueNotifier<PodiumData?> podiumPending = ValueNotifier<PodiumData?>(null);
 
   HomeData? _data;
   Object? _error;
@@ -145,13 +155,38 @@ class HomeCacheController extends ChangeNotifier {
     }
   }
 
+  /// Detect + arm the results podium for the newest unseen scored session.
+  /// Marks every currently-scored session seen so skipped/older ones never
+  /// fire later ("most recent only" backlog behaviour).
+  Future<void> _detectPodium(
+      List<SessionLeaderboardRow> breakdown, List<LeaderboardRow> leaderboard) async {
+    final scored = scoredSessions(breakdown);
+    if (scored.isEmpty) return;
+    final seen = await seenResults.load();
+    // Mark the whole scored backlog seen up front, before deciding — so a
+    // session we deliberately skip (already seen, or <3 members) can't pop
+    // later once a newer one is around.
+    await seenResults.markSeen(scored.map((r) => r.sessionId));
+    final newest = scored.first;
+    if (seen.contains(newest.sessionId)) return;
+    final data = PodiumData.fromSession(newest, leaderboard);
+    if (data != null) podiumPending.value = data;
+  }
+
   void clear() {
     _data = null;
     _error = null;
     _stack = null;
     _refreshing = false;
     _inflight = null;
+    podiumPending.value = null;
     notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    podiumPending.dispose();
+    super.dispose();
   }
 
   // Same shape and behaviour as the old _HomeState._load — moved here so the
@@ -177,6 +212,13 @@ class HomeCacheController extends ChangeNotifier {
       } catch (_) {
         leaderboard = const [];
       }
+      // Results podium: detect a newly-scored session and, if it's fresh and
+      // has a full 3-member podium, arm the modal. Best-effort — never blocks
+      // or fails the home load.
+      try {
+        final breakdown = await api.leagueSessionBreakdown(leagues.first.id);
+        await _detectPodium(breakdown, leaderboard);
+      } catch (_) {}
     }
     Session? next;
     try {

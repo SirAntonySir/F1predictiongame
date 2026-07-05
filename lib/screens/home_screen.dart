@@ -13,6 +13,7 @@ import '../components/avatar_thumbnail.dart';
 import '../components/circuit_svg.dart';
 import '../components/countdown.dart';
 import '../components/league_row.dart' show LeagueRowYouBadge;
+import '../components/podium/results_podium_sheet.dart';
 import '../components/error_view.dart';
 import '../components/trend_badge.dart';
 import '../domain/leaderboard_rank.dart';
@@ -44,17 +45,57 @@ class _HomeScreenState extends State<HomeScreen> {
   int? _heroSessionOverride;
   bool _kickedOffRefresh = false;
 
+  /// Cached so [dispose] can detach the podium listener without touching an
+  /// unmounted InheritedWidget.
+  HomeCacheController? _cacheRef;
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    final cache = AppState.of(context).homeCache;
+    if (_cacheRef != cache) {
+      _cacheRef?.podiumPending.removeListener(_maybeShowPodium);
+      _cacheRef = cache;
+      cache.podiumPending.addListener(_maybeShowPodium);
+      // A podium may already be armed from a refresh that finished before this
+      // screen attached — check once on hook-up.
+      _maybeShowPodium();
+    }
     if (!_kickedOffRefresh) {
       _kickedOffRefresh = true;
       // Fire a single refresh whenever this screen first sees a context. The
       // cache dedupes concurrent refreshes, so subsequent screen rebuilds
       // (route pops, tab switches) won't kick off duplicate fetches.
       // ignore: discarded_futures
-      AppState.of(context).homeCache.refresh();
+      cache.refresh();
     }
+  }
+
+  @override
+  void dispose() {
+    _cacheRef?.podiumPending.removeListener(_maybeShowPodium);
+    super.dispose();
+  }
+
+  /// Present the results podium once, after the current frame, and clear the
+  /// one-shot so a rebuild/refresh can't re-show it.
+  void _maybeShowPodium() {
+    final cache = _cacheRef;
+    if (cache == null || cache.podiumPending.value == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final data = cache.podiumPending.value;
+      if (data == null) return;
+      cache.podiumPending.value = null;
+      // "Show all" opens the full session results (field + every league pick).
+      // ignore: discarded_futures
+      showResultsPodium(
+        context,
+        data,
+        onShowAll: () =>
+            context.push('/race/${data.round}/${data.sessionId}'),
+      );
+    });
   }
 
   /// Resolve which session the hero should target. Default: `d.next` (the

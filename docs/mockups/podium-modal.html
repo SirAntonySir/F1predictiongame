@@ -52,9 +52,10 @@
   }
   /* spotlight behind winner */
   .stage::before {
-    content:''; position:absolute; left:50%; top:8%; width: 230px; height: 230px;
+    content:''; position:absolute; left:50%; top:-4%; width: 300px; height: 300px;
     transform: translateX(-50%);
-    background: radial-gradient(circle, rgba(255,207,107,.18), transparent 65%);
+    /* winner chest/livery colour, intense */
+    background: radial-gradient(circle, rgba(225,6,0,.85) 0%, rgba(225,6,0,.35) 35%, transparent 78%);
     pointer-events:none;
   }
 
@@ -114,12 +115,13 @@
   .second .pts { font-size: 15px; --accent:#c9d2da; }
   .third .pts { font-size: 15px; --accent:#e0955a; }
 
-  .cta { margin: 8px 20px 0; }
+  .cta { margin: 8px 20px 0; display: flex; flex-direction: column; gap: 6px; }
   .cta button {
     width: 100%; padding: 14px; border: none; border-radius: 14px;
-    background: #ff3b30; color: #fff; font-family:'Oswald'; font-weight:700;
-    letter-spacing: 1px; font-size: 15px;
+    font-family:'Oswald'; font-weight:700; letter-spacing: 1px; font-size: 15px;
   }
+  .cta .primary { background: #ff3b30; color: #fff; }
+  .cta .ghost { background: transparent; color: #cfcdd4; border: 1px solid #2a2c31; }
 </style>
 </head>
 <body>
@@ -186,7 +188,10 @@
         </div>
       </div>
 
-      <div class="cta"><button>NICE</button></div>
+      <div class="cta">
+        <button class="primary">NICE</button>
+        <button class="ghost">SHOW ALL</button>
+      </div>
     </div>
   </div>
 </body>

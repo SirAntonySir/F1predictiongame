@@ -95,6 +95,8 @@ class AvatarRenderer {
           return bustCropOf(master);
         case AvatarCrop.bustTall:
           return bustCropOf(master, heightFactor: 1.35);
+        case AvatarCrop.full:
+          return fullCropOf(master);
       }
     });
   }
@@ -133,7 +135,7 @@ class AvatarRenderer {
 }
 
 /// The crop framings [AvatarRenderer] can produce.
-enum AvatarCrop { head, bust, bustTall }
+enum AvatarCrop { head, bust, bustTall, full }
 
 /// Tunables for the tight head crop, derived from the helmet shell. Public so
 /// a test can assert the framing stays sane if a pose SVG is regenerated.
@@ -188,4 +190,18 @@ Rect bustCropOf(SplashArt master, {double heightFactor = 1.0}) {
   final top = b.top - b.height * 0.02; // slight headroom
   return Rect.fromLTWH(
       b.center.dx - side / 2, top, side, side * heightFactor);
+}
+
+/// The entire figure — full content bounds with a whisper of margin all round.
+/// Used where the whole pose (helmet down to boots) should be visible, e.g.
+/// the results podium.
+Rect fullCropOf(SplashArt master) {
+  final b = master.contentBounds;
+  const m = 0.04;
+  return Rect.fromLTWH(
+    b.left - b.width * m,
+    b.top - b.height * m,
+    b.width * (1 + 2 * m),
+    b.height * (1 + 2 * m),
+  );
 }
