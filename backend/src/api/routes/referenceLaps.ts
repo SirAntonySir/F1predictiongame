@@ -95,7 +95,14 @@ export async function registerReferenceLapsRoutes(app: FastifyInstance): Promise
       // and drop the other references — keeps the predict-screen header at
       // ≤3 columns. Lap-time strings live in session_result.q1/q2/q3; we don't
       // have per-knockout sectors so the expanded entries are lap-only.
-      const knockoutRef = refs.find((r) => KNOCKOUT_LABEL_PREFIX[r.type] != null)
+      // Most recent knockout session. On a sprint weekend BOTH the Friday
+      // Sprint Quali and the Saturday Qualifying are knockout sessions; the
+      // race must reference the later Qualifying (the grid-setting session /
+      // last available data), not the earlier Sprint Quali. `refs` is sorted
+      // oldest→newest, so scan from the end.
+      const knockoutRef = [...refs]
+        .reverse()
+        .find((r) => KNOCKOUT_LABEL_PREFIX[r.type] != null)
       if (knockoutRef != null) {
         const prefix = KNOCKOUT_LABEL_PREFIX[knockoutRef.type]!
         // Prefer knockout-tagged best-lap rows when ingestion has populated

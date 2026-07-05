@@ -86,6 +86,77 @@ async function seedRaceWeekend() {
   return { raceId: race.id!, qualiId: quali.id!, fp2Id: fp2.id!, fp3Id: fp3.id! }
 }
 
+/// Build a SPRINT weekend: FP1, Sprint Quali (Fri), Sprint (Sat AM),
+/// Qualifying (Sat PM) all finished, plus a future race. Both SQ and Q carry
+/// q1/q2/q3 lap strings so we can tell which one the race references.
+async function seedSprintWeekend() {
+  await seasons.upsertSeason({ year: 2026, isCurrent: true })
+  const ev = await events.upsertEvent({
+    seasonYear: 2026, round: 2, name: 'Silverstone', circuitName: 'SIL', country: 'GB', hasSprint: true
+  })
+  for (const c of ['red_bull', 'mclaren']) {
+    await constructors.upsertConstructor({
+      id: c, name: c, nationality: null, wikipediaUrl: null, imageUrl: null, imageUrlOverride: null, teamColour: null
+    })
+  }
+  for (const code of ['VER', 'NOR']) {
+    await drivers.upsertDriver({
+      code, givenName: code, familyName: 'X', nationality: null, permanentNumber: null,
+      wikipediaUrl: null, imageUrl: null, imageUrlOverride: null, headshotUrl: null
+    })
+  }
+  const t0 = new Date('2026-07-03T10:00:00Z').getTime()
+  const h = 3600 * 1000
+  const mk = (type: string, offH: number, status: string) => sessions.upsertSession({
+    eventId: ev.id, type: type as never,
+    scheduledStart: new Date(t0 + offH * h), scheduledEnd: new Date(t0 + offH * h + h),
+    status: status as never, openf1SessionKey: null
+  })
+  await mk('fp1', 0, 'finished')
+  const sq = await mk('sprint_quali', 5, 'finished') // Fri
+  await mk('sprint', 25, 'finished') // Sat AM
+  const quali = await mk('qualifying', 29, 'finished') // Sat PM
+  const race = await mk('race', 52, 'scheduled') // Sun
+
+  // Distinct lap strings so we can tell SQ from Q in the response.
+  await results.replaceForSession(sq.id!, [
+    {
+      sessionId: sq.id!, position: 1, driverCode: 'VER', driverName: 'Max',
+      constructorId: 'red_bull', constructorName: 'Red Bull',
+      raceTime: null, status: null, points: null,
+      fastestLap: null, fastestLapTime: null, fastestLapSpeed: null,
+      q1: '1:29.900', q2: '1:29.500', q3: '1:29.100'
+    }
+  ])
+  await results.replaceForSession(quali.id!, [
+    {
+      sessionId: quali.id!, position: 1, driverCode: 'VER', driverName: 'Max',
+      constructorId: 'red_bull', constructorName: 'Red Bull',
+      raceTime: null, status: null, points: null,
+      fastestLap: null, fastestLapTime: null, fastestLapSpeed: null,
+      q1: '1:28.900', q2: '1:28.500', q3: '1:28.100'
+    }
+  ])
+  return { raceId: race.id!, qualiId: quali.id!, sqId: sq.id! }
+}
+
+describe('GET /api/sessions/:id/reference-laps — sprint weekend', () => {
+  it('references the Saturday Qualifying, not the Friday Sprint Quali, when predicting the race', async () => {
+    const { raceId } = await seedSprintWeekend()
+    const app = await buildApp({ scheduler: null })
+    const res = await app.inject({ method: 'GET', url: `/api/sessions/${raceId}/reference-laps` })
+    expect(res.statusCode).toBe(200)
+    const body = res.json() as {
+      references: { label: string; type: string; laps: { driverCode: string; lapMs: number }[] }[]
+    }
+    // The most recent knockout is Q (Sat), not SQ (Fri) — labels + times prove it.
+    expect(body.references.map((r) => r.label)).toEqual(['Q1', 'Q2', 'Q3'])
+    expect(body.references.every((r) => r.type === 'qualifying')).toBe(true)
+    // Q1 lap is the qualifying's 1:28.900 (88900 ms), not SQ's 1:29.900.
+    expect(body.references[0]!.laps.find((l) => l.driverCode === 'VER')!.lapMs).toBe(88900)
+  })
+})
+
 describe('GET /api/sessions/:id/reference-laps — qualifying expansion', () => {
   it('expands qualifying into Q1/Q2/Q3 entries and drops FP references when predicting race', async () => {
     const { raceId } = await seedRaceWeekend()
