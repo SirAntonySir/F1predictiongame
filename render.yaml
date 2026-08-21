@@ -31,3 +31,25 @@ services:
       # value in the Render dashboard, not here. Unset → dispatcher skips sending.
       - key: FIREBASE_SERVICE_ACCOUNT
         sync: false
+
+  # Vite/React admin panel. Static site — no plan (free), no start/health command.
+  # Auth is the backend's shared ADMIN_TOKEN, entered in-app (X-Admin-Token).
+  - type: web
+    name: f1pg-admin
+    runtime: static
+    rootDir: admin
+    # No NODE_ENV=production here, so `npm ci` keeps the devDeps (vite, tsc)
+    # the build needs — unlike the backend service above.
+    buildCommand: npm ci && npm run build
+    staticPublishPath: dist
+    envVars:
+      # Baked into the bundle at build time (Vite VITE_* convention), so it must
+      # be present before buildCommand runs. Points the admin UI at the backend.
+      - key: VITE_API_URL
+        value: https://f1pg-backend.onrender.com
+    routes:
+      # SPA: react-router does client-side routing, so a direct hit / reload on
+      # any deep link (e.g. /leagues) must serve index.html instead of 404ing.
+      - type: rewrite
+        source: /*
+        destination: /index.html
