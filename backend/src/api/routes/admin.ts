@@ -19,6 +19,7 @@ import * as resultsRepo from '../../repo/results.js'
 import * as standingsRepo from '../../repo/standings.js'
 import * as bestLapsRepo from '../../repo/bestLaps.js'
 import { rescoreSession } from '../../scoring/rescorer.js'
+import { applyJokersForSession } from '../../jokers/applier.js'
 import { rescorePreseasonForSeason } from '../../preseason/rescorer.js'
 import type { Scheduler } from '../../crawler/scheduler.js'
 import { parseDrivers as parseOpenF1Drivers, parseBestLapsPerDriver } from '../../openf1/parsers.js'
@@ -120,6 +121,17 @@ export async function registerAdminRoutes(app: FastifyInstance, deps: AdminDeps)
     if (!Number.isFinite(id)) throw new ApiError('BAD_REQUEST', 'id must be a number')
     const summary = await rescoreSession(id)
     return { ok: true, sessionId: id, ...summary }
+  })
+
+  // Manual fallback for the every-minute joker tick — e.g. after downtime
+  // longer than the tick's catch-up window. One-shot per session, so a 409
+  // means the pass already ran (or the session isn't an eligible race).
+  app.post<{ Params: { id: string } }>('/admin/sessions/:id/apply-jokers', async (req) => {
+    const id = Number(req.params.id)
+    if (!Number.isFinite(id)) throw new ApiError('BAD_REQUEST', 'id must be a number')
+    const summary = await applyJokersForSession(id)
+    if (!summary) throw new ApiError('CONFLICT', 'Session is not an unapplied, locked race')
+    return { ok: true, ...summary }
   })
 
   // Force-refetch a single (finished) session's classification from

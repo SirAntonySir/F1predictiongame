@@ -92,6 +92,28 @@ export async function listForEvent(eventId: number): Promise<StoredSession[]> {
   return rows as StoredSession[]
 }
 
+/// Race sessions that locked in (from, to] and haven't had the joker pass
+/// run yet. Bounded below so historical backfills (whole seasons of past
+/// races with a null stamp) can never trigger a retroactive joker sweep —
+/// only races that lock while the server is live (plus a catch-up window
+/// for downtime) are eligible.
+export async function listJokerPending(from: Date, to: Date): Promise<StoredSession[]> {
+  const db = getDb()
+  const rows = await db
+    .select()
+    .from(session)
+    .where(
+      and(
+        eq(session.type, 'race'),
+        sql`${session.jokersAppliedAt} IS NULL`,
+        gt(session.scheduledStart, from),
+        sql`${session.scheduledStart} <= ${to}`
+      )
+    )
+    .orderBy(asc(session.scheduledStart))
+  return rows as StoredSession[]
+}
+
 /// Scheduled sessions whose start falls in (from, to]. The notification
 /// dispatcher uses this for both pick reminders (window reaching into the
 /// future) and the just-started "session live" broadcast (a short window in the
@@ -132,6 +154,38 @@ export async function setOpenF1SessionKey(id: number, key: number | null): Promi
 export async function setLastReconciledAt(id: number, at: Date | null): Promise<void> {
   const db = getDb()
   await db.update(session).set({ lastReconciledAt: at }).where(eq(session.id, id))
+}
+
+export async function setJokersAppliedAt(id: number, at: Date): Promise<void> {
+  const db = getDb()
+  await db.update(session).set({ jokersAppliedAt: at }).where(eq(session.id, id))
+}
+
+/// The race session of the closest earlier round in the same season, or null
+/// when [sessionId] belongs to the season opener (or doesn't exist).
+export async function findPreviousRace(sessionId: number): Promise<StoredSession | null> {
+  const db = getDb()
+  const cur = await db
+    .select({ round: event.round, seasonYear: event.seasonYear })
+    .from(session)
+    .innerJoin(event, eq(event.id, session.eventId))
+    .where(eq(session.id, sessionId))
+    .limit(1)
+  if (!cur[0]) return null
+  const rows = await db
+    .select({ session })
+    .from(session)
+    .innerJoin(event, eq(event.id, session.eventId))
+    .where(
+      and(
+        eq(event.seasonYear, cur[0].seasonYear),
+        sql`${event.round} < ${cur[0].round}`,
+        eq(session.type, 'race')
+      )
+    )
+    .orderBy(desc(event.round))
+    .limit(1)
+  return (rows[0]?.session as StoredSession) ?? null
 }
 
 export type AdminSessionRow = {

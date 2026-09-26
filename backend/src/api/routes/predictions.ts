@@ -10,6 +10,7 @@ import * as picksRepo from '../../repo/predictionPicks.js'
 import * as driversRepo from '../../repo/drivers.js'
 import * as standingsRepo from '../../repo/standings.js'
 import { isScorableSessionType, picksRequiredFor } from '../../scoring/index.js'
+import { JOKERS_PER_SEASON } from '../../jokers/applier.js'
 import type { SessionType } from '../../domain/types.js'
 
 const pickSchema = z.object({
@@ -124,7 +125,8 @@ export async function registerPredictionRoutes(app: FastifyInstance): Promise<vo
         sessionId,
         picks,
         updatedAt: p.updatedAt,
-        isLocked: sessionLocked(s)
+        isLocked: sessionLocked(s),
+        isJoker: p.source === 'joker'
       }
     }
   })
@@ -143,13 +145,16 @@ export async function registerPredictionRoutes(app: FastifyInstance): Promise<vo
     if (!Number.isFinite(sessionId)) throw new ApiError('BAD_REQUEST', 'id must be a number')
     await requireSessionLocked(sessionId)
     const list = await predictionsRepo.listForSessionWithPicks(sessionId)
-    return { predictions: list }
+    return {
+      predictions: list.map((p) => ({ ...p, isJoker: p.source === 'joker' }))
+    }
   })
 
   app.get('/api/predictions/upcoming', async (req) => {
     const u = getCurrentUser(req)
     const cur = await seasonsRepo.getCurrent()
-    if (!cur) return { upcoming: [] }
+    if (!cur) return { upcoming: [], jokersRemaining: JOKERS_PER_SEASON }
+    const jokersUsed = (await predictionsRepo.countJokersUsedForSeason(cur.year)).get(u.id) ?? 0
     const events = await eventsRepo.listForSeason(cur.year)
     const upcoming: any[] = []
     for (const ev of events) {
@@ -164,11 +169,12 @@ export async function registerPredictionRoutes(app: FastifyInstance): Promise<vo
           picksRequired: picksRequiredFor(s.type)!,
           locksAt: s.scheduledStart,
           isLocked: sessionLocked(s),
+          isJoker: myPrediction?.source === 'joker',
           myPicks
         })
       }
     }
     upcoming.sort((a, b) => new Date(a.locksAt).getTime() - new Date(b.locksAt).getTime())
-    return { upcoming }
+    return { upcoming, jokersRemaining: Math.max(0, JOKERS_PER_SEASON - jokersUsed) }
   })
 }

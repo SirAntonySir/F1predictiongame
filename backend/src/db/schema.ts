@@ -42,7 +42,12 @@ export const session = pgTable('session', {
   // OpenF1-sourced result rows with Jolpica's official classification or
   // confirmed they agree. Null = never reconciled (still provisional if
   // session_result.source = 'openf1').
-  lastReconciledAt: timestamp('last_reconciled_at', { withTimezone: true })
+  lastReconciledAt: timestamp('last_reconciled_at', { withTimezone: true }),
+  // One-shot marker for the joker pass: stamped when auto-jokers have been
+  // applied for this (race) session at lock time. Null = not applied yet.
+  // Only ever set on type='race' sessions; the migration backfills it for
+  // race sessions already in the past so the pass never fires retroactively.
+  jokersAppliedAt: timestamp('jokers_applied_at', { withTimezone: true })
 }, (t) => ({
   uqEventType: uniqueIndex('session_event_type_uq').on(t.eventId, t.type),
   idxStatusStart: index('session_status_start_idx').on(t.status, t.scheduledStart),
@@ -181,6 +186,8 @@ export const prediction = pgTable('prediction', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   // 'app' = entered via the in-app predict screen (default).
   // 'import' = bulk-imported by a league owner via /imports endpoint.
+  // 'joker' = auto-filled at race lock by the joker pass (copies the
+  // previous race's picks; max 3 per user per season).
   // Surfaced in the UI so members can tell apart in-app picks from
   // backfilled ones.
   source: text('source').notNull().default('app'),

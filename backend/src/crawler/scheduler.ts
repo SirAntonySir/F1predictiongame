@@ -9,12 +9,14 @@ import * as seasonsRepo from '../repo/seasons.js'
 import { sweepExpiredSessions } from '../auth/sweeper.js'
 import { runNotificationsTick } from '../notifications/dispatcher.js'
 import { createSender, resolveMessaging } from '../notifications/sender.js'
+import { runJokersTick, type JokerTickSummary } from '../jokers/applier.js'
 
 export class Scheduler {
   private isRunningTick = false
   private isRunningWeekly = false
   private isRunningReconcile = false
   private isRunningNotify = false
+  private isRunningJokers = false
   private lastTickAt: Date | null = null
   private lastTickStatus: 'ok' | 'error' | null = null
   private tickJob: ScheduledTask | null = null
@@ -22,6 +24,7 @@ export class Scheduler {
   private sweepJob: ScheduledTask | null = null
   private reconcileJob: ScheduledTask | null = null
   private notifyJob: ScheduledTask | null = null
+  private jokersJob: ScheduledTask | null = null
 
   constructor(
     private jolpica = new JolpicaClient(),
@@ -48,6 +51,10 @@ export class Scheduler {
     // live, results in). Cheap: early-returns when no devices are registered,
     // and the claim ledger makes re-ticks idempotent.
     this.notifyJob = cron.schedule('* * * * *', () => { void this.notifyOnce() })
+    // Every minute — auto-spend jokers for races that just locked. Cheap: the
+    // pending query is bounded to a 48h window and the per-session stamp
+    // makes re-ticks no-ops.
+    this.jokersJob = cron.schedule('* * * * *', () => { void this.jokersOnce() })
   }
 
   stop(): void {
@@ -61,6 +68,24 @@ export class Scheduler {
     this.reconcileJob = null
     this.notifyJob?.stop()
     this.notifyJob = null
+    this.jokersJob?.stop()
+    this.jokersJob = null
+  }
+
+  /// Run the joker pass for freshly locked races. Guarded against overlap.
+  async jokersOnce(): Promise<JokerTickSummary | null> {
+    if (this.isRunningJokers) return null
+    this.isRunningJokers = true
+    try {
+      const summary = await runJokersTick(new Date())
+      if (summary.sessions > 0) console.log('Jokers tick complete', summary)
+      return summary
+    } catch (err) {
+      console.error('Jokers tick failed', err)
+      return null
+    } finally {
+      this.isRunningJokers = false
+    }
   }
 
   /// Evaluate notification triggers and dispatch. Guarded against overlap.

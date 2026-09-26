@@ -20,6 +20,10 @@ export type Session = {
   scheduledEnd: Date
   status: SessionStatus
   openf1SessionKey: number | null
+  /// One-shot marker: when the joker pass ran for this race session.
+  /// Undefined on inserts (never written by upsertSession); null until the
+  /// pass stamps it.
+  jokersAppliedAt?: Date | null
 }
 
 export type Driver = {
@@ -127,6 +131,8 @@ export type Prediction = {
   sessionId: number
   createdAt: Date
   updatedAt: Date
+  /// 'app' | 'import' | 'joker' — how the prediction came to exist.
+  source: string
 }
 
 export type PredictionPick = {

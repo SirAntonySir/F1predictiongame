@@ -10,6 +10,7 @@ import * as drivers from '../../src/repo/drivers.js'
 import * as predictions from '../../src/repo/predictions.js'
 import * as results from '../../src/repo/results.js'
 import * as constructors from '../../src/repo/constructors.js'
+import * as scoresRepo from '../../src/repo/scores.js'
 
 const TOKEN = { 'x-admin-token': 'local-dev-token' }
 
@@ -173,6 +174,42 @@ describe('GET /admin/predictions', () => {
     expect(rows).toHaveLength(1)
     expect(rows[0]).toMatchObject({ userId: u.id, displayName: 'Pat', sessionId: ses.id, source: 'app' })
     expect(rows[0].picks).toEqual([{ position: 1, driverCode: 'VER' }])
+    await app.close()
+  })
+
+  it('attaches the stored score total and breakdown, null when unscored', async () => {
+    const scored = await users.insertUser({ email: 'scored@x.com', passwordHash: 'h', displayName: 'Scored' })
+    const unscored = await users.insertUser({ email: 'unscored@x.com', passwordHash: 'h', displayName: 'Unscored' })
+    await seasons.upsertSeason({ year: 2026, isCurrent: true })
+    const ev = await events.upsertEvent({ seasonYear: 2026, round: 1, name: 'GP', circuitName: 'C', country: 'X', hasSprint: false })
+    const ses = await sessions.upsertSession({ eventId: ev.id, type: 'race', scheduledStart: new Date('2026-03-01T14:00:00Z'), scheduledEnd: new Date('2026-03-01T16:00:00Z'), status: 'finished', openf1SessionKey: null })
+    await drivers.upsertDriver({ code: 'VER', givenName: 'M', familyName: 'V', nationality: null, permanentNumber: null, wikipediaUrl: null, imageUrl: null, imageUrlOverride: null, headshotUrl: null })
+    await drivers.upsertDriver({ code: 'HAM', givenName: 'L', familyName: 'H', nationality: null, permanentNumber: null, wikipediaUrl: null, imageUrl: null, imageUrlOverride: null, headshotUrl: null })
+    await predictions.upsertPredictionWithPicks(scored.id, ses.id, [{ position: 1, driverCode: 'VER' }, { position: 2, driverCode: 'HAM' }])
+    await predictions.upsertPredictionWithPicks(unscored.id, ses.id, [{ position: 1, driverCode: 'HAM' }, { position: 2, driverCode: 'VER' }])
+    const breakdown = {
+      perPosition: [
+        { position: 1, driverCode: 'VER', exact: true, wrongPos: false, points: 3 },
+        { position: 2, driverCode: 'HAM', exact: false, wrongPos: true, points: 1 }
+      ],
+      teamBonus: { applied: true, points: 2 },
+      rule: 'race-v1'
+    }
+    await scoresRepo.upsertScore(scored.id, ses.id, 6, breakdown)
+
+    const app = await buildApp({ scheduler: null })
+    const res = await app.inject({ method: 'GET', url: `/admin/predictions?sessionId=${ses.id}`, headers: TOKEN })
+    expect(res.statusCode).toBe(200)
+    const rows = res.json().predictions
+    const scoredRow = rows.find((r: any) => r.userId === scored.id)
+    expect(scoredRow.pointsTotal).toBe(6)
+    expect(scoredRow.breakdown.perPosition).toHaveLength(2)
+    expect(scoredRow.breakdown.perPosition[0]).toEqual({ position: 1, driverCode: 'VER', exact: true, wrongPos: false, points: 3 })
+    expect(scoredRow.breakdown.teamBonus).toEqual({ applied: true, points: 2 })
+    expect(scoredRow.breakdown.rule).toBe('race-v1')
+    const unscoredRow = rows.find((r: any) => r.userId === unscored.id)
+    expect(unscoredRow.pointsTotal).toBeNull()
+    expect(unscoredRow.breakdown).toBeNull()
     await app.close()
   })
 })

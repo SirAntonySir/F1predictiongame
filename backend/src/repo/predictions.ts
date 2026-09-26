@@ -1,7 +1,7 @@
 import { and, desc, eq, inArray, sql } from 'drizzle-orm'
 import { getDb } from '../db/client.js'
-import { leagueMember, prediction, predictionPick, score, user } from '../db/schema.js'
-import type { Prediction } from '../domain/types.js'
+import { event, leagueMember, prediction, predictionPick, score, session, user } from '../db/schema.js'
+import type { Prediction, ScoreBreakdown } from '../domain/types.js'
 import type { PickInput } from './predictionPicks.js'
 
 function toPrediction(row: typeof prediction.$inferSelect): Prediction {
@@ -10,7 +10,8 @@ function toPrediction(row: typeof prediction.$inferSelect): Prediction {
     userId: row.userId,
     sessionId: row.sessionId,
     createdAt: row.createdAt,
-    updatedAt: row.updatedAt
+    updatedAt: row.updatedAt,
+    source: row.source
   }
 }
 
@@ -40,7 +41,7 @@ export async function upsertPredictionWithPicks(
   userId: string,
   sessionId: number,
   items: PickInput[],
-  options: { source?: 'app' | 'import'; importedBy?: string | null } = {}
+  options: { source?: 'app' | 'import' | 'joker'; importedBy?: string | null } = {}
 ): Promise<string> {
   const db = getDb()
   const source = options.source ?? 'app'
@@ -68,9 +69,25 @@ export async function upsertPredictionWithPicks(
   })
 }
 
+/// Jokers already spent per user in [seasonYear]: count of their
+/// source='joker' predictions across the season's sessions. Users with none
+/// are absent from the map.
+export async function countJokersUsedForSeason(seasonYear: number): Promise<Map<string, number>> {
+  const db = getDb()
+  const rows = await db
+    .select({ userId: prediction.userId, used: sql<number>`count(*)::int` })
+    .from(prediction)
+    .innerJoin(session, eq(session.id, prediction.sessionId))
+    .innerJoin(event, eq(event.id, session.eventId))
+    .where(and(eq(prediction.source, 'joker'), eq(event.seasonYear, seasonYear)))
+    .groupBy(prediction.userId)
+  return new Map(rows.map((r) => [r.userId, r.used]))
+}
+
 export type PredictionWithPicks = {
   userId: string
   predictionId: string
+  source: string
   picks: PickInput[]
 }
 
@@ -80,6 +97,7 @@ export async function listForSessionWithPicks(sessionId: number): Promise<Predic
     .select({
       userId: prediction.userId,
       predictionId: prediction.id,
+      source: prediction.source,
       position: predictionPick.position,
       driverCode: predictionPick.driverCode
     })
@@ -91,7 +109,7 @@ export async function listForSessionWithPicks(sessionId: number): Promise<Predic
   for (const r of rows) {
     let p = byPrediction.get(r.predictionId)
     if (!p) {
-      p = { userId: r.userId, predictionId: r.predictionId, picks: [] }
+      p = { userId: r.userId, predictionId: r.predictionId, source: r.source, picks: [] }
       byPrediction.set(r.predictionId, p)
     }
     if (r.position !== null && r.driverCode !== null) {
@@ -180,6 +198,11 @@ export type AdminPredictionRow = {
   source: string
   updatedAt: Date
   picks: { position: number; driverCode: string }[]
+  /// The persisted session score for this (user, session), or null when the
+  /// session hasn't been scored yet. `breakdown` is the leaderboard-authoritative
+  /// per-position + team-bonus attribution used to render the admin calc overview.
+  pointsTotal: number | null
+  breakdown: ScoreBreakdown | null
 }
 
 export async function listForAdmin(
@@ -209,11 +232,19 @@ export async function listForAdmin(
       source: prediction.source,
       updatedAt: prediction.updatedAt,
       position: predictionPick.position,
-      driverCode: predictionPick.driverCode
+      driverCode: predictionPick.driverCode,
+      pointsTotal: score.pointsTotal,
+      breakdown: score.breakdown
     })
     .from(prediction)
     .innerJoin(user, eq(user.id, prediction.userId))
     .leftJoin(predictionPick, eq(predictionPick.predictionId, prediction.id))
+    // 1:1 with the prediction — the session score for the same (user, session).
+    .leftJoin(score, and(
+      eq(score.userId, prediction.userId),
+      eq(score.sessionId, prediction.sessionId),
+      eq(score.kind, 'session')
+    ))
     .where(and(...conds))
     .orderBy(desc(prediction.updatedAt))
 
@@ -228,7 +259,9 @@ export async function listForAdmin(
         sessionId: r.sessionId,
         source: r.source,
         updatedAt: r.updatedAt,
-        picks: []
+        picks: [],
+        pointsTotal: r.pointsTotal ?? null,
+        breakdown: (r.breakdown as ScoreBreakdown | null) ?? null
       }
       byPrediction.set(r.predictionId, p)
     }
