@@ -496,6 +496,8 @@
 	<false/>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>This app lets you take a photo when attaching or uploading files.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>This app lets you attach images from your photo library when sharing or uploading files.</string>
 	<key>UIApplicationSceneManifest</key>

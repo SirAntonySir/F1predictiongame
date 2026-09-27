@@ -43,6 +43,20 @@ class _StandingsScreenState extends State<StandingsScreen> {
   }
 
   @override
+  void didUpdateWidget(covariant StandingsScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Kept alive by the StatefulShellRoute — a re-navigation (Home's
+    // standings cards, push routes) updates this widget in place instead of
+    // recreating the State, so adopt the routed sub-tab here. A sort-only
+    // change also re-selects league: it can only come from a navigation
+    // that targets the league tab.
+    if (widget.subTab != oldWidget.subTab ||
+        widget.leagueSort != oldWidget.leagueSort) {
+      setState(() => _subTab = widget.subTab);
+    }
+  }
+
+  @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (_loadedSeasons) return;
@@ -99,7 +113,10 @@ class _StandingsScreenState extends State<StandingsScreen> {
               'f1' => F1Tab(key: ValueKey(_selectedSeason), season: _selectedSeason, busy: _busy),
               'insights' => InsightsTab(key: ValueKey(_selectedSeason), season: _selectedSeason, busy: _busy),
               'preseason' => PreseasonTab(key: ValueKey(_selectedSeason), season: _selectedSeason, busy: _busy),
-              _ => LeagueTab(key: ValueKey(_selectedSeason), initialMetric: widget.leagueSort, season: _selectedSeason, busy: _busy),
+              // Keyed on the sort too: initialMetric is only read in
+              // initState, so a kept-alive LeagueTab must be recreated when
+              // a navigation carries a different ?sort=.
+              _ => LeagueTab(key: ValueKey('$_selectedSeason-${widget.leagueSort}'), initialMetric: widget.leagueSort, season: _selectedSeason, busy: _busy),
             }),
           ],
             ),

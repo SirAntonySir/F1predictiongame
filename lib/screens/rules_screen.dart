@@ -81,13 +81,7 @@ class RulesScreen extends StatelessWidget {
             const SizedBox(height: Spacing.xl),
 
             // Joker
-            Row(
-              children: [
-                Text('JOKER', style: AppText.label(11)),
-                const SizedBox(width: Spacing.sm),
-                _ComingSoonPill(t: t),
-              ],
-            ),
+            Text('JOKER', style: AppText.label(11)),
             const SizedBox(height: Spacing.sm),
             _JokerCard(t: t),
             const SizedBox(height: Spacing.xxl),
@@ -296,26 +290,6 @@ class _TermBox extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-class _ComingSoonPill extends StatelessWidget {
-  final ThemeData t;
-  const _ComingSoonPill({required this.t});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(
-          horizontal: Spacing.sm, vertical: 3),
-      decoration: BoxDecoration(
-        border: Border.all(color: t.strokeColor, width: 1),
-        borderRadius: Radii.rPill,
-      ),
-      child: Text('COMING SOON',
-          style: AppText.label(9,
-              color: t.colorScheme.onSurface.withOpacity(0.65))),
     );
   }
 }

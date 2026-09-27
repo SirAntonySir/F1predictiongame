@@ -26,8 +26,11 @@ function mockFetch() {
     }
     if (String(url).includes('/admin/predictions?sessionId=6')) {
       return Promise.resolve(new Response(JSON.stringify({
-        predictions: [{ predictionId: 'p1', userId: 'u1', displayName: 'Alice', sessionId: 6, source: 'app', updatedAt: '2026-01-01T00:00:00Z', picks: [{ position: 1, driverCode: 'VER' }, { position: 2, driverCode: 'LEC' }] }]
+        predictions: [{ predictionId: 'p1', userId: 'u1', displayName: 'Alice', sessionId: 6, source: 'app', updatedAt: '2026-01-01T00:00:00Z', picks: [{ position: 1, driverCode: 'VER' }, { position: 2, driverCode: 'LEC' }], pointsTotal: null, breakdown: null }]
       }), { status: 200 }))
+    }
+    if (String(url).endsWith('/api/sessions/6/results')) {
+      return Promise.resolve(new Response(JSON.stringify([]), { status: 200 }))
     }
     if (String(url).endsWith('/admin/leagues')) {
       return Promise.resolve(new Response(JSON.stringify({
@@ -47,7 +50,73 @@ function mockFetch() {
   })
 }
 
+// A scored race: 5 finishers plus a stored breakdown mixing exact / wrong / miss
+// and an applied team bonus, so the calc overview renders every outcome kind.
+function mockFetchScored() {
+  const finishers = [
+    { position: 1, driverCode: 'VER', driverName: 'Max Verstappen', constructorId: 'red_bull', constructorName: 'Red Bull', points: 25, status: 'Finished', raceTime: null, q1: null, q2: null, q3: null },
+    { position: 2, driverCode: 'HAM', driverName: 'Lewis Hamilton', constructorId: 'mercedes', constructorName: 'Mercedes', points: 18, status: 'Finished', raceTime: null, q1: null, q2: null, q3: null },
+    { position: 3, driverCode: 'LEC', driverName: 'Charles Leclerc', constructorId: 'ferrari', constructorName: 'Ferrari', points: 15, status: 'Finished', raceTime: null, q1: null, q2: null, q3: null },
+    { position: 4, driverCode: 'NOR', driverName: 'Lando Norris', constructorId: 'mclaren', constructorName: 'McLaren', points: 12, status: 'Finished', raceTime: null, q1: null, q2: null, q3: null },
+    { position: 5, driverCode: 'PIA', driverName: 'Oscar Piastri', constructorId: 'mclaren', constructorName: 'McLaren', points: 10, status: 'Finished', raceTime: null, q1: null, q2: null, q3: null }
+  ]
+  const breakdown = {
+    perPosition: [
+      { position: 1, driverCode: 'VER', exact: true, wrongPos: false, points: 3 },
+      { position: 2, driverCode: 'LEC', exact: false, wrongPos: true, points: 1 },
+      { position: 3, driverCode: 'HAM', exact: false, wrongPos: true, points: 1 },
+      { position: 4, driverCode: 'NOR', exact: true, wrongPos: false, points: 3 },
+      { position: 5, driverCode: 'RUS', exact: false, wrongPos: false, points: 0 }
+    ],
+    teamBonus: { applied: true, points: 2 },
+    rule: 'race-v1'
+  }
+  const picks = breakdown.perPosition.map((pp) => ({ position: pp.position, driverCode: pp.driverCode }))
+  return vi.fn((url: string) => {
+    if (String(url).endsWith('/api/seasons')) {
+      return Promise.resolve(new Response(JSON.stringify([{ year: 2026, isCurrent: true }]), { status: 200 }))
+    }
+    if (String(url).includes('/admin/sessions?season=2026')) {
+      return Promise.resolve(new Response(JSON.stringify({
+        sessions: [{ id: 6, seasonYear: 2026, round: 1, eventName: 'Bahrain GP', type: 'race', status: 'finished', scheduledStart: '2026-03-01T15:00:00Z', lastReconciledAt: null, resultCount: 20, provisional: false }]
+      }), { status: 200 }))
+    }
+    if (String(url).includes('/admin/predictions?sessionId=6')) {
+      return Promise.resolve(new Response(JSON.stringify({
+        predictions: [{ predictionId: 'p1', userId: 'u1', displayName: 'Alice', sessionId: 6, source: 'app', updatedAt: '2026-01-01T00:00:00Z', picks, pointsTotal: 10, breakdown }]
+      }), { status: 200 }))
+    }
+    if (String(url).endsWith('/api/sessions/6/results')) {
+      return Promise.resolve(new Response(JSON.stringify(finishers), { status: 200 }))
+    }
+    return Promise.resolve(new Response('{"ok":true}', { status: 200 }))
+  })
+}
+
 describe('Predictions', () => {
+  it('shows the stored points total and per-position calculation for a scored prediction', async () => {
+    setToken('tok')
+    vi.stubGlobal('fetch', mockFetchScored())
+    render(wrap(<Predictions />))
+    await screen.findByText('Alice')
+    // Authoritative total from the stored score.
+    expect(screen.getByText(/Total 10/)).toBeInTheDocument()
+    // Each pick shown against the actual finisher, with its outcome and points.
+    expect(screen.getByText(/P1 VER.*actual VER.*exact.*\+3/)).toBeInTheDocument()
+    expect(screen.getByText(/P2 LEC.*actual HAM.*wrong.*\+1/)).toBeInTheDocument()
+    expect(screen.getByText(/P5 RUS.*miss.*\+0/)).toBeInTheDocument()
+    // Team bonus line.
+    expect(screen.getByText(/Team bonus.*\+2/)).toBeInTheDocument()
+  })
+
+  it('marks a prediction not scored yet when it has no stored score', async () => {
+    setToken('tok')
+    vi.stubGlobal('fetch', mockFetch())
+    render(wrap(<Predictions />))
+    await screen.findByText('Alice')
+    expect(screen.getByText(/not scored yet/i)).toBeInTheDocument()
+  })
+
   it('auto-selects the latest finished session and lists its predictions', async () => {
     setToken('tok')
     vi.stubGlobal('fetch', mockFetch())

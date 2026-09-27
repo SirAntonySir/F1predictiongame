@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:predictiongame/api/api_client.dart';
 import 'package:predictiongame/api/models/me_result.dart';
+import 'package:predictiongame/api/models/prediction_view.dart';
 import 'package:predictiongame/api/models/user.dart';
 import 'package:predictiongame/api/models/user_league.dart';
 import 'package:predictiongame/nav/router.dart';
@@ -21,6 +22,9 @@ import 'package:predictiongame/state/token_storage.dart';
 
 class _FakeApi implements ApiClient {
   @override Future<MeResult> me() async => throw UnimplementedError();
+  // The home screen's pick/last cards fetch the user's prediction on build —
+  // stub it so navigating into /home doesn't explode via noSuchMethod.
+  @override Future<PredictionView?> getMyPrediction(int sessionId) async => null;
   @override noSuchMethod(Invocation i) => super.noSuchMethod(i);
 }
 

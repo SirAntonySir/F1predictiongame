@@ -56,50 +56,61 @@ GoRouter buildRouter(AuthController auth) {
         ),
       ),
       GoRoute(path: onboardingRoute, builder: (_, __) => LeagueOnboardingScreen(auth: auth)),
-      // Bottom-nav shell routes — no slide-in transition. The four tabs are
-      // peers (not a navigation hierarchy), so the Cupertino/Material default
-      // of sliding the new tab in from the right reads as "going deeper" when
-      // it should just be a swap. `NoTransitionPage` makes them feel like
-      // tabs again.
-      ShellRoute(
-        pageBuilder: (_, __, child) => NoTransitionPage(child: AppShell(child: child)),
-        routes: [
-          GoRoute(
-            path: '/home',
-            pageBuilder: (_, __) => const NoTransitionPage(child: HomeScreen()),
-          ),
-          GoRoute(
-            path: '/calendar',
-            pageBuilder: (_, __) => const NoTransitionPage(child: CalendarScreen()),
-          ),
-          GoRoute(
-            path: '/predict',
-            pageBuilder: (_, s) {
-              final raw = s.uri.queryParameters['session'];
-              final sid = raw == null ? null : int.tryParse(raw);
-              return NoTransitionPage(child: PredictScreen(sessionId: sid));
-            },
-          ),
-          GoRoute(
-            path: '/standings',
-            pageBuilder: (_, s) => NoTransitionPage(
-                child: StandingsScreen(subTab: 'league', leagueSort: s.uri.queryParameters['sort'])),
-            routes: [
-              GoRoute(
-                path: 'league',
-                pageBuilder: (_, s) => NoTransitionPage(
-                    child: StandingsScreen(subTab: 'league', leagueSort: s.uri.queryParameters['sort'])),
-              ),
-              GoRoute(
-                path: 'f1',
-                pageBuilder: (_, __) => const NoTransitionPage(child: StandingsScreen(subTab: 'f1')),
-              ),
-              GoRoute(
-                path: 'insights',
-                pageBuilder: (_, __) => const NoTransitionPage(child: StandingsScreen(subTab: 'insights')),
-              ),
-            ],
-          ),
+      // Bottom-nav shell — StatefulShellRoute keeps every tab's navigator in
+      // an IndexedStack, so switching tabs preserves each screen's State
+      // (scroll positions, loaded data) instead of rebuilding from scratch.
+      // The four tabs are peers (not a navigation hierarchy), so the
+      // Cupertino/Material default of sliding the new tab in from the right
+      // reads as "going deeper" when it should just be a swap —
+      // `NoTransitionPage` makes them feel like tabs again.
+      StatefulShellRoute.indexedStack(
+        pageBuilder: (_, __, shell) =>
+            NoTransitionPage(child: AppShell(shell: shell)),
+        branches: [
+          StatefulShellBranch(routes: [
+            GoRoute(
+              path: '/home',
+              pageBuilder: (_, __) => const NoTransitionPage(child: HomeScreen()),
+            ),
+          ]),
+          StatefulShellBranch(routes: [
+            GoRoute(
+              path: '/calendar',
+              pageBuilder: (_, __) => const NoTransitionPage(child: CalendarScreen()),
+            ),
+          ]),
+          StatefulShellBranch(routes: [
+            GoRoute(
+              path: '/predict',
+              pageBuilder: (_, s) {
+                final raw = s.uri.queryParameters['session'];
+                final sid = raw == null ? null : int.tryParse(raw);
+                return NoTransitionPage(child: PredictScreen(sessionId: sid));
+              },
+            ),
+          ]),
+          StatefulShellBranch(routes: [
+            GoRoute(
+              path: '/standings',
+              pageBuilder: (_, s) => NoTransitionPage(
+                  child: StandingsScreen(subTab: 'league', leagueSort: s.uri.queryParameters['sort'])),
+              routes: [
+                GoRoute(
+                  path: 'league',
+                  pageBuilder: (_, s) => NoTransitionPage(
+                      child: StandingsScreen(subTab: 'league', leagueSort: s.uri.queryParameters['sort'])),
+                ),
+                GoRoute(
+                  path: 'f1',
+                  pageBuilder: (_, __) => const NoTransitionPage(child: StandingsScreen(subTab: 'f1')),
+                ),
+                GoRoute(
+                  path: 'insights',
+                  pageBuilder: (_, __) => const NoTransitionPage(child: StandingsScreen(subTab: 'insights')),
+                ),
+              ],
+            ),
+          ]),
         ],
       ),
       GoRoute(

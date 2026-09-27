@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { Fragment, useState } from 'react'
 import { AlertDialog, Button, Flex, Heading, Select, Table, Text } from '@radix-ui/themes'
-import { useSeasons, useAdminSessions } from '../api/sessions'
+import { useSeasons, useAdminSessions, useSessionResults } from '../api/sessions'
 import { useAdminPredictions, useDeletePrediction } from '../api/admin'
 import { PredictionEditDialog } from '../components/PredictionEditDialog'
 import { PredictionAddDialog } from '../components/PredictionAddDialog'
+import { ScoreBreakdown } from '../components/ScoreBreakdown'
 import type { AdminPrediction } from '../api/types'
 
 // Picks required per session type — only these types are predictable/scorable.
@@ -25,11 +26,19 @@ export function Predictions() {
   const sessionId = picked ?? autoId
 
   const predsQ = useAdminPredictions(sessionId)
+  // Actual finishers for this session, used only to make each scoring verdict
+  // legible next to the picks. Disabled until a session is chosen.
+  const resultsQ = useSessionResults(Number(sessionId), sessionId.trim() !== '')
+  const results = resultsQ.data ?? []
   const selected = scorable.find((s) => String(s.id) === sessionId)
   const del = useDeletePrediction(sessionId)
   const [editing, setEditing] = useState<AdminPrediction | null>(null)
   const [adding, setAdding] = useState(false)
   const existingUserIds = new Set((predsQ.data?.predictions ?? []).map((p) => p.userId))
+  // Scoring overview: highest scorers first, unscored (null) last.
+  const preds = [...(predsQ.data?.predictions ?? [])].sort(
+    (a, b) => (b.pointsTotal ?? -1) - (a.pointsTotal ?? -1) || a.displayName.localeCompare(b.displayName)
+  )
 
   return (
     <Flex direction="column" gap="4">
@@ -59,45 +68,59 @@ export function Predictions() {
 
       {predsQ.data && (
         <>
-          <Text size="1" className="label">{predsQ.data.predictions.length} prediction{predsQ.data.predictions.length === 1 ? '' : 's'}</Text>
+          <Text size="1" className="label">{preds.length} prediction{preds.length === 1 ? '' : 's'} · sorted by points</Text>
+          <Text size="1" color="gray">
+            exact = correct driver at that position · wrong = correct driver, wrong position · miss = driver outside the top N · team bonus = P1 pick&rsquo;s team matches the P1 result
+          </Text>
           <Table.Root variant="surface">
             <Table.Header>
               <Table.Row>
                 <Table.ColumnHeaderCell>Player</Table.ColumnHeaderCell>
                 <Table.ColumnHeaderCell>Source</Table.ColumnHeaderCell>
                 <Table.ColumnHeaderCell>Picks</Table.ColumnHeaderCell>
+                <Table.ColumnHeaderCell>Points</Table.ColumnHeaderCell>
                 <Table.ColumnHeaderCell>Actions</Table.ColumnHeaderCell>
               </Table.Row>
             </Table.Header>
             <Table.Body>
-              {predsQ.data.predictions.map((p) => (
-                <Table.Row key={p.predictionId}>
-                  <Table.Cell>{p.displayName}</Table.Cell>
-                  <Table.Cell><Text size="1" color="gray">{p.source}</Text></Table.Cell>
-                  <Table.Cell>
-                    {p.picks.map((pk) => `P${pk.position} ${pk.driverCode}`).join(' · ') || '—'}
-                  </Table.Cell>
-                  <Table.Cell>
-                    <Flex gap="1">
-                      <Button size="1" variant="soft" disabled={p.picks.length === 0} onClick={() => setEditing(p)}>Edit</Button>
-                      <AlertDialog.Root>
-                        <AlertDialog.Trigger>
-                          <Button size="1" variant="soft" color="red">Delete</Button>
-                        </AlertDialog.Trigger>
-                        <AlertDialog.Content maxWidth="400px">
-                          <AlertDialog.Title>Delete {p.displayName}&rsquo;s prediction?</AlertDialog.Title>
-                          <AlertDialog.Description size="2">
-                            Clears their picks for this session and re-scores it. This changes live data.
-                          </AlertDialog.Description>
-                          <Flex gap="2" mt="3" justify="end">
-                            <AlertDialog.Cancel><Button variant="soft" color="gray">Cancel</Button></AlertDialog.Cancel>
-                            <AlertDialog.Action><Button color="red" onClick={() => del.mutate(p.userId)}>Delete</Button></AlertDialog.Action>
-                          </Flex>
-                        </AlertDialog.Content>
-                      </AlertDialog.Root>
-                    </Flex>
-                  </Table.Cell>
-                </Table.Row>
+              {preds.map((p) => (
+                <Fragment key={p.predictionId}>
+                  <Table.Row>
+                    <Table.Cell>{p.displayName}</Table.Cell>
+                    <Table.Cell><Text size="1" color="gray">{p.source}</Text></Table.Cell>
+                    <Table.Cell>
+                      {p.picks.map((pk) => `P${pk.position} ${pk.driverCode}`).join(' · ') || '—'}
+                    </Table.Cell>
+                    <Table.Cell>{p.pointsTotal ?? '—'}</Table.Cell>
+                    <Table.Cell>
+                      <Flex gap="1">
+                        <Button size="1" variant="soft" disabled={p.picks.length === 0} onClick={() => setEditing(p)}>Edit</Button>
+                        <AlertDialog.Root>
+                          <AlertDialog.Trigger>
+                            <Button size="1" variant="soft" color="red">Delete</Button>
+                          </AlertDialog.Trigger>
+                          <AlertDialog.Content maxWidth="400px">
+                            <AlertDialog.Title>Delete {p.displayName}&rsquo;s prediction?</AlertDialog.Title>
+                            <AlertDialog.Description size="2">
+                              Clears their picks for this session and re-scores it. This changes live data.
+                            </AlertDialog.Description>
+                            <Flex gap="2" mt="3" justify="end">
+                              <AlertDialog.Cancel><Button variant="soft" color="gray">Cancel</Button></AlertDialog.Cancel>
+                              <AlertDialog.Action><Button color="red" onClick={() => del.mutate(p.userId)}>Delete</Button></AlertDialog.Action>
+                            </Flex>
+                          </AlertDialog.Content>
+                        </AlertDialog.Root>
+                      </Flex>
+                    </Table.Cell>
+                  </Table.Row>
+                  <Table.Row>
+                    <Table.Cell colSpan={5}>
+                      {p.breakdown
+                        ? <ScoreBreakdown breakdown={p.breakdown} results={results} pointsTotal={p.pointsTotal} />
+                        : <Text size="1" color="gray">{p.picks.length === 0 ? 'No picks.' : 'Not scored yet.'}</Text>}
+                    </Table.Cell>
+                  </Table.Row>
+                </Fragment>
               ))}
             </Table.Body>
           </Table.Root>

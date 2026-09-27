@@ -25,7 +25,7 @@ Session _sess() => Session(
 
 void main() {
   testWidgets(
-      'LiveHeroCard shows LIVE·RACE, event title, top order (with names) and projected',
+      'LiveHeroCard shows LIVE·RACE badge, country/round and event title',
       (tester) async {
     const snap = LiveSnapshot(
       sessionId: 30,
@@ -55,9 +55,10 @@ void main() {
     ]))));
     expect(find.text('LIVE · RACE'), findsOneWidget);
     expect(find.text('MONACO GRAND PRIX'), findsOneWidget);
-    expect(find.text('VER'), findsOneWidget);
-    expect(find.text('Max Verstappen'), findsOneWidget);
-    expect(find.text('+8'), findsOneWidget);
+    // The hero became a compact banner: country + round label, badge and
+    // title only. The running order / projected points moved to the session
+    // results screen (LiveResultsBody).
+    expect(find.textContaining('MONACO · ROUND 6'), findsOneWidget);
   });
 
   testWidgets(

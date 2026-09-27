@@ -11,7 +11,7 @@ Widget _frame(Widget child) => MaterialApp(
     );
 
 void main() {
-  testWidgets('RaceTile shows round, name, when', (tester) async {
+  testWidgets('RaceTile shows country, name, when and state badge', (tester) async {
     await tester.pumpWidget(_frame(const RaceTile(
       round: 8,
       country: 'Monaco',
@@ -19,8 +19,11 @@ void main() {
       when: '24 – 26 May',
       state: RaceState.next,
     )));
-    expect(find.text('08'), findsOneWidget);
+    // The round number is no longer rendered on the tile — the header row is
+    // flag + country, with the name and date below.
+    expect(find.text('MONACO'), findsOneWidget);
     expect(find.text('MONACO GP'), findsOneWidget);
+    expect(find.text('24 – 26 May'), findsOneWidget);
     expect(find.text('NEXT'), findsOneWidget);
   });
 

@@ -69,6 +69,23 @@ export type AdminUserRow = {
   leagueCount: number
 }
 
+// Leaderboard-authoritative scoring attribution, mirrored from the backend
+// `ScoreBreakdown`. Rendered verbatim by the admin calc overview — no point
+// values are recomputed on the client.
+export type ScoreBreakdownPerPosition = {
+  position: number
+  driverCode: string
+  exact: boolean
+  wrongPos: boolean
+  points: number
+}
+
+export type ScoreBreakdown = {
+  perPosition: ScoreBreakdownPerPosition[]
+  teamBonus: { applied: boolean; points: number }
+  rule: string
+}
+
 export type AdminPrediction = {
   predictionId: string
   userId: string
@@ -77,6 +94,9 @@ export type AdminPrediction = {
   source: string
   updatedAt: string
   picks: { position: number; driverCode: string }[]
+  // Persisted session score, or null until the session is scored.
+  pointsTotal: number | null
+  breakdown: ScoreBreakdown | null
 }
 
 export type AdminDriver = {

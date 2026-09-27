@@ -23,11 +23,14 @@ class PredictionsController extends ChangeNotifier {
   final Set<int> _fetched = {};
   final Map<int, MyScore> _scores = {};
   List<UpcomingPrediction> _upcoming = const [];
+  int? _jokersRemaining;
 
   PredictionView?           prediction(int sessionId) => _predictions[sessionId];
   bool                      hasFetched(int sessionId) => _fetched.contains(sessionId);
   MyScore?                  score(int sessionId)      => _scores[sessionId];
   List<UpcomingPrediction>  get upcoming              => _upcoming;
+  /// Season joker budget left, or null until the first upcoming sync.
+  int?                      get jokersRemaining       => _jokersRemaining;
   Iterable<int>             get allScoreIds           => _scores.keys;
 
   Future<PredictionView?> fetchPrediction(int sessionId) async {
@@ -49,7 +52,9 @@ class PredictionsController extends ChangeNotifier {
   }
 
   Future<void> refreshUpcoming() async {
-    _upcoming = await api.upcomingPredictions();
+    final bundle = await api.upcomingPredictions();
+    _upcoming = bundle.upcoming;
+    _jokersRemaining = bundle.jokersRemaining;
     notifyListeners();
     onUpcomingSynced?.call(_upcoming);
   }
@@ -67,6 +72,7 @@ class PredictionsController extends ChangeNotifier {
     _fetched.clear();
     _scores.clear();
     _upcoming = const [];
+    _jokersRemaining = null;
     notifyListeners();
     // Cancel any pending reminders on logout — they'd otherwise fire under the
     // new user's account or after the app is wiped.

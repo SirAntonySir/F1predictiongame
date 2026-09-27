@@ -12,9 +12,11 @@ import '../api/models/reference_laps.dart';
 import '../components/app_card.dart';
 import '../components/branded_sheet.dart';
 import '../components/branded_toast.dart';
+import '../components/circuit_svg.dart';
 import '../components/driver_sector_row.dart';
 import '../components/error_view.dart';
 import '../components/slot.dart';
+import '../components/ticket/pick_ticket.dart';
 import '../domain/prediction.dart';
 import '../nav/nav_guard.dart';
 import '../state/app_state.dart';
@@ -232,8 +234,34 @@ class _PredictScreenState extends State<PredictScreen> {
     // back gesture (which is handled by PopScope below).
     NavGuard.instance.canLeave = () async {
       if (!_isDirty()) return true;
-      return await _confirmDiscard();
+      final leave = await _confirmDiscard();
+      // The StatefulShellRoute keeps this State alive across tab switches,
+      // so a confirmed "Discard" must actually drop the unsaved edits —
+      // otherwise they'd still be sitting here when the user tabs back.
+      if (leave && mounted) {
+        setState(() {
+          _picks = List<String>.from(_initialPicks);
+          _editing = _initialPicks.isEmpty;
+        });
+      }
+      return leave;
     };
+  }
+
+  @override
+  void didUpdateWidget(covariant PredictScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Kept alive by the StatefulShellRoute: a fresh navigation with a
+    // different ?session= target (home ticket stub, race-hero PICK CTA,
+    // push routes) updates this widget in place instead of recreating the
+    // State — reload explicitly. Plain tab switches restore the branch's
+    // previous URL, so they never hit this.
+    if (widget.sessionId != oldWidget.sessionId) {
+      _overrideSessionId = null;
+      setState(() {
+        _data = _load();
+      });
+    }
   }
 
   @override
@@ -392,6 +420,8 @@ class _PredictScreenState extends State<PredictScreen> {
             final req = requiredPicks(session.type);
             final scope = AppState.of(context);
             final systemLocked = scope.predictions.prediction(session.id)?.isLocked ?? false;
+            final isJoker = scope.predictions.prediction(session.id)?.isJoker ?? false;
+            final jokersRemaining = scope.predictions.jokersRemaining;
             // A session is locked once the backend flags it OR its deadline
             // (scheduled start) has passed — the latter covers past sessions
             // reached via the prev nav, which the server may not have flagged
@@ -468,11 +498,50 @@ class _PredictScreenState extends State<PredictScreen> {
                 ),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(Spacing.lg, 0, Spacing.lg, Spacing.sm),
-                  child: actionBar,
+                  // Once a pick is saved, a square ticket button rides along
+                  // the EDIT/LOCKED bar and opens the pick ticket overlay —
+                  // previously the ticket was only reachable from Home.
+                  child: hasSaved && !_editing
+                      ? IntrinsicHeight(
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Expanded(child: actionBar),
+                              const SizedBox(width: Spacing.sm),
+                              _TicketButton(
+                                key: const Key('predict.viewTicket'),
+                                onTap: () => _showTicket(event, session, d, locked),
+                              ),
+                            ],
+                          ),
+                        )
+                      : actionBar,
                 ),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(Spacing.xl, Spacing.md, Spacing.xl, Spacing.xs),
-                  child: Text('${session.type.name.toUpperCase()} · TOP $req', style: AppText.label(11, color: t.colorScheme.onSurface.withOpacity(0.6))),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text('${session.type.name.toUpperCase()} · TOP $req', style: AppText.label(11, color: t.colorScheme.onSurface.withOpacity(0.6))),
+                      ),
+                      // A joker-filled race carries a badge; an open race shows
+                      // how much of the season's joker budget is left. Jokers
+                      // only exist for the main race, so other session types
+                      // show neither.
+                      if (isJoker)
+                        Row(
+                          key: const Key('predict.jokerBadge'),
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.star, size: 12, color: BrandColors.accent),
+                            const SizedBox(width: 4),
+                            Text('JOKER', style: AppText.label(11, color: BrandColors.accent)),
+                          ],
+                        )
+                      else if (session.type == SessionType.race && jokersRemaining != null)
+                        Text('JOKERS $jokersRemaining/3', style: AppText.label(11, color: t.colorScheme.onSurface.withOpacity(0.4))),
+                    ],
+                  ),
                 ),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(Spacing.lg, 6, Spacing.lg, 6),
@@ -536,6 +605,67 @@ class _PredictScreenState extends State<PredictScreen> {
         ),
       ),
     );
+  }
+
+  /// Presents the saved pick as the same [PickTicket] the home card renders,
+  /// dimmed-backdrop overlay style. Shows the *saved* picks ([_initialPicks]),
+  /// never in-progress edits — the button is hidden while editing. Tapping
+  /// the ticket opens its usual actions sheet (race details / share).
+  void _showTicket(Event event, Session session, _PredictData d, bool locked) {
+    final constructorByDriver = <String, String>{
+      for (final r in d.drivers) r.driverCode: r.constructorId,
+    };
+    final p1ConstructorId =
+        _initialPicks.isEmpty ? null : constructorByDriver[_initialPicks.first];
+    // ignore: discarded_futures
+    showDialog<void>(
+      context: context,
+      builder: (dialogCtx) => Dialog(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        insetPadding: const EdgeInsets.symmetric(horizontal: Spacing.lg),
+        child: PickTicket(
+          event: event,
+          driverCodes: _initialPicks,
+          p1ConstructorId: p1ConstructorId,
+          circuitWatermark: CircuitSvg(event: event),
+          dayTime:
+              '${_ticketTypeLabel(session.type)} · ${_dayTime(session.scheduledStart)}',
+          statusOverride: locked ? 'LOCKED' : 'DRAFT',
+          sessionType: session.type,
+          onBodyTap: () {
+            Navigator.of(dialogCtx).pop();
+            context.push('/race/${event.round}/${session.id}');
+          },
+        ),
+      ),
+    );
+  }
+
+  static const _weekday = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
+  String _dayTime(DateTime t) {
+    final local = t.toLocal();
+    final hh = local.hour.toString().padLeft(2, '0');
+    final mm = local.minute.toString().padLeft(2, '0');
+    return '${_weekday[local.weekday - 1]} $hh:$mm';
+  }
+
+  // Same short labels the home pick card uses in its dayTime cell.
+  String _ticketTypeLabel(SessionType type) {
+    switch (type) {
+      case SessionType.race:
+        return 'RACE';
+      case SessionType.qualifying:
+        return 'QUALI';
+      case SessionType.sprint_quali:
+        return 'SPRINT QUALI';
+      case SessionType.sprint:
+        return 'SPRINT';
+      case SessionType.fp1:
+      case SessionType.fp2:
+      case SessionType.fp3:
+        return type.name.toUpperCase();
+    }
   }
 
   String _lockLabel(DateTime when) {
@@ -611,6 +741,40 @@ class _ActionBar extends StatelessWidget {
                 Text(countdown!, style: AppText.label(11, color: clock)),
               ],
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Square outlined companion to [_ActionBar] carrying a ticket glyph — opens
+/// the saved pick's ticket overlay. Height comes from the enclosing
+/// [IntrinsicHeight] row so it always matches the bar beside it.
+class _TicketButton extends StatelessWidget {
+  final VoidCallback onTap;
+  const _TicketButton({super.key, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Theme.of(context);
+    return Material(
+      color: t.colorScheme.surface,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
+        side: BorderSide(color: t.strokeColor, width: Strokes.card),
+        borderRadius: Radii.rLg,
+      ),
+      child: InkWell(
+        onTap: onTap,
+        child: Tooltip(
+          message: 'View ticket',
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: Spacing.md),
+            child: Center(
+              child: FaIcon(FontAwesomeIcons.ticket,
+                  size: 14, color: t.colorScheme.onSurface),
+            ),
           ),
         ),
       ),

@@ -67,7 +67,7 @@ void main() {
         throwsA(isA<ConflictException>()));
   });
 
-  test('upcomingPredictions 200 returns list', () async {
+  test('upcomingPredictions 200 returns bundle with joker state', () async {
     when(() => http_.get(any(), headers: any(named: 'headers'))).thenAnswer(
       (_) async => http.Response(jsonEncode({
         'upcoming': [
@@ -77,13 +77,56 @@ void main() {
             'picksRequired': 2,
             'locksAt': '2026-06-06T14:00:00.000Z',
             'isLocked': false,
+            'isJoker': false,
             'myPicks': null,
+          },
+          {
+            'session': {'id': 27, 'type': 'race'},
+            'event': {'id': 6, 'round': 6, 'name': 'Monaco Grand Prix', 'country': 'Monaco'},
+            'picksRequired': 5,
+            'locksAt': '2026-06-07T14:00:00.000Z',
+            'isLocked': true,
+            'isJoker': true,
+            'myPicks': [{'position': 1, 'driverCode': 'VER'}],
           }
-        ]
+        ],
+        'jokersRemaining': 2,
       }), 200),
     );
-    final list = await client.upcomingPredictions();
-    expect(list, hasLength(1));
-    expect(list.first.eventName, 'Monaco Grand Prix');
+    final bundle = await client.upcomingPredictions();
+    expect(bundle.jokersRemaining, 2);
+    expect(bundle.upcoming, hasLength(2));
+    expect(bundle.upcoming.first.eventName, 'Monaco Grand Prix');
+    expect(bundle.upcoming.first.isJoker, isFalse);
+    expect(bundle.upcoming.last.isJoker, isTrue);
+  });
+
+  test('getMyPrediction parses isJoker', () async {
+    when(() => http_.get(any(), headers: any(named: 'headers'))).thenAnswer(
+      (_) async => http.Response(jsonEncode({
+        'prediction': {
+          'sessionId': 42,
+          'picks': [{'position': 1, 'driverCode': 'VER'}],
+          'isLocked': true,
+          'isJoker': true,
+        }
+      }), 200),
+    );
+    final v = await client.getMyPrediction(42);
+    expect(v!.isJoker, isTrue);
+  });
+
+  test('isJoker defaults to false when absent', () async {
+    when(() => http_.get(any(), headers: any(named: 'headers'))).thenAnswer(
+      (_) async => http.Response(jsonEncode({
+        'prediction': {
+          'sessionId': 42,
+          'picks': [{'position': 1, 'driverCode': 'VER'}],
+          'isLocked': false,
+        }
+      }), 200),
+    );
+    final v = await client.getMyPrediction(42);
+    expect(v!.isJoker, isFalse);
   });
 }

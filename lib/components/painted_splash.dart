@@ -119,6 +119,13 @@ class _PaintedSplashState extends State<PaintedSplash>
       } on TickerCanceled {
         return; // disposed mid-flight — owner moved on.
       }
+    } else {
+      // Already fully painted: didUpdateWidget reaches here synchronously
+      // MID-BUILD when `ready` flips after the artwork ended (boot outlasted
+      // the animation), and onFinished setStates on an ancestor — calling it
+      // now would be setState-during-build, which kills the boot overlay's
+      // handoff and strands the app under the splash. Wait out the frame.
+      await WidgetsBinding.instance.endOfFrame;
     }
     if (mounted) widget.onFinished?.call();
   }

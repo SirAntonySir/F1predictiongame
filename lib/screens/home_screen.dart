@@ -250,7 +250,9 @@ class _HomeScreenState extends State<HomeScreen> {
                           event: ev,
                           session: liveSess,
                           snap: snap,
-                          onTap: () => context.go('/race/${ev.round}/$liveId'),
+                          // push (not go) so back returns here — go replaces
+                          // the stack and back would fall to /calendar.
+                          onTap: () => context.push('/race/${ev.round}/$liveId'),
                         );
                       }
                     }

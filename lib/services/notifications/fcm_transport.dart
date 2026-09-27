@@ -41,7 +41,28 @@ class FcmPushTransport implements PushTransport {
   }
 
   @override
-  Future<String?> getToken() => _messaging.getToken();
+  Future<String?> getToken() async {
+    try {
+      // Probe the APNs layer first — distinguishes "iOS never registered
+      // with APNs" (ABSENT) from "FCM can't map an APNs token it has"
+      // (present, yet getToken still fails).
+      if (kDebugMode && _platform == 'ios') {
+        String? apns;
+        try {
+          apns = await _messaging.getAPNSToken();
+        } catch (_) {}
+        debugPrint(
+            '[push] APNs token: ${apns == null ? 'ABSENT' : 'present (${apns.length} chars)'}');
+      }
+      return await _messaging.getToken();
+    } catch (e) {
+      // iOS throws (apns-token-not-set) while the APNs token hasn't been
+      // delivered yet — report "not yet" instead so PushService's retry /
+      // onTokenRefresh path can recover.
+      if (kDebugMode) debugPrint('[push] getToken failed (retryable): $e');
+      return null;
+    }
+  }
 
   @override
   Stream<String> get onTokenRefresh => _messaging.onTokenRefresh;

@@ -25,6 +25,10 @@ class _FakeApi implements ApiClient {
 class _FakeTransport implements PushTransport {
   bool granted;
   String? token;
+  int getTokenCalls = 0;
+  /// When set, replaces the default `token` reply — lets tests script
+  /// null-then-token sequences or the iOS apns-token-not-set throw.
+  Future<String?> Function()? getTokenImpl;
   final _refresh = StreamController<String>.broadcast();
   _FakeTransport({this.granted = true, this.token = 'tok-1'});
 
@@ -33,7 +37,13 @@ class _FakeTransport implements PushTransport {
   @override
   Future<bool> requestPermission() async => granted;
   @override
-  Future<String?> getToken() async => token;
+  Future<String?> getToken() {
+    getTokenCalls++;
+    final impl = getTokenImpl;
+    if (impl != null) return impl();
+    return Future.value(token);
+  }
+
   @override
   Stream<String> get onTokenRefresh => _refresh.stream;
   void rotate(String t) => _refresh.add(t);
@@ -85,6 +95,49 @@ void main() {
     final svc = PushService(api: api, transport: _FakeTransport(token: 'tok-1'));
     await svc.start();
     await svc.start();
+    expect(api.registered, hasLength(1));
+  });
+
+  test('iOS race: getToken throws, a late refresh still registers', () async {
+    final api = _FakeApi();
+    final t = _FakeTransport()
+      ..getTokenImpl = (() async => throw Exception('apns-token-not-set'));
+    final svc = PushService(
+        api: api, transport: t, tokenRetryDelays: const []);
+    await svc.start();
+    expect(api.registered, isEmpty);
+    // APNs token arrives later → FCM token generated → refresh stream fires.
+    t.rotate('tok-late');
+    await Future<void>.delayed(Duration.zero);
+    expect(api.registered.map((r) => r['token']), ['tok-late']);
+  });
+
+  test('getToken null/throw is retried until the token arrives', () async {
+    final api = _FakeApi();
+    final t = _FakeTransport();
+    var calls = 0;
+    t.getTokenImpl = () async {
+      calls++;
+      if (calls == 1) throw Exception('apns-token-not-set');
+      if (calls == 2) return null;
+      return 'tok-1';
+    };
+    final svc = PushService(
+        api: api,
+        transport: t,
+        tokenRetryDelays: const [Duration.zero, Duration.zero, Duration.zero]);
+    await svc.start();
+    expect(calls, 3);
+    expect(api.registered.map((r) => r['token']), ['tok-1']);
+  });
+
+  test('refresh with the already-registered token does not duplicate', () async {
+    final api = _FakeApi();
+    final t = _FakeTransport(token: 'tok-1');
+    final svc = PushService(api: api, transport: t);
+    await svc.start();
+    t.rotate('tok-1');
+    await Future<void>.delayed(Duration.zero);
     expect(api.registered, hasLength(1));
   });
 }

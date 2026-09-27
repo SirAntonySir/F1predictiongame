@@ -22,7 +22,8 @@ class _FakeApi implements ApiClient {
   @override
   Future<Session> nextSession() async => throw const NotFoundException('next');
   @override
-  Future<List<UpcomingPrediction>> upcomingPredictions() async => const [];
+  Future<UpcomingBundle> upcomingPredictions() async =>
+      const UpcomingBundle(upcoming: [], jokersRemaining: 3);
   @override
   Future<List<SessionResult>> sessionResults(int id) async => resultsReply;
   @override

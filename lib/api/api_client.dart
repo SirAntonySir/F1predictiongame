@@ -70,7 +70,7 @@ abstract class ApiClient {
   Future<PredictionView?>          getMyPrediction(int sessionId);
   Future<PredictionView>           putMyPrediction(int sessionId, List<Pick> picks);
   Future<void>                     deleteMyPrediction(int sessionId);
-  Future<List<UpcomingPrediction>> upcomingPredictions();
+  Future<UpcomingBundle>           upcomingPredictions();
 
   // scores
   Future<List<MyScore>>            myScores({int? season});

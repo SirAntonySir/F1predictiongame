@@ -22,16 +22,28 @@ class PushService {
     required ApiClient api,
     required PushTransport transport,
     String Function()? timezoneProvider,
+    List<Duration> tokenRetryDelays = const [
+      Duration(seconds: 1),
+      Duration(seconds: 2),
+      Duration(seconds: 4),
+    ],
   })  : _api = api,
         _transport = transport,
-        _timezoneProvider = timezoneProvider;
+        _timezoneProvider = timezoneProvider,
+        _tokenRetryDelays = tokenRetryDelays;
 
   final ApiClient _api;
   final PushTransport _transport;
   final String Function()? _timezoneProvider;
 
+  /// Waits between initial getToken attempts. On iOS the FCM token depends
+  /// on the APNs token, which is often not delivered yet when [start] runs
+  /// right after the permission grant — the first attempts then fail.
+  final List<Duration> _tokenRetryDelays;
+
   StreamSubscription<String>? _sub;
   String? _lastToken;
+  String? _lastRegistered;
   bool _started = false;
   bool _permissionGranted = false;
 
@@ -47,14 +59,18 @@ class PushService {
       pushPermissionGranted.value = _permissionGranted;
       debugPrint('[push] permission granted=$_permissionGranted');
       if (!_permissionGranted) return;
-      final token = await _transport.getToken();
-      debugPrint('[push] getToken → ${token == null ? 'NULL (no APNs token yet?)' : '${token.substring(0, 12)}… (len ${token.length})'}');
-      if (token != null) await _register(token);
+      // Listen BEFORE the first getToken attempt: when the token isn't
+      // available yet (iOS APNs race), its eventual generation fires this
+      // stream — without the subscription in place the device would never
+      // register until the next app start.
       _sub = _transport.onTokenRefresh.listen((t) {
         debugPrint('[push] onTokenRefresh → re-registering');
         // ignore: discarded_futures
         _register(t);
       });
+      final token = await _getTokenWithRetry();
+      debugPrint('[push] getToken → ${token == null ? 'NULL (no APNs token yet?)' : '${_preview(token)} (len ${token.length})'}');
+      if (token != null) await _register(token);
     } catch (e, st) {
       // Firebase not configured, no Play Services, etc. — stay silent so boot
       // and login still succeed.
@@ -62,14 +78,39 @@ class PushService {
     }
   }
 
+  /// iOS throws (apns-token-not-set) or returns null while the APNs token
+  /// hasn't been delivered; a few short retries usually catch it. If the
+  /// token still isn't there, give up quietly — the onTokenRefresh listener
+  /// registers it whenever it materialises. Android resolves on the first
+  /// attempt.
+  Future<String?> _getTokenWithRetry() async {
+    for (var attempt = 0;; attempt++) {
+      try {
+        final token = await _transport.getToken();
+        if (token != null) return token;
+      } catch (e) {
+        debugPrint('[push] getToken attempt ${attempt + 1} failed: $e');
+      }
+      if (attempt >= _tokenRetryDelays.length) return null;
+      await Future<void>.delayed(_tokenRetryDelays[attempt]);
+    }
+  }
+
+  static String _preview(String token) =>
+      token.length <= 12 ? token : '${token.substring(0, 12)}…';
+
   Future<void> _register(String token) async {
     _lastToken = token;
+    // The retry path and the refresh stream can both deliver the first
+    // token — don't register the same one twice in a session.
+    if (token == _lastRegistered) return;
     try {
       await _api.registerDevice(
         token: token,
         platform: _transport.platform,
         timezone: _timezoneProvider?.call(),
       );
+      _lastRegistered = token;
       debugPrint('[push] registerDevice OK (platform=${_transport.platform})');
     } catch (e) {
       debugPrint('[push] registerDevice FAILED: $e');
@@ -84,6 +125,7 @@ class PushService {
     _started = false;
     final token = _lastToken;
     _lastToken = null;
+    _lastRegistered = null;
     if (token != null) {
       try {
         await _api.deleteDevice(token);

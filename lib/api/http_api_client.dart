@@ -281,9 +281,12 @@ class HttpApiClient implements ApiClient {
   }
 
   @override
-  Future<List<UpcomingPrediction>> upcomingPredictions() async {
+  Future<UpcomingBundle> upcomingPredictions() async {
     final j = await _request('GET', '/api/predictions/upcoming') as Map<String, dynamic>;
-    return (j['upcoming'] as List).cast<Map<String, dynamic>>().map(UpcomingPrediction.fromJson).toList();
+    return UpcomingBundle(
+      upcoming: (j['upcoming'] as List).cast<Map<String, dynamic>>().map(UpcomingPrediction.fromJson).toList(),
+      jokersRemaining: j['jokersRemaining'] as int? ?? 3,
+    );
   }
 
   @override

@@ -51,9 +51,10 @@ void main() {
                     sessionType: SessionType.race,
                     myPicks: ['VER', 'LEC', 'X', 'Y', 'Z'],
                     snap: snap)))));
-    expect(find.textContaining('projected'), findsWidgets);
+    expect(find.textContaining('PROJECTED'), findsWidgets);
     expect(find.text('+8'), findsOneWidget);
-    expect(find.text('VER'), findsOneWidget);
+    // VER renders in both the running order and the my-picks strip.
+    expect(find.text('VER'), findsWidgets);
     expect(find.text('LUKAS'), findsOneWidget);
     expect(find.textContaining('LEAGUE'), findsOneWidget);
   });

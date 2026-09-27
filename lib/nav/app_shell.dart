@@ -4,30 +4,30 @@ import '../components/bottom_nav.dart';
 import 'nav_guard.dart';
 
 class AppShell extends StatelessWidget {
-  final Widget child;
-  const AppShell({super.key, required this.child});
+  final StatefulNavigationShell shell;
+  const AppShell({super.key, required this.shell});
 
-  static const _paths = ['/home', '/calendar', '/predict', '/standings'];
+  static const _tabCount = 4;
 
-  int _indexFor(String location) {
-    for (var i = 0; i < _paths.length; i++) {
-      if (location.startsWith(_paths[i])) return i;
+  // Branch index of the predict tab — the only screen that registers a
+  // NavGuard. Tab states are kept alive by the StatefulShellRoute, so the
+  // guard stays registered even while other tabs are visible; consult it
+  // only when the user is actually leaving predict, otherwise a dirty
+  // predict tab would also gate e.g. Home → Calendar.
+  static const _predictIndex = 2;
+
+  Future<void> _goTo(BuildContext context, int i) async {
+    if (i == shell.currentIndex) return;
+    if (shell.currentIndex == _predictIndex) {
+      final guard = NavGuard.instance.canLeave;
+      if (guard != null && !await guard()) return;
     }
-    return 0;
-  }
-
-  Future<void> _goTo(BuildContext context, int i, String location) async {
-    final target = _paths[i];
-    if (location.startsWith(target)) return;
-    final guard = NavGuard.instance.canLeave;
-    if (guard != null && !await guard()) return;
-    if (context.mounted) context.go(target);
+    if (context.mounted) shell.goBranch(i);
   }
 
   @override
   Widget build(BuildContext context) {
-    final location = GoRouterState.of(context).matchedLocation;
-    final currentIdx = _indexFor(location);
+    final currentIdx = shell.currentIndex;
     return Scaffold(
       body: GestureDetector(
         // Horizontal flick switches bottom-nav tabs. Threshold of 250 px/s
@@ -41,15 +41,15 @@ class AppShell extends StatelessWidget {
           final v = details.primaryVelocity ?? 0;
           if (v.abs() < 250) return;
           final nextIdx = v < 0 ? currentIdx + 1 : currentIdx - 1;
-          if (nextIdx < 0 || nextIdx >= _paths.length) return;
+          if (nextIdx < 0 || nextIdx >= _tabCount) return;
           // ignore: discarded_futures
-          _goTo(context, nextIdx, location);
+          _goTo(context, nextIdx);
         },
-        child: child,
+        child: shell,
       ),
       bottomNavigationBar: BottomNav(
         currentIndex: currentIdx,
-        onTap: (i) => _goTo(context, i, location),
+        onTap: (i) => _goTo(context, i),
       ),
     );
   }

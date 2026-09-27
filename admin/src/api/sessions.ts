@@ -29,10 +29,11 @@ export function useSession(id: number) {
   })
 }
 
-export function useSessionResults(id: number) {
+export function useSessionResults(id: number, enabled = true) {
   return useQuery({
     queryKey: ['session-results', String(id)],
-    queryFn: () => apiFetch<SessionResultRow[]>(`/api/sessions/${id}/results`)
+    queryFn: () => apiFetch<SessionResultRow[]>(`/api/sessions/${id}/results`),
+    enabled
   })
 }
 

@@ -22,7 +22,10 @@ class _FakeApi implements ApiClient {
     putCalls += 1;
     return predReply = PredictionView(sessionId: sessionId, picks: picks, updatedAt: DateTime.utc(2026,5,1), isLocked: false);
   }
-  @override Future<List<UpcomingPrediction>> upcomingPredictions() async { upcomingCalls += 1; return upcomingReply; }
+  @override Future<UpcomingBundle> upcomingPredictions() async {
+    upcomingCalls += 1;
+    return UpcomingBundle(upcoming: upcomingReply, jokersRemaining: 3);
+  }
   @override Future<List<MyScore>> myScores({int? season}) async { scoresCalls += 1; return scoresReply; }
   @override noSuchMethod(Invocation i) => super.noSuchMethod(i);
 }
