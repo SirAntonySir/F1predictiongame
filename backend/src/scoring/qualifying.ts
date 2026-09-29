@@ -4,9 +4,11 @@ const EXACT = 3
 const WRONG_POS = 1
 const TEAM_BONUS = 1
 const RULE = 'qualifying-v1'
+// Wrong-pos window: fixed at the front row (top-2) regardless of pick count.
+const TOP_N = 2
 
 export function scoreQualifying(picks: Pick[], finishers: Finisher[]): ScoreBreakdown {
-  const topN = picks.length
+  const topN = TOP_N
   const perPosition: ScoreBreakdownPerPosition[] = picks.map((p) => {
     const exactFinisher = finishers.find((f) => f.position === p.position)
     if (exactFinisher && exactFinisher.driverCode === p.driverCode) {

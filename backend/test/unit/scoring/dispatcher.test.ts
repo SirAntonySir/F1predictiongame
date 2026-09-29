@@ -28,8 +28,23 @@ describe('scoreSession dispatcher', () => {
     expect(() => scoreSession('fp1' as SessionType, [], [])).toThrow(/not scorable/i)
   })
 
-  it('throws on wrong pick count for type', () => {
-    const tooFew = [{ position: 1, driverCode: VER.code }]  // race needs 5
-    expect(() => scoreSession('race', tooFew, [])).toThrow(/expected 5 picks/i)
+  it('throws on too many picks for type', () => {
+    const tooMany = Array.from({ length: 6 }, (_, i) => ({ position: i + 1, driverCode: VER.code }))
+    expect(() => scoreSession('race', tooMany, [])).toThrow(/at most 5 picks/i)
+  })
+
+  it('throws on zero picks', () => {
+    expect(() => scoreSession('race', [], [])).toThrow(/at least 1 pick/i)
+  })
+
+  // Partial sets happen in reality (late/partial submissions backfilled by the
+  // league owner). Filled positions score normally; empty ones just can't score.
+  it('scores a partial race set (filled positions only)', () => {
+    const partial = [{ position: 1, driverCode: VER.code }, { position: 2, driverCode: HAM.code }]
+    const finishers = [f(1, VER), f(2, HAM)]
+    const b = scoreSession('race', partial, finishers)
+    expect(b.rule).toBe('race-v1')
+    expect(b.perPosition).toHaveLength(2)
+    expect(b.perPosition.every((p) => p.exact)).toBe(true)
   })
 })

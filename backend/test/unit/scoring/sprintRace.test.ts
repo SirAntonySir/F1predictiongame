@@ -57,6 +57,21 @@ describe('scoreSprintRace', () => {
     expect(b.perPosition[2]).toEqual({ position: 3, driverCode: NOR.code, exact: false, wrongPos: true, points: 1 })
   })
 
+  it('partial 2-pick set: filled positions score, window stays top-3', () => {
+    // Only P1+P2 submitted. HAM picked P2 finished P3 — still inside the
+    // sprint's top-3 window even though only 2 picks were made → wrong-pos 1.
+    const picks = [
+      { position: 1, driverCode: VER.code },
+      { position: 2, driverCode: HAM.code }
+    ]
+    const finishers = [f(1, VER), f(2, NOR), f(3, HAM)]
+    const b = scoreSprintRace(picks, finishers)
+    expect(b.perPosition).toHaveLength(2)
+    expect(b.perPosition[0]).toEqual({ position: 1, driverCode: VER.code, exact: true, wrongPos: false, points: 2 })
+    expect(b.perPosition[1]).toEqual({ position: 2, driverCode: HAM.code, exact: false, wrongPos: true, points: 1 })
+    expect(b.teamBonus).toEqual({ applied: true, points: 1 })
+  })
+
   it('no points at all', () => {
     const picks = [
       { position: 1, driverCode: NOR.code },

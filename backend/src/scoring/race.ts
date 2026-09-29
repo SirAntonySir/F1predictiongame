@@ -4,9 +4,12 @@ const EXACT = 3
 const WRONG_POS = 1
 const TEAM_BONUS = 2
 const RULE = 'race-v1'
+// Wrong-pos window: a picked driver finishing anywhere in the actual top-5
+// scores 1. Fixed by the rule, not by how many picks were submitted.
+const TOP_N = 5
 
 export function scoreRace(picks: Pick[], finishers: Finisher[]): ScoreBreakdown {
-  const topN = picks.length
+  const topN = TOP_N
   const perPosition: ScoreBreakdownPerPosition[] = picks.map((p) => {
     const exactFinisher = finishers.find((f) => f.position === p.position)
     if (exactFinisher && exactFinisher.driverCode === p.driverCode) {

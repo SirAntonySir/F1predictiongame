@@ -27,6 +27,22 @@ describe('scoreRace', () => {
     expect(b.teamBonus).toEqual({ applied: true, points: 2 })
   })
 
+  it('partial 3-pick set: window stays top-5', () => {
+    // Only P1–P3 submitted. NOR picked P3 finished P5 — inside the race's
+    // top-5 window even with a partial set → wrong-pos 1.
+    const picks = [
+      { position: 1, driverCode: VER.code },
+      { position: 2, driverCode: HAM.code },
+      { position: 3, driverCode: NOR.code }
+    ]
+    const finishers = [f(1, VER), f(2, HAM), f(3, RUS), f(4, PIA), f(5, NOR)]
+    const b = scoreRace(picks, finishers)
+    expect(b.perPosition).toHaveLength(3)
+    expect(b.perPosition[0]!.points).toBe(3)
+    expect(b.perPosition[1]!.points).toBe(3)
+    expect(b.perPosition[2]).toEqual({ position: 3, driverCode: NOR.code, exact: false, wrongPos: true, points: 1 })
+  })
+
   it('mixed exact + wrong-pos, no team bonus', () => {
     // VER picked for P1, actually finished P2 -> wrongPos at P1
     // HAM picked for P2, actually finished P1 -> wrongPos at P2

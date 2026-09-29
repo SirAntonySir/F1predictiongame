@@ -23,8 +23,14 @@ export function scoreSession(
   if (expected === undefined) {
     throw new Error(`Session type ${type} is not scorable`)
   }
-  if (picks.length !== expected) {
-    throw new Error(`Session type ${type} expected ${expected} picks, got ${picks.length}`)
+  // Partial sets (late/partial submissions backfilled by the league owner)
+  // are legal: filled positions score normally, empty ones simply can't score.
+  // The wrong-pos window stays the rule's full top-N regardless of pick count.
+  if (picks.length === 0) {
+    throw new Error(`Session type ${type} needs at least 1 pick`)
+  }
+  if (picks.length > expected) {
+    throw new Error(`Session type ${type} takes at most ${expected} picks, got ${picks.length}`)
   }
   switch (type) {
     case 'qualifying':    return scoreQualifying(picks, finishers)

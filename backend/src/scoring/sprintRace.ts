@@ -4,9 +4,11 @@ const EXACT = 2
 const WRONG_POS = 1
 const TEAM_BONUS = 1
 const RULE = 'sprint-race-v1'
+// Wrong-pos window: fixed at the sprint's top-3 regardless of pick count.
+const TOP_N = 3
 
 export function scoreSprintRace(picks: Pick[], finishers: Finisher[]): ScoreBreakdown {
-  const topN = picks.length
+  const topN = TOP_N
   const perPosition: ScoreBreakdownPerPosition[] = picks.map((p) => {
     const exactFinisher = finishers.find((f) => f.position === p.position)
     if (exactFinisher && exactFinisher.driverCode === p.driverCode) {
