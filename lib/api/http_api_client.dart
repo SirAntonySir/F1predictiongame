@@ -65,6 +65,20 @@ class HttpApiClient implements ApiClient {
       default:       throw StateError('Unsupported HTTP method: $method');
     }
 
+    return _decodeResponse(path, res);
+  }
+
+  /// Raw-binary POST (Excel upload). Same auth + error mapping as [_request].
+  Future<dynamic> _requestBinary(String path, List<int> bytes) async {
+    final uri = Uri.parse('$baseUrl$path');
+    final headers = <String, String>{'Content-Type': 'application/octet-stream'};
+    final token = _tokenProvider();
+    if (token != null) headers['Authorization'] = 'Bearer $token';
+    final res = await client.post(uri, headers: headers, body: bytes);
+    return _decodeResponse(path, res);
+  }
+
+  dynamic _decodeResponse(String path, http.Response res) {
     if (res.statusCode >= 200 && res.statusCode < 300) {
       _unauthorizedFired = false;
       if (res.body.isEmpty) return null;
@@ -392,6 +406,22 @@ class HttpApiClient implements ApiClient {
   @override
   Future<ImportApplyResult> applyImport(String leagueId, Map<String, dynamic> body) async {
     final j = await _request('POST', '/api/leagues/$leagueId/imports', body: body) as Map<String, dynamic>;
+    return ImportApplyResult.fromJson(j);
+  }
+
+  @override
+  Future<ImportPreview> previewImportExcel(String leagueId, int seasonYear, List<int> xlsxBytes) async {
+    final j = await _requestBinary(
+        '/api/leagues/$leagueId/imports/excel?season=$seasonYear&dryRun=1', xlsxBytes) as Map<String, dynamic>;
+    return ImportPreview.fromJson(j);
+  }
+
+  @override
+  Future<ImportApplyResult> applyImportExcel(String leagueId, int seasonYear, List<int> xlsxBytes,
+      {bool overwrite = false}) async {
+    final j = await _requestBinary(
+        '/api/leagues/$leagueId/imports/excel?season=$seasonYear${overwrite ? '&overwrite=1' : ''}',
+        xlsxBytes) as Map<String, dynamic>;
     return ImportApplyResult.fromJson(j);
   }
 

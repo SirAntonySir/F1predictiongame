@@ -54,8 +54,12 @@ describe('parsePickList', () => {
     expect(parsePickList([null, null], 1)).toEqual([])
     expect(parsePickList([' ---', ' ---', ' ---'], 1)).toEqual([])
   })
-  it('throws if partially filled (some picks present, some missing without " ---")', () => {
-    expect(() => parsePickList(['Ver', null], 1)).toThrow(/incomplete pick list/i)
+  it('keeps filled slots of a partial list at their positional index', () => {
+    expect(parsePickList(['Ver', null], 1)).toEqual([{ position: 1, driverCode: 'VER' }])
+    expect(parsePickList([' ---', 'Nor', 'Rus'], 1)).toEqual([
+      { position: 2, driverCode: 'NOR' },
+      { position: 3, driverCode: 'RUS' }
+    ])
   })
   it('throws on duplicate driver in one pick list', () => {
     expect(() => parsePickList(['Ver', 'Ver'], 1)).toThrow(/duplicate driver/i)

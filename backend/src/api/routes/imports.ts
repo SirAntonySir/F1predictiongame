@@ -23,6 +23,7 @@
 import { eq, inArray } from 'drizzle-orm'
 import type { FastifyInstance } from 'fastify'
 import { z } from 'zod'
+import xlsxPkg from 'xlsx'
 import { getCurrentUser, requireLeagueOwner, requireLeagueMember, registerAuthHook } from '../auth-context.js'
 import { ApiError } from '../errors.js'
 import { getDb } from '../../db/client.js'
@@ -33,6 +34,7 @@ import * as seasonsRepo from '../../repo/seasons.js'
 import * as leaguesRepo from '../../repo/leagues.js'
 import * as leagueMembers from '../../repo/leagueMembers.js'
 import * as driversRepo from '../../repo/drivers.js'
+import * as constructorsRepo from '../../repo/constructors.js'
 import * as predictionsRepo from '../../repo/predictions.js'
 import * as predictionPicksRepo from '../../repo/predictionPicks.js'
 import * as resultsRepo from '../../repo/results.js'
@@ -41,12 +43,21 @@ import * as preseasonStandings from '../../repo/preseasonStandings.js'
 import { picksRequiredFor, scoreSession } from '../../scoring/index.js'
 import { rescoreSession } from '../../scoring/rescorer.js'
 import { rescorePreseasonForSeason } from '../../preseason/rescorer.js'
+import { JOKERS_PER_SEASON } from '../../jokers/applier.js'
+import { parseWorkbook } from '../../scripts/tippspiel/parser.js'
+import { SESSION_TYPE_BY_KIND } from '../../scripts/tippspiel/types.js'
+import type { ParsedSeason } from '../../scripts/tippspiel/types.js'
+import { mapEventName } from '../../scripts/tippspiel/mappings.js'
 import type { SessionType, SessionResultRow } from '../../domain/types.js'
 import type { Finisher } from '../../scoring/types.js'
 
+const XLSX = xlsxPkg as typeof xlsxPkg & { read: (data: Buffer, opts: { type: 'buffer' }) => xlsxPkg.WorkBook }
+
 const SCHEMA_VERSION = 1
 const MAX_BODY_BYTES = 256 * 1024
+const MAX_XLSX_BYTES = 2 * 1024 * 1024
 const MAX_PREDICTIONS = 5000
+const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 
 // ---- Zod input schema --------------------------------------------------------
 
@@ -63,7 +74,10 @@ const ImportBody = z.object({
     picks: z.array(z.object({
       position: z.number().int().positive(),
       driverCode: z.string()
-    })).min(1)
+    })).min(1),
+    /// True = this row consumed one of the user's 3 season jokers (missed
+    /// race auto-copy or late hand-in). Race sessions only; budget-checked.
+    joker: z.boolean().default(false)
   })).max(MAX_PREDICTIONS),
   preseason: z.object({
     picks: z.array(z.object({
@@ -90,8 +104,9 @@ type PredictionPlanItem = {
   eventName: string
   round: number
   picks: Pick[]
+  joker: boolean
   /// 'app' = existing in-app pick will be replaced.
-  /// 'import' = previous import row will be replaced (no warning needed).
+  /// 'import' = previous import/joker row will be replaced (no warning needed).
   /// null = brand-new row.
   conflictsWith: 'app' | 'import' | null
   /// Points the picks WOULD score, given the session's current results. Null
@@ -99,6 +114,7 @@ type PredictionPlanItem = {
   previewPoints: number | null
 }
 type SkipItem = { kind: string; userId?: string; sessionId?: number; category?: string; reason: string }
+type WarnItem = { userId: string; displayName: string; sessionId: number; eventName: string; round: number; reason: string }
 
 // ---- Helpers -----------------------------------------------------------------
 
@@ -120,6 +136,12 @@ function totalOf(bd: { perPosition: { points: number }[]; teamBonus: { points: n
 
 export async function registerImportsRoutes(app: FastifyInstance): Promise<void> {
   registerAuthHook(app)
+
+  // Binary body support for the xlsx endpoint. Encapsulated to this plugin —
+  // JSON routes still require application/json.
+  for (const type of ['application/octet-stream', XLSX_MIME]) {
+    app.addContentTypeParser(type, { parseAs: 'buffer' }, (_req, body, done) => done(null, body))
+  }
 
   // ---- GET schema template -------------------------------------------------
   app.get<{ Params: { leagueId: string }; Querystring: { season?: string } }>(
@@ -174,9 +196,10 @@ export async function registerImportsRoutes(app: FastifyInstance): Promise<void>
         drivers,
         sessions,
         _instructions: {
-          predictions: 'One row per (userId, sessionId). picks count + positions must match the session\'s picksRequired. driverCode must be one of drivers above.',
+          predictions: 'One row per (userId, sessionId). Up to picksRequired picks, positions within 1..picksRequired (partial hand-ins allowed — filled positions score normally). driverCode must be one of drivers above.',
+          jokers: `Set "joker": true on a race row that consumed one of the ${JOKERS_PER_SEASON} season jokers (missed race / late hand-in). Budget is validated; excess joker rows are skipped.`,
           preseason: 'Optional. picks: one row per (userId, category) using driverCode or constructorId. standings: per-user driver+constructor projected ordering.',
-          conflicts: 'When userId+sessionId already has an IN-APP pick, the row is rejected unless overwrite=true. Previously-imported rows are silently replaced.'
+          conflicts: 'When userId+sessionId already has an IN-APP pick, the row is rejected unless overwrite=true. Previously imported or joker rows are silently replaced.'
         },
         overwrite: false,
         predictions: [],
@@ -185,28 +208,13 @@ export async function registerImportsRoutes(app: FastifyInstance): Promise<void>
     }
   )
 
-  // ---- POST apply / dryRun -----------------------------------------------
-  app.post<{ Params: { leagueId: string }; Querystring: { dryRun?: string }; Body: unknown }>(
-    '/api/leagues/:leagueId/imports',
-    { bodyLimit: MAX_BODY_BYTES },
-    async (req) => {
-      const { leagueId } = req.params
-      await requireLeagueOwner(req, leagueId)
-      const me = getCurrentUser(req)
-
-      const dryRun = req.query.dryRun === '1' || req.query.dryRun === 'true'
-
-      const parsed = ImportBody.safeParse(req.body)
-      if (!parsed.success) {
-        const summary = parsed.error.issues.slice(0, 5)
-          .map((i) => `${i.path.join('.') || '(root)'}: ${i.message}`).join('; ')
-        throw new ApiError('VALIDATION', `Body failed schema validation. ${summary}`)
-      }
-      const body = parsed.data
-      if (body.league.id !== leagueId) {
-        throw new ApiError('BAD_REQUEST', 'league.id in body must match URL :leagueId')
-      }
-
+  // ---- Shared plan/apply pipeline (JSON + Excel endpoints) -----------------
+  async function runImport(
+    leagueId: string,
+    me: { id: string },
+    body: ImportBodyT,
+    dryRun: boolean
+  ) {
       const season = await seasonsRepo.getByYear(body.seasonYear)
       if (!season) throw new ApiError('NOT_FOUND', `Season ${body.seasonYear} not bootstrapped`)
 
@@ -221,12 +229,41 @@ export async function registerImportsRoutes(app: FastifyInstance): Promise<void>
         const ss = await sessionsRepo.listForEvent(ev.id)
         for (const s of ss) sessionMetaById.set(s.id, { type: s.type, eventName: ev.name, round: ev.round })
       }
+      // Race sessions by round, for joker bookkeeping + the previous-race heuristic.
+      const raceSessionByRound = new Map<number, number>()
+      for (const [sid, m] of sessionMetaById) {
+        if (m.type === 'race') raceSessionByRound.set(m.round, sid)
+      }
+      const raceRoundsAsc = [...raceSessionByRound.keys()].sort((a, b) => a - b)
       const validDrivers = new Set((await driversRepo.listAll()).map((d) => d.code))
 
       // ---- Plan predictions ----
       const plan: PredictionPlanItem[] = []
       const skipped: SkipItem[] = []
+      const warnings: WarnItem[] = []
       const resultsCache = new Map<number, SessionResultRow[]>()
+
+      // Existing predictions per session (source + picks), fetched lazily one
+      // session at a time. Serves conflict detection, the unchanged-row check
+      // and the missed-race heuristic.
+      const existingCache = new Map<number, Map<string, { source: string; picks: Pick[] }>>()
+      async function existingAt(sessionId: number): Promise<Map<string, { source: string; picks: Pick[] }>> {
+        let m = existingCache.get(sessionId)
+        if (!m) {
+          m = new Map(
+            (await predictionsRepo.listForSessionWithPicks(sessionId))
+              .map((r) => [r.userId, { source: r.source, picks: r.picks }])
+          )
+          existingCache.set(sessionId, m)
+        }
+        return m
+      }
+      const samePicks = (a: Pick[], b: Pick[]) =>
+        a.length > 0 && a.length === b.length &&
+        [...a].sort((x, y) => x.position - y.position).every((p, i) => {
+          const q = [...b].sort((x, y) => x.position - y.position)[i]!
+          return p.position === q.position && p.driverCode === q.driverCode
+        })
 
       for (const p of body.predictions) {
         if (!memberIds.has(p.userId)) {
@@ -243,8 +280,11 @@ export async function registerImportsRoutes(app: FastifyInstance): Promise<void>
           skipped.push({ kind: 'prediction', userId: p.userId, sessionId: p.sessionId, reason: `session ${meta.type} is not scorable` })
           continue
         }
-        if (p.picks.length !== required) {
-          skipped.push({ kind: 'prediction', userId: p.userId, sessionId: p.sessionId, reason: `expected ${required} picks, got ${p.picks.length}` })
+        // Partial sets are legal (late/partial hand-ins): 1..required picks,
+        // each at a distinct position within 1..required. The engine scores
+        // filled positions; empty ones simply can't score.
+        if (p.picks.length > required) {
+          skipped.push({ kind: 'prediction', userId: p.userId, sessionId: p.sessionId, reason: `too many picks: max ${required}, got ${p.picks.length}` })
           continue
         }
         const positions = new Set(p.picks.map((pp) => pp.position))
@@ -254,7 +294,7 @@ export async function registerImportsRoutes(app: FastifyInstance): Promise<void>
         }
         const expected = new Set(Array.from({ length: required }, (_, i) => i + 1))
         if (![...positions].every((x) => expected.has(x))) {
-          skipped.push({ kind: 'prediction', userId: p.userId, sessionId: p.sessionId, reason: `positions must be 1..${required}` })
+          skipped.push({ kind: 'prediction', userId: p.userId, sessionId: p.sessionId, reason: `positions must be within 1..${required}` })
           continue
         }
         const unknownDrv = p.picks.find((pp) => !validDrivers.has(pp.driverCode))
@@ -262,16 +302,31 @@ export async function registerImportsRoutes(app: FastifyInstance): Promise<void>
           skipped.push({ kind: 'prediction', userId: p.userId, sessionId: p.sessionId, reason: `unknown driver ${unknownDrv.driverCode}` })
           continue
         }
+        if (p.joker && meta.type !== 'race') {
+          skipped.push({ kind: 'prediction', userId: p.userId, sessionId: p.sessionId, reason: 'joker only valid on race sessions' })
+          continue
+        }
 
         // Determine conflict state — existing in-app picks need the
-        // overwrite flag; existing import rows can be replaced silently.
-        let conflictsWith: 'app' | 'import' | null = null
-        const existing = await predictionsRepo.getByUserAndSession(p.userId, p.sessionId)
-        if (existing) {
-          const db = getDb()
-          const [src] = await db.select({ source: prediction.source })
-            .from(prediction).where(eq(prediction.id, existing.id)).limit(1)
-          conflictsWith = (src?.source === 'import') ? 'import' : 'app'
+        // overwrite flag; import/joker rows (machine-written) are replaced
+        // silently.
+        const existing = (await existingAt(p.sessionId)).get(p.userId) ?? null
+        const conflictsWith: 'app' | 'import' | null =
+          existing === null ? null : (existing.source === 'app' ? 'app' : 'import')
+
+        // Unchanged rows are left alone entirely. This makes full-sheet
+        // re-uploads no-ops AND preserves joker labels the Excel can't know
+        // about (the sheet carries the copied picks but no joker marker).
+        // The one identical-picks case that still applies: joker:true over a
+        // row that isn't labelled joker yet — that's a deliberate label fix.
+        if (existing && samePicks(p.picks, existing.picks) && !(p.joker && existing.source !== 'joker')) {
+          skipped.push({
+            kind: 'prediction', userId: p.userId, sessionId: p.sessionId,
+            reason: existing.source === 'joker'
+              ? 'unchanged — existing joker row kept'
+              : 'unchanged — identical picks already present'
+          })
+          continue
         }
 
         // Compute score preview against current results (if available).
@@ -293,12 +348,82 @@ export async function registerImportsRoutes(app: FastifyInstance): Promise<void>
           eventName: meta.eventName,
           round: meta.round,
           picks: p.picks,
+          joker: p.joker,
           conflictsWith,
           previewPoints
         })
       }
 
+      // ---- Joker budget (3 per user per season) ----
+      // Final joker set per user = existing joker rows NOT replaced by this
+      // upload + uploaded rows flagged joker:true. Excess joker rows (later
+      // rounds first kept out) are moved to skipped.
+      const jokerBudgetRelevant = plan.some((x) => x.joker) || plan.some((x) => x.sessionType === 'race')
+      if (jokerBudgetRelevant) {
+        const db = getDb()
+        const existingJokerRows = await db
+          .select({ userId: prediction.userId, sessionId: prediction.sessionId })
+          .from(prediction)
+          .where(eq(prediction.source, 'joker'))
+        const seasonSessionIds = new Set(sessionMetaById.keys())
+        const existingJokersByUser = new Map<string, Set<number>>()
+        for (const r of existingJokerRows) {
+          if (!seasonSessionIds.has(r.sessionId)) continue
+          if (!existingJokersByUser.has(r.userId)) existingJokersByUser.set(r.userId, new Set())
+          existingJokersByUser.get(r.userId)!.add(r.sessionId)
+        }
+        const plannedByUser = new Map<string, PredictionPlanItem[]>()
+        for (const x of plan) {
+          if (!plannedByUser.has(x.userId)) plannedByUser.set(x.userId, [])
+          plannedByUser.get(x.userId)!.push(x)
+        }
+        for (const [userId, items] of plannedByUser) {
+          const replacedSessions = new Set(items.map((x) => x.sessionId))
+          const keptExisting = [...(existingJokersByUser.get(userId) ?? [])]
+            .filter((sid) => !replacedSessions.has(sid)).length
+          const plannedJokers = items.filter((x) => x.joker).sort((a, b) => a.round - b.round)
+          const budget = JOKERS_PER_SEASON - keptExisting
+          for (let i = budget; i < plannedJokers.length; i++) {
+            const x = plannedJokers[i]!
+            plan.splice(plan.indexOf(x), 1)
+            skipped.push({
+              kind: 'prediction', userId, sessionId: x.sessionId,
+              reason: `joker budget exceeded: only ${JOKERS_PER_SEASON} per season (${keptExisting} already used outside this upload)`
+            })
+          }
+        }
+      }
+
+      // ---- Missed-race heuristic ----
+      // A non-joker race row whose picks are identical to the same user's
+      // previous-race picks usually means the race was missed and the picks
+      // were copied — probably should be joker: true. Warn, don't block.
+      const plannedPicksByUserSession = new Map<string, Pick[]>()
+      for (const x of plan) plannedPicksByUserSession.set(`${x.userId}:${x.sessionId}`, x.picks)
+      async function picksAt(userId: string, sessionId: number): Promise<Pick[] | null> {
+        const uploaded = plannedPicksByUserSession.get(`${userId}:${sessionId}`)
+        if (uploaded) return uploaded
+        return (await existingAt(sessionId)).get(userId)?.picks ?? null
+      }
+      for (const x of plan) {
+        if (x.joker || x.sessionType !== 'race') continue
+        const prevRound = raceRoundsAsc.filter((r) => r < x.round).pop()
+        if (prevRound === undefined) continue
+        const prevPicks = await picksAt(x.userId, raceSessionByRound.get(prevRound)!)
+        if (prevPicks && samePicks(x.picks, prevPicks)) {
+          warnings.push({
+            userId: x.userId,
+            displayName: memberById.get(x.userId) ?? x.userId,
+            sessionId: x.sessionId,
+            eventName: x.eventName,
+            round: x.round,
+            reason: `picks identical to the previous race (round ${prevRound}) — missed race? Consider marking this row "joker": true`
+          })
+        }
+      }
+
       // ---- Plan preseason picks ----
+      const validConstructors = new Set((await constructorsRepo.listAll()).map((c) => c.id))
       const preseasonPickPlan: { userId: string; category: string; driverCode: string | null; constructorId: string | null }[] = []
       for (const pp of body.preseason?.picks ?? []) {
         if (!memberIds.has(pp.userId)) {
@@ -309,6 +434,9 @@ export async function registerImportsRoutes(app: FastifyInstance): Promise<void>
         }
         if (pp.driverCode && !validDrivers.has(pp.driverCode)) {
           skipped.push({ kind: 'preseason_pick', userId: pp.userId, category: pp.category, reason: `unknown driver ${pp.driverCode}` }); continue
+        }
+        if (pp.constructorId && !validConstructors.has(pp.constructorId)) {
+          skipped.push({ kind: 'preseason_pick', userId: pp.userId, category: pp.category, reason: `unknown constructor ${pp.constructorId}` }); continue
         }
         preseasonPickPlan.push({
           userId: pp.userId, category: pp.category,
@@ -326,6 +454,12 @@ export async function registerImportsRoutes(app: FastifyInstance): Promise<void>
           const unknown = st.drivers.find((c) => !validDrivers.has(c))
           if (unknown) {
             skipped.push({ kind: 'preseason_standings', userId: st.userId, reason: `unknown driver ${unknown}` }); continue
+          }
+        }
+        if (st.constructors && st.constructors.length > 0) {
+          const unknown = st.constructors.find((c) => !validConstructors.has(c))
+          if (unknown) {
+            skipped.push({ kind: 'preseason_standings', userId: st.userId, reason: `unknown constructor ${unknown}` }); continue
           }
         }
         standingsPlan.push({ userId: st.userId, drivers: st.drivers, constructors: st.constructors })
@@ -371,10 +505,12 @@ export async function registerImportsRoutes(app: FastifyInstance): Promise<void>
           round: x.round,
           sessionType: x.sessionType,
           picks: x.picks,
+          joker: x.joker,
           conflictsWith: x.conflictsWith,
           previewPoints: x.previewPoints
         })),
         skipped,
+        warnings,
         scorePreview: [...scorePreview.entries()].map(([userId, addedPoints]) => ({
           userId,
           displayName: memberById.get(userId) ?? userId,
@@ -400,7 +536,7 @@ export async function registerImportsRoutes(app: FastifyInstance): Promise<void>
         if (it.conflictsWith === 'app' && !body.overwrite) continue
         await predictionsRepo.upsertPredictionWithPicks(
           it.userId, it.sessionId, it.picks,
-          { source: 'import', importedBy: me.id }
+          { source: it.joker ? 'joker' : 'import', importedBy: me.id }
         )
         touchedSessions.add(it.sessionId)
         appliedPredictions++
@@ -455,11 +591,76 @@ export async function registerImportsRoutes(app: FastifyInstance): Promise<void>
         },
         overwriteCount: overwriteList.length,
         skipped,
+        warnings,
         rescored: {
           sessions: touchedSessions.size,
           preseasonYears: touchedPreseason ? [body.seasonYear] : []
         }
       }
+  }
+
+  // ---- POST apply / dryRun (JSON) -----------------------------------------
+  app.post<{ Params: { leagueId: string }; Querystring: { dryRun?: string }; Body: unknown }>(
+    '/api/leagues/:leagueId/imports',
+    { bodyLimit: MAX_BODY_BYTES },
+    async (req) => {
+      const { leagueId } = req.params
+      await requireLeagueOwner(req, leagueId)
+      const me = getCurrentUser(req)
+      const dryRun = req.query.dryRun === '1' || req.query.dryRun === 'true'
+
+      const parsed = ImportBody.safeParse(req.body)
+      if (!parsed.success) {
+        const summary = parsed.error.issues.slice(0, 5)
+          .map((i) => `${i.path.join('.') || '(root)'}: ${i.message}`).join('; ')
+        throw new ApiError('VALIDATION', `Body failed schema validation. ${summary}`)
+      }
+      const body = parsed.data
+      if (body.league.id !== leagueId) {
+        throw new ApiError('BAD_REQUEST', 'league.id in body must match URL :leagueId')
+      }
+      return runImport(leagueId, me, body, dryRun)
+    }
+  )
+
+  // ---- POST Excel upload ---------------------------------------------------
+  // Accepts the maintained Tippspiel xlsx as a raw binary body and runs it
+  // through the same plan/apply pipeline as the JSON endpoint. The sheet has
+  // no joker markers, so every row imports as joker:false — the missed-race
+  // heuristic in the preview flags candidates for a follow-up JSON upload.
+  app.post<{ Params: { leagueId: string }; Querystring: { season?: string; dryRun?: string; overwrite?: string }; Body: Buffer }>(
+    '/api/leagues/:leagueId/imports/excel',
+    { bodyLimit: MAX_XLSX_BYTES },
+    async (req) => {
+      const { leagueId } = req.params
+      await requireLeagueOwner(req, leagueId)
+      const me = getCurrentUser(req)
+      const dryRun = req.query.dryRun === '1' || req.query.dryRun === 'true'
+      const overwrite = req.query.overwrite === '1' || req.query.overwrite === 'true'
+
+      const seasonYear = Number(req.query.season)
+      if (!Number.isFinite(seasonYear)) {
+        throw new ApiError('BAD_REQUEST', 'season query param required (year)')
+      }
+      if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
+        throw new ApiError('BAD_REQUEST', 'request body must be the xlsx file (binary)')
+      }
+
+      let parsedSeason: ParsedSeason
+      try {
+        const wb = XLSX.read(req.body, { type: 'buffer' })
+        parsedSeason = parseWorkbook(wb, seasonYear)
+      } catch (e) {
+        throw new ApiError('VALIDATION', `Could not parse workbook: ${e instanceof Error ? e.message : String(e)}`)
+      }
+
+      const league = await leaguesRepo.findById(leagueId)
+      if (!league) throw new ApiError('NOT_FOUND', 'League not found')
+      const { body, skippedUpfront } = await excelToImportBody(parsedSeason, leagueId, league.name, overwrite)
+      const result = await runImport(leagueId, me, body, dryRun)
+      // Surface players/events the Excel mentions but the league/DB doesn't know.
+      result.skipped.push(...skippedUpfront)
+      return result
     }
   )
 
@@ -502,4 +703,91 @@ export async function registerImportsRoutes(app: FastifyInstance): Promise<void>
 
 function slug(s: string): string {
   return s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'league'
+}
+
+/// Map a parsed Tippspiel workbook onto the JSON import body shape so the
+/// Excel endpoint can reuse the exact same plan/apply pipeline. Players are
+/// matched to league members by display name; players/events the DB doesn't
+/// know are reported via [skippedUpfront] instead of failing the upload.
+async function excelToImportBody(
+  parsed: ParsedSeason,
+  leagueId: string,
+  leagueName: string,
+  overwrite: boolean
+): Promise<{ body: ImportBodyT; skippedUpfront: SkipItem[] }> {
+  const skippedUpfront: SkipItem[] = []
+
+  const members = await leagueMembers.listByLeague(leagueId)
+  const memberIdByName = new Map(members.map((m) => [m.displayName, m.userId]))
+
+  const events = await eventsRepo.listForSeason(parsed.seasonYear)
+  const eventByName = new Map(events.map((e) => [e.name, e]))
+  const sessionIdByEventAndType = new Map<string, number>()
+  for (const ev of events) {
+    for (const s of await sessionsRepo.listForEvent(ev.id)) {
+      sessionIdByEventAndType.set(`${ev.id}:${s.type}`, s.id)
+    }
+  }
+
+  type PreseasonPickRow = NonNullable<NonNullable<ImportBodyT['preseason']>['picks']>[number]
+  type PreseasonStandingsRow = NonNullable<NonNullable<ImportBodyT['preseason']>['standings']>[number]
+  const predictions: ImportBodyT['predictions'] = []
+  const preseasonPicks: PreseasonPickRow[] = []
+  const preseasonStandings: PreseasonStandingsRow[] = []
+
+  for (const player of parsed.players) {
+    const userId = memberIdByName.get(player.excelName)
+    if (!userId) {
+      skippedUpfront.push({ kind: 'excel_player', reason: `Excel player "${player.excelName}" is not a member of this league` })
+      continue
+    }
+
+    for (const [excelEventName, picks] of Object.entries(player.racePicks)) {
+      const dbEventName = mapEventName(excelEventName)
+      if (dbEventName === null) continue
+      const ev = eventByName.get(dbEventName)
+      if (!ev) {
+        skippedUpfront.push({ kind: 'excel_event', reason: `event "${dbEventName}" not in season ${parsed.seasonYear}` })
+        continue
+      }
+      for (const kind of ['quali', 'sprintQuali', 'sprint', 'race'] as const) {
+        const list = picks[kind]
+        if (list.length === 0) continue
+        const sessionId = sessionIdByEventAndType.get(`${ev.id}:${SESSION_TYPE_BY_KIND[kind]}`)
+        if (sessionId === undefined) {
+          skippedUpfront.push({ kind: 'excel_session', userId, reason: `no ${SESSION_TYPE_BY_KIND[kind]} session for "${dbEventName}"` })
+          continue
+        }
+        predictions.push({ userId, sessionId, picks: list, joker: false })
+      }
+    }
+
+    for (const [category, vals] of Object.entries(player.preseasonSingle)) {
+      preseasonPicks.push({
+        userId,
+        category: category as PreseasonPickRow['category'],
+        driverCode: vals.driverCode ?? undefined,
+        constructorId: vals.constructorId ?? undefined
+      })
+    }
+    if (player.preseasonStandings.drivers.length > 0 || player.preseasonStandings.constructors.length > 0) {
+      preseasonStandings.push({
+        userId,
+        drivers: player.preseasonStandings.drivers.map((d) => d.driverCode),
+        constructors: player.preseasonStandings.constructors.map((c) => c.constructorId)
+      })
+    }
+  }
+
+  return {
+    body: {
+      schemaVersion: SCHEMA_VERSION,
+      league: { id: leagueId, name: leagueName },
+      seasonYear: parsed.seasonYear,
+      overwrite,
+      predictions,
+      preseason: { picks: preseasonPicks, standings: preseasonStandings }
+    },
+    skippedUpfront
+  }
 }

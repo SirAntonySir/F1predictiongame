@@ -37,6 +37,9 @@ class _ImportScreenState extends State<ImportScreen> {
   bool _busy = false;
   String? _filePath;
   Map<String, dynamic>? _parsedBody;
+  /// Set instead of [_parsedBody] when the picked file is the Tippspiel xlsx —
+  /// apply then goes to the binary excel endpoint.
+  List<int>? _excelBytes;
   ImportPreview? _preview;
   bool _ackOverwrite = false;
   /// Years actually bootstrapped in the backend — populated on first build.
@@ -110,8 +113,9 @@ class _ImportScreenState extends State<ImportScreen> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: Spacing.sm),
               child: Text(
-                'Download the JSON template for a season, fill it in (yourself '
-                'or with an AI), then upload it to preview and apply.',
+                'Upload the Tippspiel Excel directly, or download the JSON '
+                'template and fill it in (yourself or with an AI). Both show '
+                'a preview before anything is applied.',
                 style: AppText.body(12,
                     color: t.colorScheme.onSurface.withOpacity(0.7)),
               ),
@@ -127,11 +131,13 @@ class _ImportScreenState extends State<ImportScreen> {
                 _season = y;
                 _preview = null;
                 _parsedBody = null;
+                _excelBytes = null;
+                _filePath = null;
               }),
             ),
 
             const SizedBox(height: Spacing.xl),
-            Text('1. DOWNLOAD TEMPLATE', style: AppText.label(11)),
+            Text('1. DOWNLOAD TEMPLATE (JSON ROUTE ONLY)', style: AppText.label(11)),
             const SizedBox(height: Spacing.sm),
             KeyedSubtree(
               key: _downloadKey,
@@ -144,12 +150,12 @@ class _ImportScreenState extends State<ImportScreen> {
             ),
 
             const SizedBox(height: Spacing.xl),
-            Text('2. UPLOAD FILLED FILE', style: AppText.label(11)),
+            Text('2. UPLOAD FILE (.XLSX OR .JSON)', style: AppText.label(11)),
             const SizedBox(height: Spacing.sm),
             _ActionRow(
               t: t,
               label: _filePath == null
-                  ? 'Pick filled JSON file'
+                  ? 'Pick Tippspiel Excel or filled JSON'
                   : 'Replace: ${_filePath!.split('/').last}',
               icon: Icons.file_upload_outlined,
               onTap: _busy ? null : _onPickFile,
@@ -251,7 +257,7 @@ class _ImportScreenState extends State<ImportScreen> {
     try {
       final picked = await FilePicker.platform.pickFiles(
         type: FileType.custom,
-        allowedExtensions: const ['json'],
+        allowedExtensions: const ['json', 'xlsx'],
         withData: true,
       );
       if (picked == null || picked.files.isEmpty) {
@@ -261,13 +267,22 @@ class _ImportScreenState extends State<ImportScreen> {
       final f = picked.files.first;
       final bytes = f.bytes ?? (f.path == null ? null : await File(f.path!).readAsBytes());
       if (bytes == null) throw 'no bytes';
-      final body = jsonDecode(utf8.decode(bytes)) as Map<String, dynamic>;
-      // Run the preview against the backend.
-      final preview = await scope.api.previewImport(league.id, body);
+
+      final isExcel = f.name.toLowerCase().endsWith('.xlsx');
+      final ImportPreview preview;
+      Map<String, dynamic>? body;
+      if (isExcel) {
+        // Parsed server-side; season comes from the picker above.
+        preview = await scope.api.previewImportExcel(league.id, _season, bytes);
+      } else {
+        body = jsonDecode(utf8.decode(bytes)) as Map<String, dynamic>;
+        preview = await scope.api.previewImport(league.id, body);
+      }
       if (!mounted) return;
       setState(() {
         _filePath = f.path ?? f.name;
         _parsedBody = body;
+        _excelBytes = isExcel ? bytes : null;
         _preview = preview;
         _ackOverwrite = false;
       });
@@ -283,11 +298,18 @@ class _ImportScreenState extends State<ImportScreen> {
   Future<void> _onApply() async {
     final scope = AppState.of(context);
     final league = scope.league.league!;
-    final body = Map<String, dynamic>.from(_parsedBody!);
-    if (_preview!.overwrites.isNotEmpty) body['overwrite'] = true;
+    final overwrite = _preview!.overwrites.isNotEmpty;
     setState(() => _busy = true);
     try {
-      final res = await scope.api.applyImport(league.id, body);
+      final ImportApplyResult res;
+      if (_excelBytes != null) {
+        res = await scope.api.applyImportExcel(league.id, _season, _excelBytes!,
+            overwrite: overwrite);
+      } else {
+        final body = Map<String, dynamic>.from(_parsedBody!);
+        if (overwrite) body['overwrite'] = true;
+        res = await scope.api.applyImport(league.id, body);
+      }
       if (!mounted) return;
       BrandedToast.show(
         context,
@@ -298,6 +320,7 @@ class _ImportScreenState extends State<ImportScreen> {
       setState(() {
         _preview = null;
         _parsedBody = null;
+        _excelBytes = null;
         _filePath = null;
         _ackOverwrite = false;
       });
@@ -584,6 +607,44 @@ class _PreviewSection extends StatelessWidget {
                     ),
                   ]),
                 ),
+              ],
+            ),
+          ),
+        ],
+
+        // Heuristic hints (e.g. picks identical to the previous race —
+        // probably a missed race that should be a joker). Non-blocking.
+        if (preview.warnings.isNotEmpty) ...[
+          const SizedBox(height: Spacing.lg),
+          Text('CHECK THESE', style: AppText.label(11)),
+          const SizedBox(height: Spacing.sm),
+          Container(
+            padding: const EdgeInsets.all(Spacing.lg),
+            decoration: BoxDecoration(
+              border: Border.all(color: t.strokeColor, width: Strokes.card),
+              borderRadius: Radii.rLg,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (final w in preview.warnings.take(10))
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 2),
+                    child: Text(
+                      '• ${w.displayName} · R${w.round} ${w.eventName}: ${w.reason}',
+                      style: AppText.body(11,
+                          color: t.colorScheme.onSurface.withOpacity(0.75)),
+                    ),
+                  ),
+                if (preview.warnings.length > 10)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(
+                      '+ ${preview.warnings.length - 10} more',
+                      style: AppText.body(11,
+                          color: t.colorScheme.onSurface.withOpacity(0.55)),
+                    ),
+                  ),
               ],
             ),
           ),

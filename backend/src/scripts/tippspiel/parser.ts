@@ -49,19 +49,17 @@ export function isSkipMarker(s: string | null): boolean {
 
 /**
  * Convert an ordered list of cell values to a pick list starting at `startPosition`.
- * Returns [] if every cell is empty or " ---" (player did not tip).
- * Throws if partially filled, contains an unknown driver code, or has duplicates.
+ * Returns [] if every cell is empty or " ---" (player did not tip). Partially
+ * filled lists are legal (late/partial hand-ins) — empty slots are simply
+ * omitted and the remaining picks keep their positional index.
+ * Throws on an unknown driver code or duplicates.
  */
 export function parsePickList(cells: (string | null)[], startPosition: number): { position: number; driverCode: string }[] {
-  const allEmpty = cells.every((c) => c === null || isSkipMarker(c))
-  if (allEmpty) return []
   const picks: { position: number; driverCode: string }[] = []
   const seen = new Set<string>()
   for (let i = 0; i < cells.length; i++) {
     const cell = cells[i] ?? null
-    if (cell === null || isSkipMarker(cell)) {
-      throw new Error(`incomplete pick list at index ${i} (expected driver code, got ${JSON.stringify(cell)})`)
-    }
+    if (cell === null || isSkipMarker(cell)) continue
     const code = mapDriverCode(cell)
     if (seen.has(code)) throw new Error(`duplicate driver in pick list: ${code}`)
     seen.add(code)

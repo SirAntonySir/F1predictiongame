@@ -96,6 +96,10 @@ abstract class ApiClient {
   Future<ImportPreview> previewImport(String leagueId, Map<String, dynamic> body);
   Future<ImportApplyResult> applyImport(String leagueId, Map<String, dynamic> body);
 
+  // Owner-only Excel (Tippspiel xlsx) imports — same pipeline server-side.
+  Future<ImportPreview> previewImportExcel(String leagueId, int seasonYear, List<int> xlsxBytes);
+  Future<ImportApplyResult> applyImportExcel(String leagueId, int seasonYear, List<int> xlsxBytes, {bool overwrite = false});
+
   // Player profile (composite)
   Future<PlayerProfile> leaguePlayer(String leagueId, String userId, {int? season});
 

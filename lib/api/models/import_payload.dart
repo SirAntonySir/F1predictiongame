@@ -95,6 +95,33 @@ class ImportSkip {
       );
 }
 
+/// Non-blocking hint from the backend, e.g. the missed-race heuristic
+/// ("picks identical to the previous race — consider marking as joker").
+class ImportWarning {
+  final String userId;
+  final String displayName;
+  final int sessionId;
+  final String eventName;
+  final int round;
+  final String reason;
+  const ImportWarning({
+    required this.userId,
+    required this.displayName,
+    required this.sessionId,
+    required this.eventName,
+    required this.round,
+    required this.reason,
+  });
+  factory ImportWarning.fromJson(Map<String, dynamic> j) => ImportWarning(
+        userId: j['userId'] as String,
+        displayName: j['displayName'] as String,
+        sessionId: (j['sessionId'] as num).toInt(),
+        eventName: j['eventName'] as String,
+        round: (j['round'] as num).toInt(),
+        reason: j['reason'] as String,
+      );
+}
+
 class ImportApplyCounts {
   final int predictions;
   final int preseasonPicks;
@@ -119,6 +146,7 @@ class ImportPreview {
   final List<ImportPlanItem> overwrites;
   final List<ImportPlanItem> plan;
   final List<ImportSkip> skipped;
+  final List<ImportWarning> warnings;
   final List<ImportScoreEntry> scorePreview;
   const ImportPreview({
     required this.seasonYear,
@@ -127,6 +155,7 @@ class ImportPreview {
     required this.overwrites,
     required this.plan,
     required this.skipped,
+    required this.warnings,
     required this.scorePreview,
   });
 
@@ -148,6 +177,11 @@ class ImportPreview {
         skipped: (j['skipped'] as List)
             .cast<Map<String, dynamic>>()
             .map(ImportSkip.fromJson)
+            .toList(),
+        // Tolerant: older backends don't send warnings.
+        warnings: ((j['warnings'] as List?) ?? const [])
+            .cast<Map<String, dynamic>>()
+            .map(ImportWarning.fromJson)
             .toList(),
         scorePreview: (j['scorePreview'] as List)
             .cast<Map<String, dynamic>>()
