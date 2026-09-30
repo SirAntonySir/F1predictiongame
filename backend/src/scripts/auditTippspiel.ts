@@ -17,7 +17,7 @@ import { sql } from 'drizzle-orm'
 
 const XLSX = xlsxPkg as typeof xlsxPkg & { readFile: (p: string) => xlsxPkg.WorkBook }
 import { parseWorkbook } from './tippspiel/parser.js'
-import { mapEventName, EVENTS_TO_SKIP } from './tippspiel/mappings.js'
+import { mapEventName } from './tippspiel/mappings.js'
 import { SESSION_TYPE_BY_KIND } from './tippspiel/types.js'
 import { getDb, _resetPoolForTests } from '../db/client.js'
 import {
@@ -101,7 +101,7 @@ async function main(): Promise<number> {
     const uid = userIdByName.get(player.excelName)
     if (!uid) continue
     for (const [excelEv, picks] of Object.entries(player.racePicks)) {
-      if (EVENTS_TO_SKIP.has(excelEv)) continue
+      if (mapEventName(excelEv) === null) continue
       const dbName = mapEventName(excelEv)
       if (!dbName) continue
       const ev = eventByName.get(dbName)
@@ -166,7 +166,7 @@ async function main(): Promise<number> {
 
   const playerOrder = parsed.players.map((p) => p.excelName)
   const eventOrder = parsed.players.length > 0
-    ? Object.keys(parsed.players[0]!.racePicks).filter((e) => !EVENTS_TO_SKIP.has(e))
+    ? Object.keys(parsed.players[0]!.racePicks).filter((e) => mapEventName(e) !== null)
     : []
 
   // Precompute per-player totals + per-(player,event) bucket index for the summary

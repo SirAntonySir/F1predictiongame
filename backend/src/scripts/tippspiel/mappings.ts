@@ -73,10 +73,10 @@ export function mapConstructorId(raw: string): string {
   return id
 }
 
-export const EVENTS_TO_SKIP: ReadonlySet<string> = new Set(['Bahrain', 'Saudi'])
-
 const EVENT_MAP: Record<string, string> = {
   'Australia':   'Australian Grand Prix',
+  'Bahrain':     'Bahrain Grand Prix',
+  'Saudi':       'Saudi Arabian Grand Prix',
   'China':       'Chinese Grand Prix',
   'Japan':       'Japanese Grand Prix',
   'Miami':       'Miami Grand Prix',
@@ -100,12 +100,13 @@ const EVENT_MAP: Record<string, string> = {
   'Abu Dhabi':   'Abu Dhabi Grand Prix'
 }
 
+/// Excel race header → canonical DB event name, or null when the header is
+/// not a known label. Callers decide what a null means (skip + report). An
+/// event that maps but isn't bootstrapped in the target season (e.g. a
+/// cancelled race) is filtered downstream against the DB — there is no
+/// hardcoded season-specific skip list.
 export function mapEventName(raw: string): string | null {
-  const trimmed = raw.trim()
-  if (EVENTS_TO_SKIP.has(trimmed)) return null
-  const name = EVENT_MAP[trimmed]
-  if (!name) throw new Error(`unknown event: "${raw}"`)
-  return name
+  return EVENT_MAP[raw.trim()] ?? null
 }
 
 export const CATEGORIES_TO_SKIP: ReadonlySet<string> = new Set(['meiste Rennsiege'])

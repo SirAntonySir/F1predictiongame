@@ -146,19 +146,19 @@ describe('parsePlayerRaceBlock', () => {
     expect(result['Japan'].excelPoints).toEqual({ quali: 0, sprint: 0, race: 0 })
   })
 
-  it('skips events present in EVENTS_TO_SKIP (e.g. Bahrain)', () => {
+  it('collects every header raw — DB mapping and skipping happen downstream', () => {
     const ws = buildSheetWithRaceHeaders()
     ws[XLSX.utils.encode_cell({ r: 67, c: 20 })] = { v: 'Bahrain', t: 's' } as XLSX.CellObject
-    // Bahrain quali col 21 (idx 20) — should be ignored
     ws[XLSX.utils.encode_cell({ r: 71, c: 20 })] = { v: 'Ver', t: 's' } as XLSX.CellObject
     const result = parsePlayerRaceBlock(ws as any, { qualiRow: 72, sprintRow: 73, raceRow: 74 })
-    expect(result['Bahrain']).toBeUndefined()
+    expect(result['Bahrain']).toBeDefined()
+    expect(result['Bahrain'].quali).toEqual([{ position: 1, driverCode: 'VER' }])
     expect(result['Australian Grand Prix']).toBeUndefined()  // keys are the *Excel* race header
     expect(Object.keys(result)).toContain('Australia')
   })
 })
 
-import { parsePlayerStandings, parsePlayerPreseasonSingle, parseWorkbook } from '../../../src/scripts/tippspiel/parser.js'
+import { parsePlayerStandings, parsePlayerPreseasonSingleAtRow, parseWorkbook } from '../../../src/scripts/tippspiel/parser.js'
 
 describe('parsePlayerStandings', () => {
   it('reads 11 constructor and 22 driver positions for a given player column', () => {
@@ -181,18 +181,19 @@ describe('parsePlayerStandings', () => {
     expect(result.drivers[21]).toEqual({ position: 22, driverCode: 'STR' })
   })
 
-  it('throws if any standings cell is missing', () => {
+  it('tolerates a shorter constructor list (import validates against the DB)', () => {
     const ws: Record<string, XLSX.CellObject> = {}
-    // teams 1..10 only, missing pos 11
+    // teams 1..10 only, pos 11 left blank
     const teams = ['McLaren','Merc','Ferrari','RedBull','Alpine','Haas','Vcarb','Audi','Williams','Cadillac']
     teams.forEach((t, i) => {
       ws[XLSX.utils.encode_cell({ r: 33 - 1 + i, c: 2 })] = { v: t, t: 's' } as XLSX.CellObject
     })
-    expect(() => parsePlayerStandings(ws as any, 0)).toThrow(/missing constructor standings/i)
+    const result = parsePlayerStandings(ws as any, 0)
+    expect(result.constructors).toHaveLength(10)
   })
 })
 
-describe('parsePlayerPreseasonSingle', () => {
+describe('parsePlayerPreseasonSingleAtRow', () => {
   it('reads the 6 supported categories for the given player row', () => {
     const ws: Record<string, XLSX.CellObject> = {}
     // Player row for Jan = PRESEASON_SINGLE_ROW_START + 0 = 7 (sheet idx 6)
@@ -215,7 +216,7 @@ describe('parsePlayerPreseasonSingle', () => {
     ws[XLSX.utils.encode_cell({ r: 6, c: 52 })] = { v: 'McLaren', t: 's' } as XLSX.CellObject
     ws[XLSX.utils.encode_cell({ r: 6, c: 53 })] = { v: 'Ver',     t: 's' } as XLSX.CellObject
 
-    const result = parsePlayerPreseasonSingle(ws as any, 0)
+    const result = parsePlayerPreseasonSingleAtRow(ws as any, 7)
     expect(result.disappointment).toEqual({ constructorId: 'williams', driverCode: 'SAI' })
     expect(result.surprise).toEqual({ constructorId: 'alpine', driverCode: 'BEA' })
     expect(result.wdc_wcc).toEqual({ constructorId: 'mclaren', driverCode: 'VER' })
@@ -250,6 +251,17 @@ function buildMinimalWorkbook(): XLSX.WorkBook {
   const ws: Record<string, XLSX.CellObject> = {}
   // Race header row 68 (sheet idx 67) — Australia at col 3
   ws[XLSX.utils.encode_cell({ r: 67, c: 2 })] = { v: 'Australia', t: 's' } as XLSX.CellObject
+  // Players are discovered from the name cells: col A at rows 70/77/… plus a
+  // trailing "Korrekt" actuals block that must be ignored. The standings and
+  // preseason blocks are matched by name (standings header row 30, col A rows
+  // 7..17), so those need name cells too.
+  const NAMES = ['Jan','Lukas','Jakob','Simon','Juli','Jonas','Janine','Jana','Anton','David','Merlin']
+  NAMES.forEach((n, i) => {
+    ws[XLSX.utils.encode_cell({ r: 69 + i * 7, c: 0 })] = { v: n, t: 's' } as XLSX.CellObject   // race block
+    ws[XLSX.utils.encode_cell({ r: 29, c: 3 + i * 4 })] = { v: n, t: 's' } as XLSX.CellObject   // standings header
+    ws[XLSX.utils.encode_cell({ r: 6 + i, c: 0 })] = { v: n, t: 's' } as XLSX.CellObject        // preseason rows
+  })
+  ws[XLSX.utils.encode_cell({ r: 69 + 11 * 7, c: 0 })] = { v: 'Korrekt', t: 's' } as XLSX.CellObject
   // Preseason single-category label row 4 cols 35,38,41,44,47,50,53 (indices 34..52)
   const labels: Record<number, string> = {
     34: 'größte Enttäuschung',

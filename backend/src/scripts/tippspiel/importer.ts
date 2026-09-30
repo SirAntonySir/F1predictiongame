@@ -10,7 +10,7 @@ import { getDb } from '../../db/client.js'
 import { user as userTable, league as leagueTable } from '../../db/schema.js'
 import { eq, sql } from 'drizzle-orm'
 import type { ParsedSeason } from './types.js'
-import { mapEventName, EVENTS_TO_SKIP } from './mappings.js'
+import { mapEventName } from './mappings.js'
 import { SESSION_TYPE_BY_KIND } from './types.js'
 
 const PASSWORD_PLAIN = 'tippspiel-test'
@@ -123,9 +123,8 @@ export async function importParsedSeason(parsed: ParsedSeason): Promise<ImportSu
   for (const player of parsed.players) {
     const uid = userIdByExcelName.get(player.excelName)!
     for (const [excelEventName, picks] of Object.entries(player.racePicks)) {
-      if (EVENTS_TO_SKIP.has(excelEventName)) continue
       const dbEventName = mapEventName(excelEventName)
-      if (dbEventName === null) continue
+      if (dbEventName === null) { bump(`unknown-event-header:${excelEventName}`); continue }
       const eventId = eventIdByName.get(dbEventName)
       if (eventId === undefined) { bump(`event-not-in-db:${dbEventName}`); continue }
       const sessions = sessionsByEventId.get(eventId) ?? []

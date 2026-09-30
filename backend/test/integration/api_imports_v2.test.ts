@@ -312,27 +312,70 @@ describe('imports: jokers', () => {
 
 // ---- Excel upload ------------------------------------------------------------
 
-/// Minimal but layout-correct Tippspiel workbook: race header "Australia" at
-/// R68/C3, player "Jan" (first in PLAYERS_IN_ORDER) with quali + race picks
-/// at rows 72/74, and the mandatory 11-constructor standings block for every
-/// player. Driver standings + preseason labels stay empty (parser tolerates).
+/// Minimal but layout-correct Tippspiel workbook exercising the dynamic
+/// player discovery: names in column A at rows 70/77/84 ("Jan", "Zoe",
+/// "Korrekt" — the last is the sheet's actual-results block and must be
+/// ignored). Race headers: Australia (in season), Bahrain (maps, but not
+/// bootstrapped in the test season) and "Mars" (unknown label).
 function buildWorkbook(): Buffer {
   const ws: Record<string, unknown> = {}
   const set = (row: number, col: number, v: string) => {
     ws[xlsxPkg.utils.encode_cell({ r: row - 1, c: col - 1 })] = { t: 's', v }
   }
-  set(68, 3, 'Australia')
-  // Jan: quali P1/P2 + race P1..P5 (P3 left blank → partial race set)
+  set(68, 3, 'Australia'); set(68, 9, 'Bahrain'); set(68, 15, 'Mars')
+  // Jan (row 70 block): quali P1/P2 + race P1..P5 with P3 blank → partial set.
+  set(70, 1, 'Jan')
   set(72, 3, 'Ver'); set(72, 4, 'Nor')
   set(74, 3, 'Ver'); set(74, 4, 'Nor'); set(74, 6, 'Ham'); set(74, 7, 'Rus')
+  // Jan also tipped Bahrain + Mars — both must degrade to reported skips.
+  set(72, 9, 'Ver'); set(72, 15, 'Ver')
+  // Zoe (row 77 block): full race set; she is NOT a league member.
+  set(77, 1, 'Zoe')
+  set(81, 3, 'Ver'); set(81, 4, 'Nor'); set(81, 5, 'Lec'); set(81, 6, 'Ham'); set(81, 7, 'Rus')
+  // Korrekt (row 84 block): actuals — never a player.
+  set(84, 1, 'Korrekt')
+  set(88, 3, 'Ver'); set(88, 4, 'Nor'); set(88, 5, 'Lec'); set(88, 6, 'Ham'); set(88, 7, 'Rus')
+  // Standings block: only Jan has a column (name in header row 30).
+  set(30, 4, 'Jan')
   const teams = ['McLaren', 'Merc', 'Ferrari', 'RedBull', 'Alpine', 'Haas', 'Vcarb', 'Audi', 'Williams', 'Cadillac', 'Aston']
-  for (let player = 0; player < 11; player++) {
-    for (let i = 0; i < 11; i++) set(33 + i, 3 + player * 4, teams[i]!)
-  }
+  for (let i = 0; i < 11; i++) set(33 + i, 3, teams[i]!)
   ws['!ref'] = 'A1:CZ160'
   const wb: xlsxPkg.WorkBook = { SheetNames: [`Tippspiel ${YEAR}`], Sheets: { [`Tippspiel ${YEAR}`]: ws as xlsxPkg.WorkSheet } }
   return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' })
 }
+
+describe('template round-trip', () => {
+  it('the downloaded schema file, filled in, uploads as-is (doc keys tolerated)', async () => {
+    const app = await newApp()
+    await seed()
+    const { owner, leagueId, members } = await makeLeague(app, ['Filler'])
+
+    const tpl = await app.inject({
+      method: 'GET', url: `/api/leagues/${leagueId}/imports/schema?season=${YEAR}`,
+      headers: auth(owner.token)
+    })
+    expect(tpl.statusCode).toBe(200)
+    const schema = tpl.json()
+    expect(schema.constructors.length).toBeGreaterThan(0)
+    expect(schema.preseasonCategories).toContain('wdc_wcc')
+    expect(schema._example.predictions.length).toBeGreaterThan(0)
+
+    // Fill exactly like a human/AI would: keep the whole file, add rows.
+    const raceSession = schema.sessions.find((s: { type: string }) => s.type === 'race')
+    schema.predictions = [{
+      userId: members['Filler']!.userId,
+      sessionId: raceSession.sessionId,
+      picks: [{ position: 1, driverCode: 'VER' }, { position: 2, driverCode: 'NOR' }]
+    }]
+    const dry = await app.inject({
+      method: 'POST', url: `/api/leagues/${leagueId}/imports?dryRun=1`,
+      headers: auth(owner.token), payload: schema
+    })
+    expect(dry.statusCode).toBe(200)
+    expect(dry.json().plan).toHaveLength(1)
+    await app.close()
+  })
+})
 
 describe('POST /api/leagues/:id/imports/excel', () => {
   it('parses the workbook and runs it through the same pipeline', async () => {
@@ -347,13 +390,22 @@ describe('POST /api/leagues/:id/imports/excel', () => {
     })
     expect(dry.statusCode).toBe(200)
     const body = dry.json()
-    // Jan's quali + partial race row planned; other 10 Excel players unknown.
+    // Jan's quali + partial race row planned.
     expect(body.plan).toHaveLength(2)
     const race = body.plan.find((x: { sessionType: string }) => x.sessionType === 'race')
     expect(race.picks).toHaveLength(4)
     // VER +3, NOR +3, HAM P4 exact +3, RUS P5 exact +3, team bonus +2 = 14
     expect(race.previewPoints).toBe(14)
-    expect(body.skipped.filter((s: { kind: string }) => s.kind === 'excel_player')).toHaveLength(10)
+    // Zoe is discovered dynamically but isn't a league member; the "Korrekt"
+    // actuals block must NOT surface as a player at all.
+    const playerSkips = body.skipped.filter((s: { kind: string }) => s.kind === 'excel_player')
+    expect(playerSkips).toHaveLength(1)
+    expect(playerSkips[0].reason).toMatch(/Zoe/)
+    expect(JSON.stringify(body.skipped)).not.toMatch(/Korrekt/)
+    // Bahrain maps but isn't bootstrapped in this season; Mars is unknown.
+    const eventSkips = body.skipped.filter((s: { kind: string }) => s.kind === 'excel_event')
+    expect(eventSkips.some((s: { reason: string }) => /Bahrain Grand Prix.*not in season/.test(s.reason))).toBe(true)
+    expect(eventSkips.some((s: { reason: string }) => /unknown event header "Mars"/.test(s.reason))).toBe(true)
 
     const apply = await app.inject({
       method: 'POST', url: `/api/leagues/${leagueId}/imports/excel?season=${YEAR}`,

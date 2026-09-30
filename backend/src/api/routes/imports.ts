@@ -91,7 +91,19 @@ const ImportBody = z.object({
       drivers: z.array(z.string()).optional(),
       constructors: z.array(z.string()).optional()
     })).max(500).optional()
-  }).optional()
+  }).optional(),
+  // Template round-trip: the downloaded schema file carries reference and
+  // documentation keys — owners upload the filled file as-is, so these are
+  // explicitly tolerated (and ignored) instead of tripping strict().
+  generatedAt: z.unknown().optional(),
+  generatedBy: z.unknown().optional(),
+  members: z.unknown().optional(),
+  drivers: z.unknown().optional(),
+  constructors: z.unknown().optional(),
+  preseasonCategories: z.unknown().optional(),
+  sessions: z.unknown().optional(),
+  _instructions: z.unknown().optional(),
+  _example: z.unknown().optional()
 }).strict()
 
 type ImportBodyT = z.infer<typeof ImportBody>
@@ -181,7 +193,40 @@ export async function registerImportsRoutes(app: FastifyInstance): Promise<void>
         }
       }
       const drivers = (await driversRepo.listAll()).map((d) => d.code).sort()
+      const constructors = (await constructorsRepo.listAll())
+        .map((c) => ({ id: c.id, name: c.name }))
+        .sort((a, b) => a.id.localeCompare(b.id))
       const me = getCurrentUser(req)
+
+      // Concrete example rows beat prose — real ids from THIS league/season so
+      // a human or AI can pattern-match instead of guessing.
+      const exampleSession = sessions.find((s) => s.type === 'race') ?? sessions[0]
+      const exampleMember = members[0]
+      const example = exampleSession && exampleMember ? {
+        _note: 'Example rows only — replace and delete. Shapes: full set, partial hand-in, joker.',
+        predictions: [
+          {
+            userId: exampleMember.userId,
+            sessionId: exampleSession.sessionId,
+            picks: Array.from({ length: exampleSession.picksRequired }, (_, i) => ({
+              position: i + 1, driverCode: drivers[i % drivers.length] ?? 'VER'
+            }))
+          },
+          {
+            userId: exampleMember.userId,
+            sessionId: exampleSession.sessionId,
+            picks: [{ position: 1, driverCode: drivers[0] ?? 'VER' }],
+            _note: 'partial hand-in: only the filled positions score'
+          },
+          {
+            userId: exampleMember.userId,
+            sessionId: exampleSession.sessionId,
+            picks: [{ position: 1, driverCode: drivers[0] ?? 'VER' }],
+            joker: true,
+            _note: `joker row (race only, max ${JOKERS_PER_SEASON}/season)`
+          }
+        ]
+      } : undefined
 
       const filename = `f1pg-import-${slug(league.name)}-${seasonYear}.json`
       reply.header('Content-Disposition', `attachment; filename="${filename}"`)
@@ -194,13 +239,18 @@ export async function registerImportsRoutes(app: FastifyInstance): Promise<void>
         generatedBy: { userId: me.id, displayName: me.displayName },
         members: members.map((m) => ({ userId: m.userId, displayName: m.displayName })),
         drivers,
+        constructors,
+        preseasonCategories: ['surprise', 'disappointment', 'dnf', 'poles', 'fastest_lap', 'wdc_wcc'],
         sessions,
         _instructions: {
           predictions: 'One row per (userId, sessionId). Up to picksRequired picks, positions within 1..picksRequired (partial hand-ins allowed — filled positions score normally). driverCode must be one of drivers above.',
-          jokers: `Set "joker": true on a race row that consumed one of the ${JOKERS_PER_SEASON} season jokers (missed race / late hand-in). Budget is validated; excess joker rows are skipped.`,
-          preseason: 'Optional. picks: one row per (userId, category) using driverCode or constructorId. standings: per-user driver+constructor projected ordering.',
-          conflicts: 'When userId+sessionId already has an IN-APP pick, the row is rejected unless overwrite=true. Previously imported or joker rows are silently replaced.'
+          jokers: `Set "joker": true on a race row that consumed one of the ${JOKERS_PER_SEASON} season jokers (missed race / late hand-in). Budget is validated; excess joker rows are skipped. Rows identical to the previous race without the flag get a warning in the preview.`,
+          preseason: 'Optional. picks: one row per (userId, category) from preseasonCategories, using driverCode and/or constructorId (ids from constructors above). standings: per-user projected ordering — drivers as an ordered driverCode array, constructors as an ordered constructor-id array.',
+          conflicts: 'When userId+sessionId already has an IN-APP pick, the row is rejected unless overwrite=true. Previously imported or joker rows are replaced silently; rows identical to what is already stored are skipped as unchanged.',
+          points: 'Never submit points — every touched session is rescored by the engine from official results.',
+          excel: 'Alternative to this file: POST the maintained Tippspiel xlsx (binary) to /imports/excel?season=YYYY — same preview/apply pipeline.'
         },
+        _example: example,
         overwrite: false,
         predictions: [],
         preseason: { picks: [], standings: [] }
@@ -743,11 +793,15 @@ async function excelToImportBody(
     }
 
     for (const [excelEventName, picks] of Object.entries(player.racePicks)) {
+      const hasAnyPicks = (['quali', 'sprintQuali', 'sprint', 'race'] as const).some((k) => picks[k].length > 0)
       const dbEventName = mapEventName(excelEventName)
-      if (dbEventName === null) continue
+      if (dbEventName === null) {
+        if (hasAnyPicks) skippedUpfront.push({ kind: 'excel_event', userId, reason: `unknown event header "${excelEventName}"` })
+        continue
+      }
       const ev = eventByName.get(dbEventName)
       if (!ev) {
-        skippedUpfront.push({ kind: 'excel_event', reason: `event "${dbEventName}" not in season ${parsed.seasonYear}` })
+        if (hasAnyPicks) skippedUpfront.push({ kind: 'excel_event', userId, reason: `event "${dbEventName}" not in season ${parsed.seasonYear}` })
         continue
       }
       for (const kind of ['quali', 'sprintQuali', 'sprint', 'race'] as const) {

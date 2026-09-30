@@ -2,7 +2,7 @@ import { getDb } from '../../db/client.js'
 import { score, session, event } from '../../db/schema.js'
 import { and, eq, sql, inArray } from 'drizzle-orm'
 import type { ParsedSeason } from './types.js'
-import { mapEventName, EVENTS_TO_SKIP } from './mappings.js'
+import { mapEventName } from './mappings.js'
 
 export type PerEventCell = { excel: number; app: number; hasApp: boolean }
 export type ComparisonRow = {
@@ -54,10 +54,6 @@ export async function buildComparison(
       const picks = player.racePicks[evName]!
       const excelPts = picks.excelPoints.quali + picks.excelPoints.sprint + picks.excelPoints.race
       excelTotal += excelPts
-      if (EVENTS_TO_SKIP.has(evName)) {
-        perEvent[evName] = { excel: excelPts, app: 0, hasApp: false }
-        continue
-      }
       const dbName = mapEventName(evName)
       const appPts = dbName ? appPointsByUserAndEvent.get(`${uid}|${dbName}`) : undefined
       if (appPts === undefined) {

@@ -4,7 +4,6 @@ import {
   mapConstructorId,
   mapEventName,
   mapPreseasonCategory,
-  EVENTS_TO_SKIP,
   CATEGORIES_TO_SKIP
 } from '../../../src/scripts/tippspiel/mappings.js'
 
@@ -61,15 +60,13 @@ describe('mapEventName', () => {
     expect(mapEventName('Abu Dhabi')).toBe('Abu Dhabi Grand Prix')
   })
 
-  it('returns null for events that should be skipped (not in DB)', () => {
-    expect(mapEventName('Bahrain')).toBeNull()
-    expect(mapEventName('Saudi')).toBeNull()
-    expect(EVENTS_TO_SKIP).toContain('Bahrain')
-    expect(EVENTS_TO_SKIP).toContain('Saudi')
+  it('maps cancelled-in-2026 races too — season filtering happens against the DB', () => {
+    expect(mapEventName('Bahrain')).toBe('Bahrain Grand Prix')
+    expect(mapEventName('Saudi')).toBe('Saudi Arabian Grand Prix')
   })
 
-  it('throws on unknown event', () => {
-    expect(() => mapEventName('Mars')).toThrow(/unknown event/i)
+  it('returns null on an unknown header (caller reports the skip)', () => {
+    expect(mapEventName('Mars')).toBeNull()
   })
 })
 
