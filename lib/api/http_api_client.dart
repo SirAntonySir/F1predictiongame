@@ -47,7 +47,11 @@ class HttpApiClient implements ApiClient {
         _tokenProvider = tokenProvider,
         _onUnauthorized = onUnauthorized;
 
-  Future<dynamic> _request(String method, String path, {Object? body}) async {
+  /// [sessionExpiresOn401]: false for endpoints whose 401 means "wrong
+  /// credentials" rather than "token expired" (change password), so a typo
+  /// doesn't log the user out.
+  Future<dynamic> _request(String method, String path,
+      {Object? body, bool sessionExpiresOn401 = true}) async {
     final uri = Uri.parse('$baseUrl$path');
     final headers = <String, String>{};
     final token = _tokenProvider();
@@ -65,7 +69,7 @@ class HttpApiClient implements ApiClient {
       default:       throw StateError('Unsupported HTTP method: $method');
     }
 
-    return _decodeResponse(path, res);
+    return _decodeResponse(path, res, sessionExpiresOn401: sessionExpiresOn401);
   }
 
   /// Raw-binary POST (Excel upload). Same auth + error mapping as [_request].
@@ -78,7 +82,8 @@ class HttpApiClient implements ApiClient {
     return _decodeResponse(path, res);
   }
 
-  dynamic _decodeResponse(String path, http.Response res) {
+  dynamic _decodeResponse(String path, http.Response res,
+      {bool sessionExpiresOn401 = true}) {
     if (res.statusCode >= 200 && res.statusCode < 300) {
       _unauthorizedFired = false;
       if (res.body.isEmpty) return null;
@@ -89,7 +94,7 @@ class HttpApiClient implements ApiClient {
     switch (res.statusCode) {
       case 400: throw BadRequestException(msg ?? 'Bad request');
       case 401:
-        if (!_unauthorizedFired) {
+        if (sessionExpiresOn401 && !_unauthorizedFired) {
           _unauthorizedFired = true;
           _onUnauthorized();
         }
@@ -236,7 +241,7 @@ class HttpApiClient implements ApiClient {
       'email': email,
       'currentPassword': currentPassword,
       'newPassword': newPassword,
-    });
+    }, sessionExpiresOn401: false);
   }
 
   @override

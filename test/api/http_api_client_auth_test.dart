@@ -67,6 +67,20 @@ void main() {
     });
   });
 
+  group('changePassword', () {
+    test('a wrong current password (401) is an error, not a logout', () async {
+      token = 'tok';
+      when(() => http_.post(any(), headers: any(named: 'headers'), body: any(named: 'body'))).thenAnswer(
+        (_) async => http.Response(jsonEncode({'error': {'code': 'UNAUTHORIZED', 'message': 'Invalid email or current password'}}), 401),
+      );
+      await expectLater(
+        client.changePassword(email: 'a@b.com', currentPassword: 'wrong', newPassword: 'hunter22y'),
+        throwsA(isA<UnauthorizedException>()),
+      );
+      expect(unauthorizedFires, isEmpty);
+    });
+  });
+
   group('login', () {
     test('200 returns AuthResult', () async {
       when(() => http_.post(any(), headers: any(named: 'headers'), body: any(named: 'body'))).thenAnswer(
