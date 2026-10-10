@@ -325,8 +325,39 @@ class _PredictScreenState extends State<PredictScreen> {
       }
       return;
     }
+    // Race picks short of a full set: empty slots score 0, and any saved
+    // pick replaces the joker — say so before it happens.
+    final required = requiredPicks(session.type);
+    if (session.type == SessionType.race &&
+        _picks.isNotEmpty &&
+        _picks.length < required) {
+      if (!mounted) return;
+      final ok = await BrandedSheet.confirm(
+        context,
+        title: 'Save ${_picks.length} of $required picks?',
+        message: 'Empty slots score 0, and saved picks mean no joker '
+            'for this race.',
+        primaryLabel: 'Save',
+        secondaryLabel: 'Keep picking',
+      );
+      if (!ok || !mounted) return;
+    }
     setState(() => _saving = true);
     try {
+      if (_picks.isEmpty) {
+        // Nothing picked: drop any saved prediction rather than saving an
+        // empty one, so a race joker can still fire at lock.
+        if (_initialPicks.isNotEmpty) {
+          await scope.predictions.clearPrediction(session.id);
+          if (!mounted) return;
+          setState(() {
+            _initialPicks = <String>[];
+            _editing = true;
+          });
+          BrandedToast.show(context, 'Picks cleared', tone: ToastTone.ok);
+        }
+        return;
+      }
       final picks = [
         for (var i = 0; i < _picks.length; i++)
           Pick(position: i + 1, driverCode: _picks[i]),
@@ -430,11 +461,12 @@ class _PredictScreenState extends State<PredictScreen> {
             final locked = systemLocked || deadlinePassed;
             final hasSaved = _initialPicks.isNotEmpty;
             final canEdit = _editing && !locked;
-            // Partial / empty pick lists are now savable — the backend accepts
-            // 0..req picks, so the lock button stays enabled whenever the user
-            // is editing an unlocked session, regardless of how many slots
-            // they've filled.
-            final canLock = !locked && !_saving;
+            // Partial pick lists are savable (1..req picks); an empty list
+            // clears the saved prediction instead (see _lock), so the bar is
+            // live whenever there's something to save or saved picks to clear.
+            final canLock = !locked &&
+                !_saving &&
+                (_picks.isNotEmpty || _initialPicks.isNotEmpty);
             // Single full-width control that merges the primary action with
             // the lock countdown, styled like the slot/driver cards (rLg
             // radius, card stroke). The old two-pill row collapses into this:
@@ -446,17 +478,21 @@ class _PredictScreenState extends State<PredictScreen> {
             if (_editing) {
               actionBar = _ActionBar(
                 icon: Icons.lock,
-                label: _saving ? 'SAVING…' : 'LOCK PICK',
+                label: _saving
+                    ? 'SAVING…'
+                    : (_picks.isEmpty && hasSaved ? 'CLEAR PICKS' : 'LOCK PICK'),
                 countdown: countdown,
                 accent: true,
                 onTap: canLock ? _lock : null,
               );
-            } else if (hasSaved && !locked) {
+            } else if (!locked) {
+              // Open session: saved picks → EDIT; nothing saved (e.g. cleared
+              // elsewhere) → straight back into picking, never a false LOCKED.
               actionBar = _ActionBar(
                 icon: Icons.edit,
-                label: 'EDIT',
+                label: hasSaved ? 'EDIT' : 'PICK',
                 countdown: countdown,
-                accent: false,
+                accent: !hasSaved,
                 onTap: () => setState(() => _editing = true),
               );
             } else {
@@ -715,6 +751,7 @@ class _ActionBar extends StatelessWidget {
         : t.colorScheme.onSurface.withOpacity(disabled ? 0.5 : 1.0);
     final clock = accent ? Colors.white : BrandColors.accent;
     return Material(
+      key: const Key('predict-action'),
       color: bg,
       clipBehavior: Clip.antiAlias,
       shape: RoundedRectangleBorder(

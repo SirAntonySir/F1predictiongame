@@ -27,6 +27,8 @@ class _FakeApi implements ApiClient {
     return UpcomingBundle(upcoming: upcomingReply, jokersRemaining: 3);
   }
   @override Future<List<MyScore>> myScores({int? season}) async { scoresCalls += 1; return scoresReply; }
+  final deleted = <int>[];
+  @override Future<void> deleteMyPrediction(int sessionId) async { deleted.add(sessionId); predReply = null; }
   @override noSuchMethod(Invocation i) => super.noSuchMethod(i);
 }
 
@@ -73,6 +75,18 @@ void main() {
     await c.savePrediction(1, [const Pick(position: 1, driverCode: 'VER')]);
     expect(c.prediction(1)!.picks.first.driverCode, 'VER');
     expect(notifies, greaterThanOrEqualTo(1));
+  });
+
+  test('clearPrediction deletes the saved pick and re-syncs reminders', () async {
+    final api = _FakeApi();
+    final synced = <List<UpcomingPrediction>>[];
+    final c = PredictionsController(api: api, onUpcomingSynced: synced.add);
+    await c.savePrediction(1, [const Pick(position: 1, driverCode: 'VER')]);
+    await c.clearPrediction(1);
+    expect(api.deleted, [1]);
+    expect(c.prediction(1), isNull);
+    expect(c.hasFetched(1), isTrue); // known empty — no refetch needed
+    expect(synced, hasLength(1)); // reminders get re-armed for the session
   });
 
   test('refreshUpcoming stores list and notifies', () async {

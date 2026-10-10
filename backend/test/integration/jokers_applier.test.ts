@@ -94,6 +94,24 @@ describe('applyJokersForSession', () => {
     expect(rows[0]!.picks).toEqual(otherPicks)
   })
 
+  it('an empty prediction on the race does not block the joker', async () => {
+    await seedSeason()
+    const race1 = await makeRace(1, -7 * 24)
+    const race2 = await makeRace(2, -1)
+    const u = await makeUser()
+    await predictionsRepo.upsertPredictionWithPicks(u.id, race1.id, racePicks)
+    // Saved with every slot empty — that's "no picks", which Rules promise
+    // a joker for.
+    await predictionsRepo.upsertPredictionWithPicks(u.id, race2.id, [])
+
+    const summary = await applyJokersForSession(race2.id, NOW)
+    expect(summary).toEqual({ sessionId: race2.id, applied: 1 })
+    const rows = await adminRows(race2.id)
+    expect(rows).toHaveLength(1)
+    expect(rows[0]!.source).toBe('joker')
+    expect(rows[0]!.picks).toEqual(racePicks)
+  })
+
   it('spends no joker when the previous race prediction has no picks', async () => {
     await seedSeason()
     const race1 = await makeRace(1, -7 * 24)

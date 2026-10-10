@@ -51,6 +51,18 @@ class PredictionsController extends ChangeNotifier {
     return v;
   }
 
+  /// Deletes the caller's saved picks for [sessionId]. Used instead of saving
+  /// an empty list: an empty prediction still counts as "predicted", which
+  /// used to block the race joker. Re-syncs upcoming so the pick reminders
+  /// for the now-unpicked session are re-armed.
+  Future<void> clearPrediction(int sessionId) async {
+    await api.deleteMyPrediction(sessionId);
+    _predictions[sessionId] = null;
+    _fetched.add(sessionId);
+    notifyListeners();
+    await refreshUpcoming().catchError((_) {});
+  }
+
   Future<void> refreshUpcoming() async {
     final bundle = await api.upcomingPredictions();
     _upcoming = bundle.upcoming;

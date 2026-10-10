@@ -341,8 +341,9 @@ class _JokerCard extends StatelessWidget {
             icon: Icons.bolt,
             title: 'Auto-activates at lock',
             body:
-                "If you haven't locked any picks for a race when the lock "
-                'closes, one of your remaining jokers is spent automatically.',
+                "If you have no picks saved for a race when it locks, one of "
+                'your remaining jokers is spent automatically. Saving even one '
+                'pick means you play that race yourself — no joker.',
           ),
           const SizedBox(height: Spacing.md),
           _JokerRule(

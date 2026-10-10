@@ -29,8 +29,12 @@ export async function applyJokersForSession(sessionId: number, now: Date = new D
   if (prev) {
     const ev = await eventsRepo.getById(s.eventId)
     const used = await predictionsRepo.countJokersUsedForSeason(ev!.seasonYear)
+    // A prediction saved with every slot empty is "no picks" — it must not
+    // block the joker the Rules promise for exactly that case.
     const alreadyPredicted = new Set(
-      (await predictionsRepo.listForSessionWithPicks(sessionId)).map((p) => p.userId)
+      (await predictionsRepo.listForSessionWithPicks(sessionId))
+        .filter((p) => p.picks.length > 0)
+        .map((p) => p.userId)
     )
     for (const p of await predictionsRepo.listForSessionWithPicks(prev.id)) {
       if (alreadyPredicted.has(p.userId)) continue
