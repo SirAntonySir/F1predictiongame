@@ -29,6 +29,26 @@ export async function upsertSession(s: Session): Promise<StoredSession> {
   return row as StoredSession
 }
 
+/// Deletes sessions of [eventId] whose type is no longer on the schedule
+/// (e.g. a sprint weekend reworked into a regular one). Only still-scheduled
+/// sessions with no results and no scores are removed; picks on them cascade.
+export async function pruneStaleForEvent(eventId: number, keepTypes: Session['type'][]): Promise<StoredSession[]> {
+  const db = getDb()
+  const rows = await db
+    .delete(session)
+    .where(
+      and(
+        eq(session.eventId, eventId),
+        eq(session.status, 'scheduled'),
+        sql`${session.type} NOT IN (${sql.join(keepTypes.map((t) => sql`${t}`), sql`, `)})`,
+        sql`NOT EXISTS (SELECT 1 FROM session_result sr WHERE sr.session_id = "session"."id")`,
+        sql`NOT EXISTS (SELECT 1 FROM score sc WHERE sc.session_id = "session"."id")`
+      )
+    )
+    .returning()
+  return rows as StoredSession[]
+}
+
 export async function getById(id: number): Promise<StoredSession | null> {
   const db = getDb()
   const rows = await db.select().from(session).where(eq(session.id, id)).limit(1)

@@ -8,6 +8,9 @@ type ParsedScheduleEvent = Event & {
 
 export type ParsedSchedule = {
   year: number
+  /// Jolpica's own count of races in the season; fewer `events` than this
+  /// means the response was cut short (pagination).
+  total: number
   events: ParsedScheduleEvent[]
 }
 
@@ -32,7 +35,7 @@ function pushSession(
 }
 
 export function parseSchedule(raw: unknown): ParsedSchedule {
-  const data = raw as { MRData: { RaceTable: { season: string; Races: any[] } } }
+  const data = raw as { MRData: { total?: string; RaceTable: { season: string; Races: any[] } } }
   const year = Number(data.MRData.RaceTable.season)
   const events: ParsedScheduleEvent[] = data.MRData.RaceTable.Races.map((r: any) => {
     const sessions: ParsedScheduleEvent['sessions'] = []
@@ -54,7 +57,8 @@ export function parseSchedule(raw: unknown): ParsedSchedule {
       sessions
     }
   })
-  return { year, events }
+  const total = data.MRData.total != null ? Number(data.MRData.total) : events.length
+  return { year, total, events }
 }
 
 function parseClassification(raw: unknown, key: 'Results' | 'QualifyingResults' | 'SprintResults'): SessionResultRow[] {
