@@ -59,6 +59,10 @@ flutter:
     - assets/
     - assets/avatar/
     - assets/avatar/icons/
+    # google_fonts serves Anton/Inter from these bundled files when present —
+    # without this line it downloaded them at runtime (first launch offline →
+    # system-font fallback). Folder assets don't include subfolders.
+    - assets/fonts/
   fonts:
     # Stampete by JOEBOB graphics — shareware, non-commercial use only.
     # Used by ticket data cells (driver codes + points) to give the picks a
