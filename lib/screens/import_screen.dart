@@ -177,7 +177,9 @@ class _ImportScreenState extends State<ImportScreen> {
                         '${_preview!.applied.predictions == 1 ? '' : 's'}',
                 icon: Icons.check_circle_outline,
                 accent: true,
-                onTap: _busy || _canApply() ? _onApply : null,
+                // Parenthesised on purpose: `_busy || _canApply() ? …` parsed
+                // as `(_busy || _canApply()) ? …` and left Apply live mid-run.
+                onTap: (!_busy && _canApply()) ? _onApply : null,
               ),
               if (!_canApply()) ...[
                 const SizedBox(height: Spacing.xs),
@@ -296,9 +298,12 @@ class _ImportScreenState extends State<ImportScreen> {
   }
 
   Future<void> _onApply() async {
+    if (_busy || !_canApply()) return;
     final scope = AppState.of(context);
     final league = scope.league.league!;
-    final overwrite = _preview!.overwrites.isNotEmpty;
+    // Only with the owner's explicit acknowledgement (_canApply requires it
+    // whenever the preview lists overwrites).
+    final overwrite = _ackOverwrite && _preview!.overwrites.isNotEmpty;
     setState(() => _busy = true);
     try {
       final ImportApplyResult res;
