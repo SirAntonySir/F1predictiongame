@@ -103,10 +103,12 @@ SessionLeaderboardRow? newestUnseenScored(
   return seen.contains(newest.sessionId) ? null : newest;
 }
 
-/// Scored sessions (members present), newest first by scheduledStart.
+/// Finished scored sessions (members present), newest first by
+/// scheduledStart. Provisional ones are excluded so they're neither shown nor
+/// marked seen — the podium fires once the official result lands.
 List<SessionLeaderboardRow> scoredSessions(
     List<SessionLeaderboardRow> breakdown) {
-  return breakdown.where((r) => r.members.isNotEmpty).toList()
+  return breakdown.where((r) => r.finished && r.members.isNotEmpty).toList()
     ..sort((a, b) => b.scheduledStart.compareTo(a.scheduledStart));
 }
 

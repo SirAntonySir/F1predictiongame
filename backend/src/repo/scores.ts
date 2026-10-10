@@ -179,6 +179,9 @@ export type SessionLeaderboardRow = {
   eventRound: number
   eventName: string
   scheduledStart: Date
+  /// 'scheduled' with scores = provisional (live-timing order, official
+  /// classification pending); clients must not treat it as a final result.
+  status: 'scheduled' | 'finished'
   members: { userId: string; displayName: string; pointsTotal: number; breakdown: ScoreBreakdown }[]
 }
 
@@ -195,6 +198,7 @@ export async function leagueSessionBreakdown(leagueId: string, seasonYear: numbe
       eventRound: event.round,
       eventName: event.name,
       scheduledStart: session.scheduledStart,
+      status: session.status,
       userId: score.userId,
       displayName: user.displayName,
       pointsTotal: score.pointsTotal,
@@ -220,6 +224,7 @@ export async function leagueSessionBreakdown(leagueId: string, seasonYear: numbe
         eventRound: r.eventRound,
         eventName: r.eventName,
         scheduledStart: r.scheduledStart,
+        status: r.status,
         members: []
       }
       bySession.set(sid, entry)

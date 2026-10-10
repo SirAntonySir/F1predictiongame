@@ -21,6 +21,9 @@ class SessionLeaderboardRow {
   final int eventRound;
   final String eventName;
   final DateTime scheduledStart;
+  /// False while the session is scored from live timing but the official
+  /// classification hasn't landed (backend status 'scheduled').
+  final bool finished;
   final List<SessionLeaderboardMember> members;
   const SessionLeaderboardRow({
     required this.sessionId,
@@ -28,6 +31,7 @@ class SessionLeaderboardRow {
     required this.eventRound,
     required this.eventName,
     required this.scheduledStart,
+    this.finished = true,
     required this.members,
   });
   factory SessionLeaderboardRow.fromJson(Map<String, dynamic> j) => SessionLeaderboardRow(
@@ -36,6 +40,8 @@ class SessionLeaderboardRow {
         eventRound: (j['eventRound'] as num).toInt(),
         eventName: j['eventName'] as String,
         scheduledStart: DateTime.parse(j['scheduledStart'] as String),
+        // Older backends omit status; they only ever exposed final scores.
+        finished: (j['status'] as String? ?? 'finished') == 'finished',
         members: ((j['members'] as List).cast<Map<String, dynamic>>())
             .map(SessionLeaderboardMember.fromJson)
             .toList(),

@@ -98,6 +98,12 @@ describe('GET /api/leagues/:id/leaderboard/sessions', () => {
     const arr = r.json().sessions
     expect(arr).toHaveLength(1)
     expect(arr[0]!.members).toHaveLength(2)
+    // Scored but still scheduled = provisional; clients key off this.
+    expect(arr[0]!.status).toBe('scheduled')
+
+    await sessions.markFinished(s1.id)
+    const r2 = await owner.app.inject({ method: 'GET', url: `/api/leagues/${leagueId}/leaderboard/sessions`, headers: auth(owner.token) })
+    expect(r2.json().sessions[0]!.status).toBe('finished')
   })
 })
 

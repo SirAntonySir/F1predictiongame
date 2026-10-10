@@ -10,6 +10,7 @@ SessionLeaderboardRow _row({
   String type = 'race',
   int round = 9,
   String name = 'British Grand Prix',
+  bool finished = true,
 }) =>
     SessionLeaderboardRow(
       sessionId: sessionId,
@@ -17,6 +18,7 @@ SessionLeaderboardRow _row({
       eventRound: round,
       eventName: name,
       scheduledStart: start,
+      finished: finished,
       members: members,
     );
 
@@ -103,9 +105,34 @@ void main() {
       expect(newestUnseenScored([scoredA, scoredB], {20}), isNull);
     });
 
+    test('ignores provisional (unfinished) sessions even if newer', () {
+      final provisional = _row(
+          sessionId: 40,
+          start: t0.add(const Duration(days: 3)),
+          members: [_m('u_a', 5)],
+          finished: false);
+      final r = newestUnseenScored([scoredA, scoredB, provisional], {});
+      expect(r!.sessionId, 20);
+    });
+
     test('returns null when nothing is scored', () {
       expect(newestUnseenScored([unscored], {}), isNull);
     });
+  });
+
+  test('SessionLeaderboardRow.fromJson maps status to finished', () {
+    Map<String, dynamic> j(String? status) => {
+          'sessionId': 1,
+          'sessionType': 'race',
+          'eventRound': 1,
+          'eventName': 'X',
+          'scheduledStart': '2026-10-04T07:00:00.000Z',
+          if (status != null) 'status': status,
+          'members': const [],
+        };
+    expect(SessionLeaderboardRow.fromJson(j('scheduled')).finished, isFalse);
+    expect(SessionLeaderboardRow.fromJson(j('finished')).finished, isTrue);
+    expect(SessionLeaderboardRow.fromJson(j(null)).finished, isTrue);
   });
 
   test('prettySessionType maps known types and title-cases the rest', () {
