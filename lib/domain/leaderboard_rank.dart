@@ -39,3 +39,9 @@ List<RankedRow> rankLeaderboard(
   }
   return out;
 }
+
+/// Competition ranks (1, 1, 3) for [scores] listed best-first: each rank is 1
+/// + the number of strictly better scores, so level players share it.
+List<int> competitionRanks(List<int> scores) => [
+      for (final s in scores) 1 + scores.where((o) => o > s).length,
+    ];

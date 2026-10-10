@@ -56,4 +56,16 @@ void main() {
       expect(rows.map((r) => r.displayName), ['A', 'B']);
     });
   });
+
+  group('competitionRanks', () {
+    test('level scores share a rank and the next rank skips', () {
+      expect(competitionRanks([30, 30, 20, 10, 10, 5]), [1, 1, 3, 4, 4, 6]);
+    });
+    test('distinct scores rank by position', () {
+      expect(competitionRanks([9, 7, 1]), [1, 2, 3]);
+    });
+    test('empty list', () {
+      expect(competitionRanks(const []), isEmpty);
+    });
+  });
 }

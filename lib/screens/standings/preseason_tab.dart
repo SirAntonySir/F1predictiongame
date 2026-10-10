@@ -5,6 +5,7 @@ import '../../api/models/standing.dart';
 import '../../components/app_card.dart';
 import '../../components/error_view.dart';
 import '../../components/standings_skeleton.dart';
+import '../../domain/leaderboard_rank.dart';
 import '../../domain/preseason.dart';
 import '../../state/app_state.dart';
 import '../../theme/app_theme.dart';
@@ -171,6 +172,9 @@ class PreseasonBodyView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final standings = view.me.standings;
+    // Shared ranks for level players, like the League tab.
+    final leaderRanks = competitionRanks(
+        [for (final r in view.leaderboard) r.preseasonPointsProjected]);
     final myDriverByPosition = {for (final p in standings.myDriverPicks) p.position: p.driverCode};
     final myTeamByPosition = {for (final p in standings.myConstructorPicks) p.position: p.constructorId};
     final actualDriverPosition = {
@@ -213,7 +217,7 @@ class PreseasonBodyView extends StatelessWidget {
                     children: [
                       for (var i = 0; i < view.leaderboard.length; i++)
                         _LeaderRow(
-                          rank: i + 1,
+                          rank: leaderRanks[i],
                           row: view.leaderboard[i],
                           isMe: view.leaderboard[i].userId == myUserId,
                           isLast: i == view.leaderboard.length - 1,

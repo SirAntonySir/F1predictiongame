@@ -429,18 +429,19 @@ class _StandingHeader extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                       Text(
-                        standing.leagueRank == null
+                        standing.headlineRank == null
                             ? '—'
-                            : 'P${standing.leagueRank}',
+                            : 'P${standing.headlineRank}',
                         style: AppText.display(36, color: BrandColors.accent),
                       ),
                       const SizedBox(width: Spacing.sm),
                       Padding(
                         padding: const EdgeInsets.only(bottom: 6),
                         child: Text(
-                          standing.leagueRank == null
+                          standing.headlineRank == null
                               ? 'unranked'
-                              : 'of ${standing.leagueSize}',
+                              : 'of ${standing.leagueSize} · '
+                                  '${standing.headlineIsInSeason ? 'IN-SEASON' : 'TOTAL'}',
                           style: AppText.label(10,
                               color:
                                   t.colorScheme.onSurface.withOpacity(0.55)),
@@ -458,7 +459,12 @@ class _StandingHeader extends StatelessWidget {
                   ),
                   const Spacer(),
                   Row(children: [
-                    _MetricCell(label: 'TOTAL', value: '${standing.pointsTotal}'),
+                    _MetricCell(
+                        label: standing.headlineIsInSeason &&
+                                standing.leagueRank != null
+                            ? 'TOTAL · P${standing.leagueRank}'
+                            : 'TOTAL',
+                        value: '${standing.pointsTotal}'),
                     const SizedBox(width: Spacing.lg),
                     _MetricCell(label: 'SEASON', value: '${standing.inSeasonPoints}'),
                     const SizedBox(width: Spacing.lg),

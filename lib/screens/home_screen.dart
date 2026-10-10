@@ -886,6 +886,7 @@ class _HomeScreenState extends State<HomeScreen> {
     // arrow on row 4 should reflect what happened across the whole league.
     final trendByUser = computeLeaderboardTrend(
       sortedRows: preview,
+      points: points,
       prevPoints: prevPoints,
     );
     if (preview.isEmpty) {

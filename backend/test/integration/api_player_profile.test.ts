@@ -122,6 +122,27 @@ describe('GET /api/leagues/:id/players/:userId', () => {
     expect(j.pickLog[0].topResults[0].driverCode).toBe('VER')
   })
 
+  it('players level on points share the rank — no alphabetical tiebreak', async () => {
+    const { raceSession } = await seed()
+    const app = await newApp()
+    const { leagueId, owner, member } = await leagueOf(app)
+    const breakdown = {
+      perPosition: [{ position: 1, exact: true, wrongPos: false, points: 3, driverCode: 'VER' }],
+      teamBonus: { applied: false, points: 0 }, rule: 'race-v1'
+    }
+    await scores.upsertScore(owner.userId, raceSession.id, 3, breakdown)
+    await scores.upsertScore(member.userId, raceSession.id, 3, breakdown)
+
+    // 'member' sorts before 'owner', which used to make the owner P2.
+    const r = await app.inject({
+      method: 'GET',
+      url: `/api/leagues/${leagueId}/players/${owner.userId}`,
+      headers: auth(owner.token)
+    })
+    expect(r.json().standing.leagueRank).toBe(1)
+    expect(r.json().standing.inSeasonRank).toBe(1)
+  })
+
   it('isSelf is true when viewing your own profile', async () => {
     await seed()
     const app = await newApp()

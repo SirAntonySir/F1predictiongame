@@ -203,6 +203,7 @@ class _LeagueTabState extends State<LeagueTab> {
                     // metric. Empty map → backend says no event scored yet.
                     final trendByUser = computeLeaderboardTrend(
                       sortedRows: sorted,
+                      points: _metric.extractor,
                       prevPoints: _metric.prevExtractor,
                     );
                     return Container(

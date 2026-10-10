@@ -1,5 +1,6 @@
 // ignore_for_file: deprecated_member_use
 import 'package:flutter/material.dart';
+import '../domain/leaderboard_rank.dart';
 import '../domain/leaderboard_trend.dart';
 import '../theme/app_theme.dart';
 import '../theme/colors.dart';
@@ -40,6 +41,7 @@ class StandingsList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
+    final ranks = competitionRanks([for (final e in entries) e.points]);
     return Container(
       decoration: BoxDecoration(
         border: Border.all(color: t.strokeColor, width: Strokes.card),
@@ -67,7 +69,7 @@ class StandingsList extends StatelessWidget {
                 children: [
                   SizedBox(
                     width: 22,
-                    child: Text('${i + 1}',
+                    child: Text('${ranks[i]}',
                         style: AppText.display(13,
                             color: isMe
                                 ? BrandColors.accent

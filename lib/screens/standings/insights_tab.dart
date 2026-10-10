@@ -4,6 +4,7 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:go_router/go_router.dart';
 import 'package:skeletonizer/skeletonizer.dart';
 import '../../api/models/leaderboard_row.dart';
+import '../../domain/season_headline.dart';
 import '../../api/models/league_gossip.dart';
 import '../../api/models/my_score.dart';
 import '../../api/models/session_leaderboard_row.dart';
@@ -121,7 +122,7 @@ class _InsightsTabState extends State<InsightsTab> {
                 children: [
                   Row(
                     children: [
-                      Expanded(child: _stat(t, 'TOTAL POINTS', '${stats.totalPoints}', stats.rankLabel, accent: true)),
+                      Expanded(child: _stat(t, 'IN-SEASON POINTS', '${stats.totalPoints}', stats.rankLabel, accent: true)),
                       const SizedBox(width: 6),
                       Expanded(child: _stat(t, 'AVERAGE / ROUND', stats.avgLabel, stats.leagueAvgLabel)),
                     ],
@@ -236,32 +237,16 @@ class _InsightsTabState extends State<InsightsTab> {
     for (final s in d.scores) {
       perEvent.update(s.eventRound, (v) => v + s.pointsTotal, ifAbsent: () => s.pointsTotal);
     }
-    final totalPoints = perEvent.values.fold<int>(0, (a, b) => a + b);
-    final eventCount = perEvent.length;
-    final avg = eventCount == 0 ? 0.0 : totalPoints / eventCount;
-
-    // Rank within league
-    final me = d.myUserId;
-    int? myRank;
-    if (me != null && d.leaderboard.isNotEmpty) {
-      final sorted = [...d.leaderboard]..sort((a, b) => b.pointsTotal.compareTo(a.pointsTotal));
-      final idx = sorted.indexWhere((r) => r.userId == me);
-      if (idx >= 0) myRank = idx + 1;
-    }
-    final rankLabel = myRank == null
+    // Headline: in-season points, rank and per-round averages on one basis
+    // (see seasonHeadline) — matches the League tab's IN-SEASON view.
+    final head = seasonHeadline(
+        myUserId: d.myUserId, leaderboard: d.leaderboard, sessions: d.sessions);
+    final rankLabel = head.rank == null
         ? '—'
-        : '${_ordinal(myRank)} of ${d.leaderboard.length}';
-
-    // League average (per round)
-    String leagueAvgLabel = '—';
-    if (d.leaderboard.isNotEmpty) {
-      final totalLeague = d.leaderboard.fold<int>(0, (a, r) => a + r.pointsTotal);
-      final totalSessions = d.leaderboard.fold<int>(0, (a, r) => a + r.sessionsScored);
-      if (totalSessions > 0) {
-        final lAvg = totalLeague / totalSessions;
-        leagueAvgLabel = 'league avg ${lAvg.toStringAsFixed(1)}';
-      }
-    }
+        : '${head.tied ? '=' : ''}${_ordinal(head.rank!)} of ${head.memberCount}';
+    final leagueAvgLabel = head.leagueAvgPerRound == null
+        ? '—'
+        : 'league avg ${head.leagueAvgPerRound!.toStringAsFixed(1)}';
 
     // Hit rate: count exact picks vs total picks across all my scored sessions.
     var exactCount = 0;
@@ -360,8 +345,8 @@ class _InsightsTabState extends State<InsightsTab> {
     });
 
     return _Stats(
-      totalPoints: totalPoints,
-      avgLabel: eventCount == 0 ? '—' : avg.toStringAsFixed(1),
+      totalPoints: head.points,
+      avgLabel: head.avgPerRound?.toStringAsFixed(1) ?? '—',
       rankLabel: rankLabel,
       leagueAvgLabel: leagueAvgLabel,
       hitRateLabel: hitRateLabel,

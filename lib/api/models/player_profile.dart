@@ -59,9 +59,11 @@ class PlayerHeader {
 }
 
 class PlayerStanding {
-  /// 1-indexed rank inside the league. null when the player has zero score
-  /// rows and isn't in the leaderboard.
+  /// Competition rank (ties share) on total points. null when the player
+  /// isn't on the leaderboard.
   final int? leagueRank;
+  /// Same, on in-season points. null from older backends.
+  final int? inSeasonRank;
   final int leagueSize;
   final int pointsTotal;
   final int inSeasonPoints;
@@ -69,6 +71,7 @@ class PlayerStanding {
   final int sessionsScored;
   const PlayerStanding({
     required this.leagueRank,
+    this.inSeasonRank,
     required this.leagueSize,
     required this.pointsTotal,
     required this.inSeasonPoints,
@@ -77,12 +80,18 @@ class PlayerStanding {
   });
   factory PlayerStanding.fromJson(Map<String, dynamic> j) => PlayerStanding(
         leagueRank: (j['leagueRank'] as num?)?.toInt(),
+        inSeasonRank: (j['inSeasonRank'] as num?)?.toInt(),
         leagueSize: (j['leagueSize'] as num).toInt(),
         pointsTotal: (j['pointsTotal'] as num).toInt(),
         inSeasonPoints: (j['inSeasonPoints'] as num).toInt(),
         preseasonPoints: (j['preseasonPoints'] as num).toInt(),
         sessionsScored: (j['sessionsScored'] as num).toInt(),
       );
+
+  /// Rank for the profile header: in-season, the League tab's default view,
+  /// falling back to the total rank when the backend doesn't send it.
+  int? get headlineRank => inSeasonRank ?? leagueRank;
+  bool get headlineIsInSeason => inSeasonRank != null;
 }
 
 enum FormGlyph { exact, wrongPos, miss, teamBonus }

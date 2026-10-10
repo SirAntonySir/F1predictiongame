@@ -79,11 +79,15 @@ export async function registerPlayerRoutes(app: FastifyInstance): Promise<void> 
 
       // ---- League standing ----
       const lb = await scoresRepo.leagueLeaderboard(leagueId, seasonYear)
-      // leagueLeaderboard returns sorted desc by pointsTotal already.
-      const targetIdx = lb.findIndex((r) => r.userId === targetId)
-      const targetLb = targetIdx === -1 ? null : lb[targetIdx]
+      const targetLb = lb.find((r) => r.userId === targetId) ?? null
+      // Competition ranks (1 + players strictly ahead): level players share a
+      // rank, matching the app's standings tables instead of the query's
+      // alphabetical tiebreak.
+      const rankOn = (metric: (r: (typeof lb)[number]) => number) =>
+        targetLb === null ? null : 1 + lb.filter((r) => metric(r) > metric(targetLb)).length
       const standing = {
-        leagueRank: targetIdx === -1 ? null : targetIdx + 1,
+        leagueRank: rankOn((r) => r.pointsTotal),
+        inSeasonRank: rankOn((r) => r.inSeasonPoints),
         leagueSize: lb.length,
         pointsTotal: targetLb?.pointsTotal ?? 0,
         inSeasonPoints: targetLb?.inSeasonPoints ?? 0,
