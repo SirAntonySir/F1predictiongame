@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:go_router/go_router.dart';
+import '../components/display_name_sheet.dart';
 import '../components/branded_sheet.dart';
 import '../components/branded_field.dart';
 import '../components/branded_time_picker.dart';
@@ -71,24 +72,51 @@ class SettingsScreen extends StatelessWidget {
             const SizedBox(height: Spacing.xl),
             Text('ACCOUNT', style: AppText.label(11)),
             const SizedBox(height: Spacing.sm),
-            _SettingsCard(
-              title: currentName,
-              subtitle: currentEmail.isEmpty ? null : currentEmail,
-              trailing: TextButton(
-                onPressed: () async {
-                  final confirmed = await BrandedSheet.confirm(
-                    context,
-                    title: 'Log out?',
-                    primaryLabel: 'Log out',
-                  );
-                  if (confirmed && context.mounted) {
-                    await AppState.of(context).auth.logout();
-                  }
-                },
-                child: Text('Sign out',
-                    style: AppText.body(13,
-                        weight: FontWeight.w700, color: BrandColors.accent)),
-              ),
+            // The scope doesn't notify on auth changes — listen here so a
+            // rename shows up immediately.
+            ListenableBuilder(
+              listenable: scope.auth,
+              builder: (context, _) {
+                final name = scope.auth.user?.displayName ?? currentName;
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _SettingsCard(
+                      title: name,
+                      subtitle: currentEmail.isEmpty ? null : currentEmail,
+                      trailing: TextButton(
+                        onPressed: () async {
+                          final confirmed = await BrandedSheet.confirm(
+                            context,
+                            title: 'Log out?',
+                            primaryLabel: 'Log out',
+                          );
+                          if (confirmed && context.mounted) {
+                            await AppState.of(context).auth.logout();
+                          }
+                        },
+                        child: Text('Sign out',
+                            style: AppText.body(13,
+                                weight: FontWeight.w700, color: BrandColors.accent)),
+                      ),
+                    ),
+                    const SizedBox(height: Spacing.sm),
+                    _SettingsCard(
+                      title: 'Display name',
+                      subtitle: '$name · shown to your league',
+                      trailing: _chevron(t),
+                      onTap: () async {
+                        final saved =
+                            await showDisplayNameSheet(context, scope.auth);
+                        if (saved && context.mounted) {
+                          BrandedToast.show(context, 'Name updated',
+                              tone: ToastTone.ok);
+                        }
+                      },
+                    ),
+                  ],
+                );
+              },
             ),
             const SizedBox(height: Spacing.sm),
             _SettingsCard(

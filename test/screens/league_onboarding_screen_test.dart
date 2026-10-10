@@ -29,6 +29,13 @@ class _FakeApi implements ApiClient {
     return createReply!;
   }
   @override Future<MeResult> me() async => meReply!;
+  final renamedTo = <String>[];
+  @override Future<User> patchMe({String? displayName, String? avatar}) async {
+    renamedTo.add(displayName!);
+    final u = User(id: 'u1', email: 'a@b.com', displayName: displayName, createdAt: DateTime.utc(2026,1,1));
+    meReply = MeResult(user: u, leagues: const []);
+    return u;
+  }
   @override noSuchMethod(Invocation i) => super.noSuchMethod(i);
 }
 
@@ -90,5 +97,50 @@ void main() {
     await tester.tap(find.byKey(const Key('onboarding.joinSubmit')));
     await tester.pumpAndSettle();
     expect(find.text('Unknown join code.'), findsOneWidget);
+  });
+
+  testWidgets('a display-name clash on join offers a rename right there', (tester) async {
+    final api = _FakeApi()
+      ..joinError = const ConflictException(
+          'Another member of this league already uses that display name — change yours first.');
+    final auth = AuthController(storage: InMemoryTokenStorage())..api = api;
+    auth.applyTestState(
+      user: User(id: 'u1', email: 'a@b.com', displayName: 'Anton', createdAt: DateTime.utc(2026,1,1)),
+      token: 'tok',
+      leagues: const [],
+    );
+    await tester.pumpWidget(MaterialApp(home: LeagueOnboardingScreen(auth: auth)));
+    await tester.enterText(find.byKey(const Key('onboarding.joinCode')), 'tipp-2026');
+    await tester.tap(find.byKey(const Key('onboarding.joinSubmit')));
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(find.text('CHANGE NAME'));
+    await tester.tap(find.text('CHANGE NAME'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.widgetWithText(TextField, 'Anton'), 'Anton R');
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+
+    expect(api.renamedTo, ['Anton R']);
+    expect(auth.user!.displayName, 'Anton R');
+    // The stale clash message is gone; the user can retry the join.
+    expect(find.textContaining('already uses that display name'), findsNothing);
+  });
+
+  testWidgets('other join conflicts do not offer a rename', (tester) async {
+    final api = _FakeApi()..joinError = const ConflictException('Already a member');
+    final auth = AuthController(storage: InMemoryTokenStorage())..api = api;
+    auth.applyTestState(
+      user: User(id: 'u1', email: 'a@b.com', displayName: 'Anton', createdAt: DateTime.utc(2026,1,1)),
+      token: 'tok',
+      leagues: const [],
+    );
+    await tester.pumpWidget(MaterialApp(home: LeagueOnboardingScreen(auth: auth)));
+    await tester.enterText(find.byKey(const Key('onboarding.joinCode')), 'tipp-2026');
+    await tester.tap(find.byKey(const Key('onboarding.joinSubmit')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Already a member'), findsOneWidget);
+    expect(find.text('CHANGE NAME'), findsNothing);
   });
 }

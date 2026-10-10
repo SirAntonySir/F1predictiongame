@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../api/api_client.dart';
+import '../components/display_name_sheet.dart';
 import '../components/app_card.dart';
 import '../components/big_pill.dart';
 import '../components/branded_field.dart';
@@ -32,6 +33,9 @@ class _LeagueOnboardingScreenState extends State<LeagueOnboardingScreen> {
   final _createName = TextEditingController();
   final _createPassword = TextEditingController();
   String? _joinError;
+  /// The join failed because a member already uses this display name — the
+  /// join card then offers a rename in place (there's no Settings yet).
+  bool _nameClash = false;
   String? _createError;
   bool _busy = false;
 
@@ -54,6 +58,7 @@ class _LeagueOnboardingScreenState extends State<LeagueOnboardingScreen> {
     setState(() {
       _busy = true;
       _joinError = null;
+      _nameClash = false;
     });
     try {
       await widget.auth.api.joinLeague(
@@ -68,11 +73,26 @@ class _LeagueOnboardingScreenState extends State<LeagueOnboardingScreen> {
       // so the auth session isn't wiped; surface the message verbatim.
       setState(() => _joinError = e.message);
     } on ConflictException catch (e) {
-      setState(() => _joinError = e.message);
+      setState(() {
+        _joinError = e.message;
+        // Matches the join route's clash message (backend leagues.ts); the
+        // other join conflicts ("Already a member", …) don't call for one.
+        _nameClash = e.message.contains('display name');
+      });
     } catch (_) {
       setState(() => _joinError = "Couldn't reach the server");
     } finally {
       if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _rename() async {
+    final saved = await showDisplayNameSheet(context, widget.auth);
+    if (saved && mounted) {
+      setState(() {
+        _joinError = null;
+        _nameClash = false;
+      });
     }
   }
 
@@ -140,6 +160,7 @@ class _LeagueOnboardingScreenState extends State<LeagueOnboardingScreen> {
                   error: _joinError,
                   busy: _busy,
                   onSubmit: _join,
+                  onRename: _nameClash && !_busy ? _rename : null,
                 );
                 final create = _CreateCard(
                   name: _createName,
@@ -252,12 +273,15 @@ class _JoinCard extends StatelessWidget {
   final String? error;
   final bool busy;
   final VoidCallback onSubmit;
+  /// Set when [error] is a display-name clash.
+  final VoidCallback? onRename;
   const _JoinCard({
     required this.code,
     required this.password,
     required this.error,
     required this.busy,
     required this.onSubmit,
+    this.onRename,
   });
 
   static const _bg = Color(0xFFFFF1B8);
@@ -317,6 +341,19 @@ class _JoinCard extends StatelessWidget {
                     style: AppText.body(12,
                         color: BrandColors.accent,
                         weight: FontWeight.w700)),
+                if (onRename != null)
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton(
+                      onPressed: onRename,
+                      style: TextButton.styleFrom(
+                          foregroundColor: Colors.black,
+                          padding: EdgeInsets.zero,
+                          minimumSize: const Size(0, 44)),
+                      child: Text('CHANGE NAME',
+                          style: AppText.label(12, color: Colors.black)),
+                    ),
+                  ),
               ],
               const SizedBox(height: Spacing.lg),
               BigPill(

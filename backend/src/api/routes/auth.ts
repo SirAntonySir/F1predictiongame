@@ -4,6 +4,7 @@ import { ApiError } from '../errors.js'
 import * as usersRepo from '../../repo/users.js'
 import * as sessionsRepo from '../../repo/appSessions.js'
 import * as leaguesRepo from '../../repo/leagues.js'
+import * as membersRepo from '../../repo/leagueMembers.js'
 import { hashPassword, verifyPassword } from '../../auth/password.js'
 import { generateToken, hashToken } from '../../auth/tokens.js'
 import { getCurrentUser, registerAuthHook } from '../auth-context.js'
@@ -115,6 +116,17 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
     const body = parse(patchMeBody, req.body)
     let user = u
     if (body.displayName !== undefined) {
+      // Same rule as joining: no two members of a league share a display name
+      // (case-insensitive), or standings and gossip become ambiguous.
+      const wanted = body.displayName.trim().toLowerCase()
+      for (const l of await leaguesRepo.listForUser(u.id)) {
+        const clash = (await membersRepo.listByLeague(l.id)).some(
+          (m) => m.userId !== u.id && m.displayName.trim().toLowerCase() === wanted
+        )
+        if (clash) {
+          throw new ApiError('CONFLICT', `Someone in ${l.name} already uses that name`)
+        }
+      }
       user = await usersRepo.updateDisplayName(u.id, body.displayName)
     }
     if (body.avatar !== undefined) {

@@ -117,6 +117,31 @@ describe('PATCH /api/auth/me', () => {
     expect(res.json().user.displayName).toBe('New')
   })
 
+  it('rejects a name another member of your league already uses (409), case-insensitively', async () => {
+    const a = await app()
+    const owner = (await signup(a, 'o@x.com', 'hunter22', 'Anton')).json().token
+    const mate = (await signup(a, 'm@x.com', 'hunter22', 'Lukas')).json().token
+    const lc = await a.inject({
+      method: 'POST', url: '/api/leagues',
+      headers: { authorization: `Bearer ${owner}` }, payload: { name: 'L' }
+    })
+    await a.inject({
+      method: 'POST', url: '/api/leagues/join',
+      headers: { authorization: `Bearer ${mate}` }, payload: { joinCode: lc.json().league.joinCode }
+    })
+    const clash = await a.inject({
+      method: 'PATCH', url: '/api/auth/me',
+      headers: { authorization: `Bearer ${mate}` }, payload: { displayName: ' anton ' }
+    })
+    expect(clash.statusCode).toBe(409)
+    // Re-casing your own name isn't a clash.
+    const own = await a.inject({
+      method: 'PATCH', url: '/api/auth/me',
+      headers: { authorization: `Bearer ${owner}` }, payload: { displayName: 'ANTON' }
+    })
+    expect(own.statusCode).toBe(200)
+  })
+
   it('sets the avatar config and returns it, and /me echoes it', async () => {
     const a = await app()
     const s = await signup(a, 'av@x.com')
