@@ -10,6 +10,7 @@ import 'ticket_rohling.dart';
 import 'ticket_session_badge.dart';
 import 'ticket_stub.dart';
 import 'ticket_style.dart';
+import 'ticket_title.dart';
 
 /// Event-keyed fallback car silhouettes — used when no [p1ConstructorId] is
 /// known yet (pre-pick). Different events get different shapes so a wall of
@@ -100,7 +101,8 @@ class PickTicket extends StatelessWidget {
     final style = styleOverride ?? styleForEvent(event);
     final scored = scorePoints != null;
     final sessionLabel = ticketSessionLabel(sessionType);
-    final hasScript = tokensFor(style).scriptAccent != null;
+    final title = ticketTitle(event.name,
+        hasScript: tokensFor(style).scriptAccent != null);
     final right = <String>[
       if (playerName != null && playerName!.isNotEmpty)
         playerName!.toUpperCase(),
@@ -113,8 +115,8 @@ class PickTicket extends StatelessWidget {
       metaLeft:
           'RD ${event.round.toString().padLeft(2, '0')} · ${event.name.toUpperCase()}',
       metaRight: right.isEmpty ? null : right,
-      title: event.name.toUpperCase(),
-      scriptAccent: hasScript ? 'Grand Prix' : null,
+      title: title.title,
+      scriptAccent: title.script,
       subtitle: event.circuitName.toUpperCase(),
       // Illustration resolution (in priority order):
       //   1. Caller-supplied [illustration] (dev preview, tests, future

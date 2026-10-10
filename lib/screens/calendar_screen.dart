@@ -668,6 +668,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
                           event: souvenirs[i].event,
                           driverCodes: souvenirs[i].picks,
                           scorePoints: souvenirs[i].score,
+                          provisional: souvenirs[i].session.status ==
+                              SessionStatus.scheduled,
                           correctSlots: souvenirs[i].correctSlots,
                           sessionType: souvenirs[i].session.type,
                           // Keep the wallet's tap-to-focus stack interaction —

@@ -11,6 +11,7 @@ import 'ticket_rohling.dart';
 import 'ticket_session_badge.dart';
 import 'ticket_stub.dart';
 import 'ticket_style.dart';
+import 'ticket_title.dart';
 
 /// Shareable souvenir ticket. More decorated than [PickTicket]: always uses
 /// the crossed-flags ornament regardless of preset, shows a qualitative grade
@@ -24,7 +25,12 @@ class SouvenirTicket extends StatelessWidget {
   final Alignment? illustrationAlignment;
   final double? illustrationScale;
   final Widget? circuitWatermark;
-  final int scorePoints;
+  /// Backend score for the session; null while it hasn't been scored yet —
+  /// the ticket then reads "—" / SCORING… instead of a guessed number.
+  final int? scorePoints;
+  /// Scored from live timing, official classification still pending. Such a
+  /// score can still move (penalties), so the ticket isn't stamped SEALED.
+  final bool provisional;
   final TicketStyle? styleOverride;
   /// When set, a colored diagonal sash badge appears on the top-right corner
   /// flagging the session type (RACE / QUALI / SPRINT…). See [PickTicket].
@@ -48,6 +54,7 @@ class SouvenirTicket extends StatelessWidget {
     required this.event,
     required this.driverCodes,
     required this.scorePoints,
+    this.provisional = false,
     this.p1ConstructorId,
     this.illustration,
     this.illustrationAlignment,
@@ -65,21 +72,17 @@ class SouvenirTicket extends StatelessWidget {
   Widget build(BuildContext context) {
     final style = styleOverride ?? styleForEvent(event);
     final sessionLabel = ticketSessionLabel(sessionType);
-    // Variants with a [scriptAccent] style render "Grand Prix" as italic
-    // script under the title; everyone else keeps the plain " GP" suffix
-    // baked into the title for back-compat with the original three paper
-    // variants.
-    final hasScript = tokensFor(style).scriptAccent != null;
-    final title = hasScript
-        ? event.name.toUpperCase()
-        : '${event.name.toUpperCase()} GP';
+    final title = ticketTitle(event.name,
+        hasScript: tokensFor(style).scriptAccent != null);
     return TicketRohling(
       style: style,
       edgeSerial: 'PICK ${event.round.toString().padLeft(2, '0')} · ${event.name.toUpperCase()}',
       metaLeft: 'RD ${event.round.toString().padLeft(2, '0')} · ${event.name.toUpperCase()}',
-      metaRight: 'SEALED',
-      title: title,
-      scriptAccent: hasScript ? 'Grand Prix' : null,
+      metaRight: scorePoints == null
+          ? 'SCORING…'
+          : (provisional ? 'PROVISIONAL' : 'SEALED'),
+      title: title.title,
+      scriptAccent: title.script,
       subtitle: event.circuitName.toUpperCase(),
       // Watermark resolution matches [PickTicket]: caller override →
       // variant's signature artwork (TicketStyleTokens.defaultIllustrationAsset)
@@ -107,7 +110,9 @@ class SouvenirTicket extends StatelessWidget {
             value: driverCodes[i],
             marked: correctSlots.contains(i),
           ),
-        TicketDataCell(label: 'POINTS', value: '+$scorePoints'),
+        TicketDataCell(
+            label: 'POINTS',
+            value: scorePoints == null ? '—' : '+$scorePoints'),
       ],
       stub: TicketStub.serialCode('PICK · ${event.round}'),
       onTap: tapOpensMenu ? () => _showActions(context) : onTap,
@@ -139,6 +144,7 @@ class SouvenirTicket extends StatelessWidget {
       event: event,
       driverCodes: driverCodes,
       scorePoints: scorePoints,
+      provisional: provisional,
       p1ConstructorId: p1ConstructorId,
       illustration: illustration,
       illustrationAlignment: illustrationAlignment,
@@ -152,7 +158,12 @@ class SouvenirTicket extends StatelessWidget {
     shareBrandedTicket(
       context: context,
       ticket: clone,
-      shareText: 'My F1 souvenir · ${event.name} · +$scorePoints',
+      shareText: [
+        'My F1 souvenir',
+        event.name,
+        if (ticketSessionLabel(sessionType) case final label?) label,
+        if (scorePoints != null) '+$scorePoints',
+      ].join(' · '),
       fileName: 'undercut-souvenir-${event.name.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '-')}.png',
     );
   }

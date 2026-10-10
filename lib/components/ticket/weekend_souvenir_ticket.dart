@@ -10,6 +10,7 @@ import 'ticket_capture.dart';
 import 'ticket_rohling.dart';
 import 'ticket_stub.dart';
 import 'ticket_style.dart';
+import 'ticket_title.dart';
 
 /// A full-weekend souvenir: the same branded shell as [SouvenirTicket] but the
 /// data row summarises each scored session's points (Q +8 · RACE +10) plus a
@@ -53,10 +54,8 @@ class WeekendSouvenirTicket extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final style = styleForEvent(event);
-    final hasScript = tokensFor(style).scriptAccent != null;
-    final title = hasScript
-        ? event.name.toUpperCase()
-        : '${event.name.toUpperCase()} GP';
+    final title = ticketTitle(event.name,
+        hasScript: tokensFor(style).scriptAccent != null);
     return TicketRohling(
       style: style,
       edgeSerial:
@@ -64,8 +63,8 @@ class WeekendSouvenirTicket extends StatelessWidget {
       metaLeft:
           'RD ${event.round.toString().padLeft(2, '0')} · ${event.name.toUpperCase()}',
       metaRight: 'SEALED',
-      title: title,
-      scriptAccent: hasScript ? 'Grand Prix' : null,
+      title: title.title,
+      scriptAccent: title.script,
       subtitle: event.circuitName.toUpperCase(),
       illustration: SvgPicture.asset(
         tokensFor(style).defaultIllustrationAsset ??

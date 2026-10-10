@@ -832,11 +832,9 @@ class _HomeScreenState extends State<HomeScreen> {
     final picks =
         pred?.picks.map((p) => p.driverCode).toList() ?? const <String>[];
     // Backend's authoritative score (includes team bonus + DNF logic). Null
-    // until the session is scored — souvenir then reads as +0 / OFF-PACE
-    // until the scorer catches up, which is what you'd expect right after
-    // the chequered flag too.
-    final score =
-        scope.predictions.score(lastSession.id)?.pointsTotal ?? 0;
+    // until the session is scored — the souvenir then reads SCORING… until
+    // the scorer catches up.
+    final int? score = scope.predictions.score(lastSession.id)?.pointsTotal;
     String? p1ConstructorId;
     if (picks.isNotEmpty) {
       for (final r in d.lastResult) {

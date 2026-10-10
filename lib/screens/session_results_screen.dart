@@ -599,20 +599,16 @@ class _Body extends StatelessWidget {
 
   int get _topN => requiredPicks(session.type);
 
-  int _score() {
-    // Prefer the backend's authoritative score; fall back to local calculation
-    // when the backend hasn't scored this session yet (results just landed,
-    // rescore not run, etc.).
-    final backend = payload.backendScore;
-    if (backend != null) return backend;
-    return scoreSession(session.type, payload.picks, payload.result);
-  }
-
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
     final topN = _topN;
-    final score = _score();
+    // Backend score only — until it exists (results just landed, rescore
+    // pending) the ticket reads SCORING… rather than a client guess.
+    final score = payload.backendScore;
+    // Results are in but the session isn't official yet (live-timing order).
+    final provisional =
+        session.status == SessionStatus.scheduled && payload.result.isNotEmpty;
 
     // Practice sessions are view-only and have no picks → skip the score /
     // upcoming-session tickets entirely and let the classification stand
@@ -640,6 +636,7 @@ class _Body extends StatelessWidget {
               picks: payload.picks,
               classification: payload.result,
               score: score,
+              provisional: provisional,
             ),
           ),
         ] else if (payload.result.isEmpty) ...[
@@ -1040,13 +1037,15 @@ class _YourScoreTicket extends StatelessWidget {
   final SessionType sessionType;
   final List<String> picks;
   final List<SessionResult> classification;
-  final int score;
+  final int? score;
+  final bool provisional;
   const _YourScoreTicket({
     required this.event,
     required this.sessionType,
     required this.picks,
     required this.classification,
     required this.score,
+    required this.provisional,
   });
 
   @override
@@ -1078,6 +1077,7 @@ class _YourScoreTicket extends StatelessWidget {
       p1ConstructorId: p1ConstructorId,
       circuitWatermark: CircuitSvg(event: event),
       scorePoints: score,
+      provisional: provisional,
       sessionType: sessionType,
     );
   }
@@ -1257,7 +1257,9 @@ class LiveResultsBody extends StatelessWidget {
           sessionType: sessionType,
           picks: myPicks,
           classification: snap.order,
-          score: myPts ?? 0,
+          // Projected from live timing — never sealed while it's running.
+          score: myPts,
+          provisional: true,
         ),
       ),
       Padding(
